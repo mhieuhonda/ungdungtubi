@@ -22,10 +22,11 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.3 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.4 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("📡 Server: {}", bind_addr);
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
+    log::info!("📦 Phiên bản: v0.4 — Giai đoạn 4: Hồ sơ thành viên & Hệ thống cấp bậc");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -69,7 +70,7 @@ async fn main() -> std::io::Result<()> {
             .service(fs::Files::new("/static", "src/static"))
             // Routes — Trang chủ
             .route("/", web::get().to(handlers::home))
-            // Routes — Auth (Google OAuth)
+            // Routes — Auth (Google OAuth là phương thức đăng nhập duy nhất)
             .route("/dang-nhap", web::get().to(handlers::login_page))
             // /dang-nhap cũng nhận POST để tương thích với các form cũ (chuyển hướng sang Google)
             .route("/dang-nhap", web::post().to(handlers::auth::google_login))
@@ -90,7 +91,9 @@ async fn main() -> std::io::Result<()> {
             .route("/quy-tu-bi", web::get().to(handlers::quy_tu_bi))
             .route("/thuong-thanh", web::get().to(handlers::thuong_thanh))
             .route("/bang-xep-hang", web::get().to(handlers::bang_xep_hang))
+            // Routes — Hồ sơ cá nhân (Giai đoạn 4 / v0.4)
             .route("/ca-nhan", web::get().to(handlers::ca_nhan))
+            .route("/ca-nhan/cap-nhat", web::post().to(handlers::cap_nhat_ho_so))
             // API
             .route("/api/health", web::get().to(health_check))
             .route("/api/heartbeat", web::post().to(handlers::heartbeat))
@@ -103,9 +106,11 @@ async fn main() -> std::io::Result<()> {
 async fn health_check() -> actix_web::HttpResponse {
     actix_web::HttpResponse::Ok().json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
+        "phase": 4,
+        "phase_name": "Hồ sơ thành viên & Hệ thống cấp bậc",
         "status": "running",
         "message": "Nguyện công đức vô lượng. Nam Mô A Di Đà Phật."
     }))

@@ -6,6 +6,12 @@ use sqlx::PgPool;
 use crate::config::Config;
 use crate::models::user::{GoogleUserInfo, User};
 
+/// Danh sách cột users đầy đủ (đồng bộ với handlers::USER_COLUMNS và model User).
+const USER_COLUMNS: &str = "id, email, display_name, password_hash, rank, \
+    a_balance, k_balance, is_active, created_at, updated_at, \
+    google_sub, avatar_url, email_verified, \
+    phap_danh, phap_hieu, but_danh, gender, bio";
+
 /// Tên cookie lưu OAuth state (chống CSRF).
 const OAUTH_STATE_COOKIE: &str = "oauth_state";
 /// Tên cookie lưu đường dẫn quay lại sau khi đăng nhập.
@@ -352,52 +358,53 @@ async fn upsert_google_user(
     pool: &PgPool,
     info: &GoogleUserInfo,
 ) -> Result<User, sqlx::Error> {
+    let select_sql = format!("SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1");
+
     // 1. Tìm theo google_sub.
-    if let Some(u) = sqlx::query_as::<_, User>(
-        "SELECT id, email, display_name, password_hash, rank, a_balance, k_balance, is_active, created_at, updated_at, google_sub, avatar_url, email_verified
-         FROM users WHERE google_sub = $1",
-    )
-    .bind(&info.sub)
-    .fetch_optional(pool)
-    .await?
+    if let Some(u) = sqlx::query_as::<_, User>(&select_sql)
+        .bind(&info.sub)
+        .fetch_optional(pool)
+        .await?
     {
         return Ok(u);
     }
 
     // 2. Nếu chưa có — tìm theo email (tài khoản cũ email/password).
     //    Nếu có, link google_sub + avatar_url vào.
-    let linked = sqlx::query_as::<_, User>(
+    let link_sql = format!(
         "UPDATE users
          SET google_sub = $1,
              avatar_url = COALESCE($2, avatar_url),
              email_verified = $3,
              updated_at = NOW()
          WHERE email = $4 AND google_sub IS NULL
-         RETURNING id, email, display_name, password_hash, rank, a_balance, k_balance, is_active, created_at, updated_at, google_sub, avatar_url, email_verified",
-    )
-    .bind(&info.sub)
-    .bind(&info.picture)
-    .bind(info.email_verified)
-    .bind(&info.email)
-    .fetch_optional(pool)
-    .await?;
+         RETURNING {USER_COLUMNS}"
+    );
+    let linked = sqlx::query_as::<_, User>(&link_sql)
+        .bind(&info.sub)
+        .bind(&info.picture)
+        .bind(info.email_verified)
+        .bind(&info.email)
+        .fetch_optional(pool)
+        .await?;
     if let Some(u) = linked {
         return Ok(u);
     }
 
     // 3. Tạo user mới.
-    let u = sqlx::query_as::<_, User>(
-        "INSERT INTO users (email, display_name, password_hash, rank, a_balance, k_balance, is_active, google_sub, avatar_url, email_verified)
-         VALUES ($1, $2, NULL, 'new', 0, 0, true, $3, $4, $5)
-         RETURNING id, email, display_name, password_hash, rank, a_balance, k_balance, is_active, created_at, updated_at, google_sub, avatar_url, email_verified",
-    )
-    .bind(&info.email)
-    .bind(&info.name)
-    .bind(&info.sub)
-    .bind(&info.picture)
-    .bind(info.email_verified)
-    .fetch_one(pool)
-    .await?;
+    let insert_sql = format!(
+        "INSERT INTO users (email, display_name, password_hash, rank, a_balance, k_balance, is_active, google_sub, avatar_url, email_verified, gender)
+         VALUES ($1, $2, NULL, 'new', 0, 0, true, $3, $4, $5, 'other')
+         RETURNING {USER_COLUMNS}"
+    );
+    let u = sqlx::query_as::<_, User>(&insert_sql)
+        .bind(&info.email)
+        .bind(&info.name)
+        .bind(&info.sub)
+        .bind(&info.picture)
+        .bind(info.email_verified)
+        .fetch_one(pool)
+        .await?;
     Ok(u)
 }
 

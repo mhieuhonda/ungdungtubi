@@ -98,8 +98,8 @@
                             {{ u.display_name.chars().next().unwrap_or('🪷') }}
                         </span>
                         {% endif %}
-                        <span class="text-tubi-100 text-sm">
-                            🪷 {{ u.display_name }}
+                        <span class="text-tubi-100 text-sm" title="{{ u.rank_display() }}">
+                            {{ u.rank_icon() }} {{ u.display_name }}
                         </span>
                         <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">
                             Hồ sơ
@@ -109,7 +109,7 @@
                         </a>
                     </div>
                     {% else %}
-                    <a href="/dang-nhap" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                    <a href="/auth/google" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
                         🪷 Đăng Nhập Bằng Google
                     </a>
                     {% endif %}
@@ -127,7 +127,7 @@
         </div>
         
         <!-- Mobile Menu -->
-        <div x-show="mobileMenu" x-transition 
+        <div x-show="mobileMenu" x-transition
              class="md:hidden bg-tubi-900 border-t border-tubi-700">
             <div class="px-4 py-3 space-y-2">
                 <a href="/" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
@@ -136,7 +136,12 @@
                 <a href="/kinh-sach" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📚 Kinh Sách</a>
                 {% if user.is_none() %}
                 <div class="pt-2 border-t border-tubi-700">
-                    <a href="/dang-nhap" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>
+                    <a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>
+                </div>
+                {% else %}
+                <div class="pt-2 border-t border-tubi-700">
+                    <a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Hồ sơ cá nhân</a>
+                    <a href="/dang-xuat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🚪 Thoát</a>
                 </div>
                 {% endif %}
             </div>
@@ -219,7 +224,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.4 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

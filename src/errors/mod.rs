@@ -1,5 +1,9 @@
+#![allow(dead_code)]
+
 use actix_web::{HttpResponse, ResponseError};
 use std::fmt;
+
+// AppError enum reserved for future phases (currently using HttpResponse directly)
 
 #[derive(Debug)]
 pub enum AppError {

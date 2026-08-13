@@ -1,27 +1,35 @@
 pub mod auth;
 
-use actix_web::{HttpRequest, Responder};
+use actix_web::{web, HttpRequest, Responder};
 use askama::Template;
 use sqlx::PgPool;
 
-use crate::models::user::User;
+use crate::models::user::{MemberRank, ProfileUpdate, User};
+
+/// Danh sách cột users đầy đủ (đồng bộ với model User).
+/// Tránh drift khi SELECT * — luôn liệt kê rõ ràng các cột.
+const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
+    u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, \
+    u.google_sub, u.avatar_url, u.email_verified, \
+    u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio";
 
 /// Helper: Extract authenticated user from session cookie.
 async fn get_user_from_session(pool: &PgPool, req: &HttpRequest) -> Option<User> {
     let cookie = req.cookie("session_id")?;
     let session_id = cookie.value();
 
-    sqlx::query_as::<_, User>(
-        "SELECT u.id, u.email, u.display_name, u.password_hash, u.rank, u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, u.google_sub, u.avatar_url, u.email_verified
+    let sql = format!(
+        "SELECT {USER_COLUMNS}
          FROM users u
          JOIN sessions s ON s.user_id = u.id
-         WHERE s.id = $1 AND s.expires_at > NOW() AND u.is_active = true",
-    )
-    .bind(session_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten()
+         WHERE s.id = $1 AND s.expires_at > NOW() AND u.is_active = true"
+    );
+    sqlx::query_as::<_, User>(&sql)
+        .bind(session_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
 }
 
 // --- Template Structs ---
@@ -39,6 +47,16 @@ pub struct LoginTemplate {
     pub user: Option<User>,
     pub active_page: String,
     pub error: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "profile.html")]
+pub struct ProfileTemplate {
+    pub user: Option<User>,
+    pub active_page: String,
+    pub ranks: Vec<MemberRank>,
+    pub error: Option<String>,
+    pub success: Option<String>,
 }
 
 // --- Page Handlers ---
@@ -81,6 +99,190 @@ pub async fn login_page(
         .body(html)
 }
 
+/// GET /ca-nhan — Trang hồ sơ cá nhân + form chỉnh sửa.
+pub async fn ca_nhan(
+    req: HttpRequest,
+    pool: actix_web::web::Data<PgPool>,
+) -> impl Responder {
+    let user = get_user_from_session(pool.get_ref(), &req).await;
+
+    // Lấy danh sách cấp bậc để hiển thị прогресс.
+    let ranks = sqlx::query_as::<_, MemberRank>(
+        "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
+         FROM member_ranks ORDER BY sort_order ASC"
+    )
+    .fetch_all(pool.get_ref())
+    .await
+    .unwrap_or_default();
+
+    let html = ProfileTemplate {
+        user,
+        active_page: "profile".into(),
+        ranks,
+        error: None,
+        success: None,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (profile): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    actix_web::HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
+}
+
+/// POST /ca-nhan/cap-nhat — Cập nhật hồ sơ cá nhân.
+///
+/// Chỉ cho phép cập nhật các trường:
+/// display_name, phap_danh, phap_hieu, but_danh, gender, bio.
+/// Không cho phép chỉnh email, rank, số dư A/K, is_active.
+pub async fn cap_nhat_ho_so(
+    req: HttpRequest,
+    pool: actix_web::web::Data<PgPool>,
+    form: web::Form<ProfileUpdate>,
+) -> impl Responder {
+    let user = match get_user_from_session(pool.get_ref(), &req).await {
+        Some(u) => u,
+        None => {
+            return actix_web::HttpResponse::Found()
+                .append_header(("Location", "/dang-nhap"))
+                .finish();
+        }
+    };
+
+    // Validate
+    let display_name = form.display_name.trim().to_string();
+    if display_name.is_empty() || display_name.chars().count() > 100 {
+        return render_profile_error(
+            pool.get_ref(),
+            Some(user),
+            "Tên hiển thị không được để trống và tối đa 100 ký tự.",
+        )
+        .await;
+    }
+
+    let gender = form.gender.trim().to_string();
+    if !matches!(gender.as_str(), "male" | "female" | "other") {
+        return render_profile_error(
+            pool.get_ref(),
+            Some(user),
+            "Giới tính không hợp lệ.",
+        )
+        .await;
+    }
+
+    // Chuẩn hoá các trường tùy chọn (None nếu rỗng).
+    let phap_danh = normalize_optional(&form.phap_danh);
+    let phap_hieu = normalize_optional(&form.phap_hieu);
+    let but_danh = normalize_optional(&form.but_danh);
+    let bio = normalize_optional(&form.bio);
+
+    // Cập nhật DB
+    let update_sql = format!(
+        "UPDATE users
+         SET display_name = $1,
+             phap_danh    = $2,
+             phap_hieu    = $3,
+             but_danh     = $4,
+             gender       = $5,
+             bio          = $6,
+             updated_at   = NOW()
+         WHERE id = $7
+         RETURNING {USER_COLUMNS}",
+        USER_COLUMNS = USER_COLUMNS.replace("u.", "")
+    );
+
+    match sqlx::query_as::<_, User>(&update_sql)
+        .bind(&display_name)
+        .bind(&phap_danh)
+        .bind(&phap_hieu)
+        .bind(&but_danh)
+        .bind(&gender)
+        .bind(&bio)
+        .bind(user.id)
+        .fetch_one(pool.get_ref())
+        .await
+    {
+        Ok(updated_user) => {
+            // Reload ranks để render trang hồ sơ
+            let ranks = sqlx::query_as::<_, MemberRank>(
+                "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
+                 FROM member_ranks ORDER BY sort_order ASC"
+            )
+            .fetch_all(pool.get_ref())
+            .await
+            .unwrap_or_default();
+
+            let html = ProfileTemplate {
+                user: Some(updated_user),
+                active_page: "profile".into(),
+                ranks,
+                error: None,
+                success: Some("Hồ sơ đã được cập nhật. Nguyện công đức vô lượng.".into()),
+            }
+            .render()
+            .unwrap_or_else(|e| {
+                log::error!("Template render error (profile after update): {e}");
+                format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+            });
+
+            actix_web::HttpResponse::Ok()
+                .content_type("text/html; charset=utf-8")
+                .body(html)
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi cập nhật hồ sơ: {e}");
+            render_profile_error(
+                pool.get_ref(),
+                Some(user),
+                "Không thể cập nhật hồ sơ. Vui lòng thử lại.",
+            )
+            .await
+        }
+    }
+}
+
+/// Helper: Render trang profile với thông báo lỗi.
+async fn render_profile_error(
+    pool: &PgPool,
+    user: Option<User>,
+    error: &str,
+) -> actix_web::HttpResponse {
+    let ranks = sqlx::query_as::<_, MemberRank>(
+        "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
+         FROM member_ranks ORDER BY sort_order ASC"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let html = ProfileTemplate {
+        user,
+        active_page: "profile".into(),
+        ranks,
+        error: Some(error.into()),
+        success: None,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (profile error): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    actix_web::HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(html)
+}
+
+/// Helper: Chuẩn hoá chuỗi tuỳ chọn (None nếu rỗng hoặc chỉ whitespace).
+fn normalize_optional(s: &Option<String>) -> Option<String> {
+    s.as_deref()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 // --- Placeholder Section Handlers (Vietnamese) ---
 //
 // Các trang dưới đây dùng chung một helper `placeholder_page` để giữ
@@ -88,7 +290,7 @@ pub async fn login_page(
 
 pub async fn khong_gian(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
     let user = get_user_from_session(pool.get_ref(), &req).await;
-    placeholder_page(user, "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 4")
+    placeholder_page(user, "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 5")
 }
 
 pub async fn cong_dong(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
@@ -121,11 +323,6 @@ pub async fn bang_xep_hang(req: HttpRequest, pool: actix_web::web::Data<PgPool>)
     placeholder_page(user, "", "Bảng Xếp Hạng", "🏆", "Thành tích niệm Phật, tài Phú K, niệm lực A, phiếu Từ Bi", "Giai đoạn 19")
 }
 
-pub async fn ca_nhan(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
-    placeholder_page(user, "", "Hồ Sơ Cá Nhân", "👤", "Chỉnh sửa hồ sơ, pháp danh, giới tính và cấp bậc", "Giai đoạn 3")
-}
-
 /// API: Heartbeat — keeps session alive (called every 5 min by client JS).
 pub async fn heartbeat() -> impl Responder {
     actix_web::HttpResponse::Ok().json(serde_json::json!({
@@ -144,7 +341,7 @@ fn placeholder_page(
     desc: &str,
     phase: &str,
 ) -> impl Responder {
-    // Build HTML inline bằng layout placeholder.html
+    // Build HTML inline — dùng template `placeholder.html`.
     let body = format!(
         r#"<section class="max-w-4xl mx-auto px-4 py-20 text-center">
     <span class="text-6xl">{icon}</span>
@@ -154,32 +351,9 @@ fn placeholder_page(
     <a href="/" class="inline-block bg-tubi-800 text-white px-6 py-2 rounded-xl hover:bg-tubi-900 transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </section>"#
     );
-    // Render layout với user/active_page/body — dùng askama inline không khả thi, nên
-    // ta render bằng tay theo layout.html.
-    let user_html = if let Some(u) = &user {
-        format!(
-            r#"<div class="flex items-center space-x-3">
-                <span class="text-tubi-100 text-sm">🪷 {name}</span>
-                <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">Hồ sơ</a>
-                <a href="/dang-xuat" class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors">Thoát</a>
-            </div>"#,
-            name = u.display_name
-        )
-    } else {
-        r#"<a href="/dang-nhap" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                🪷 Đăng Nhập Bằng Google
-            </a>"#
-            .to_string()
-    };
 
-    let mobile_user_html = if user.is_some() {
-        r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ</a>
-           <a href="/dang-xuat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Thoát</a>"#
-            .to_string()
-    } else {
-        r#"<a href="/dang-nhap" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#
-            .to_string()
-    };
+    let user_html = render_user_menu_html(&user);
+    let mobile_user_html = render_mobile_user_menu_html(&user);
 
     let nav_item = |href: &str, label: &str, emoji: &str, page: &str| -> String {
         let cls = if active_page == page {
@@ -316,7 +490,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.4 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -352,4 +526,53 @@ fn placeholder_page(
     actix_web::HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(html)
+}
+
+/// Helper: render HTML cho menu user ở header desktop.
+fn render_user_menu_html(user: &Option<User>) -> String {
+    if let Some(u) = user {
+        // Ưu tiên avatar Google, nếu không có thì chữ cái đầu tên hiển thị.
+        let avatar_html = if let Some(avatar) = &u.avatar_url {
+            format!(
+                r#"<img src="{avatar}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">"#
+            )
+        } else {
+            let first_char = u.display_name.chars().next().unwrap_or('🪷');
+            format!(
+                r#"<span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">{first_char}</span>"#
+            )
+        };
+        format!(
+            r#"<div class="flex items-center space-x-3">
+                {avatar_html}
+                <span class="text-tubi-100 text-sm" title="{rank_name}">
+                    {rank_icon} {name}
+                </span>
+                <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">Hồ sơ</a>
+                <a href="/dang-xuat" class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors">Thoát</a>
+            </div>"#,
+            avatar_html = avatar_html,
+            rank_name = u.rank_display(),
+            rank_icon = u.rank_icon(),
+            name = u.display_name
+        )
+    } else {
+        r#"<a href="/auth/google" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                🪷 Đăng Nhập Bằng Google
+            </a>"#
+            .to_string()
+    }
+}
+
+/// Helper: render HTML cho menu user ở mobile menu.
+fn render_mobile_user_menu_html(user: &Option<User>) -> String {
+    if let Some(u) = user {
+        let _ = u; // same content for both logged-in states
+        r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
+           <a href="/dang-xuat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Thoát</a>"#
+            .to_string()
+    } else {
+        r#"<a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#
+            .to_string()
+    }
 }

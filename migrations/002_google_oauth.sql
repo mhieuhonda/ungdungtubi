@@ -15,7 +15,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS google_sub VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
 
--- 3. google_sub là duy nhất — mỗi tài khoản Google chỉ映射 về 1 user
+-- 3. google_sub là duy nhất — mỗi tài khoản Google chỉ ánh xạ về 1 user
 ALTER TABLE users ADD CONSTRAINT uq_users_google_sub UNIQUE (google_sub);
 
 -- 4. Index tra cứu nhanh theo google_sub
