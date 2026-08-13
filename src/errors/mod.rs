@@ -7,6 +7,7 @@ pub enum AppError {
     NotFound(String),
     Unauthorized(String),
     BadRequest(String),
+    Forbidden(String),
     Internal(String),
 }
 
@@ -17,6 +18,7 @@ impl fmt::Display for AppError {
             AppError::NotFound(msg) => write!(f, "Không tìm thấy: {msg}"),
             AppError::Unauthorized(msg) => write!(f, "Chưa xác thực: {msg}"),
             AppError::BadRequest(msg) => write!(f, "Yêu cầu không hợp lệ: {msg}"),
+            AppError::Forbidden(msg) => write!(f, "Bị từ chối: {msg}"),
             AppError::Internal(msg) => write!(f, "Lỗi hệ thống: {msg}"),
         }
     }
@@ -35,6 +37,9 @@ impl ResponseError for AppError {
                 "error": self.to_string()
             })),
             AppError::BadRequest(_) => HttpResponse::BadRequest().json(serde_json::json!({
+                "error": self.to_string()
+            })),
+            AppError::Forbidden(_) => HttpResponse::Forbidden().json(serde_json::json!({
                 "error": self.to_string()
             })),
             AppError::Internal(_) => HttpResponse::InternalServerError().json(serde_json::json!({

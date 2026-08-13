@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
@@ -25,34 +25,24 @@ pub async fn register(
         }));
     }
 
-    // Check if email exists
-    let existing = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM users WHERE email = $1",
-    )
-    .bind(&form.email)
-    .fetch_one(pool.get_ref())
-    .await
-    .unwrap_or(0);
-
-    if existing > 0 {
-        return HttpResponse::Conflict().json(serde_json::json!({
-            "error": "Email đã được đăng ký"
-        }));
-    }
-
-    // Hash password
+    // Hash password — handle error gracefully instead of .unwrap()
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let password_hash = argon2
-        .hash_password(form.password.as_bytes(), &salt)
-        .unwrap()
-        .to_string();
+    let password_hash = match argon2.hash_password(form.password.as_bytes(), &salt) {
+        Ok(hash) => hash.to_string(),
+        Err(_) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Lỗi mã hóa mật khẩu. Vui lòng thử lại."
+            }));
+        }
+    };
 
-    // Insert user
+    // Insert user — use ON CONFLICT to handle race condition atomically
     let user_id = Uuid::new_v4();
     let result = sqlx::query(
         "INSERT INTO users (id, email, display_name, password_hash, rank, a_balance, k_balance, is_active) 
-         VALUES ($1, $2, $3, $4, 'new', 0, 0, true)",
+         VALUES ($1, $2, $3, $4, 'new', 0, 0, true)
+         ON CONFLICT (email) DO NOTHING",
     )
     .bind(user_id)
     .bind(&form.email)
@@ -62,10 +52,19 @@ pub async fn register(
     .await;
 
     match result {
-        Ok(_) => HttpResponse::Ok().json(serde_json::json!({
-            "success": true,
-            "message": "Đăng ký thành công! Chào mừng bạn đến với Ứng Dụng Từ Bi."
-        })),
+        Ok(r) => {
+            if r.rows_affected() == 0 {
+                // Email already exists (ON CONFLICT did nothing)
+                HttpResponse::Conflict().json(serde_json::json!({
+                    "error": "Email đã được đăng ký"
+                }))
+            } else {
+                HttpResponse::Ok().json(serde_json::json!({
+                    "success": true,
+                    "message": "Đăng ký thành công! Chào mừng bạn đến với Ứng Dụng Từ Bi."
+                }))
+            }
+        }
         Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
             "error": format!("Lỗi đăng ký: {e}")
         })),
@@ -87,8 +86,23 @@ pub async fn login(
 
     match user {
         Ok(Some(u)) => {
-            // Verify password
-            let parsed_hash = PasswordHash::new(&u.password_hash).unwrap();
+            // Check if account is active (banned/deactivated users cannot log in)
+            if !u.is_active {
+                return HttpResponse::Forbidden().json(serde_json::json!({
+                    "error": "Tài khoản đã bị vô hiệu hóa"
+                }));
+            }
+
+            // Verify password — handle corrupted hash gracefully
+            let parsed_hash = match PasswordHash::new(&u.password_hash) {
+                Ok(h) => h,
+                Err(_) => {
+                    return HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": "Lỗi hệ thống xác thực. Vui lòng liên hệ quản trị viên."
+                    }));
+                }
+            };
+
             if Argon2::default()
                 .verify_password(form.password.as_bytes(), &parsed_hash)
                 .is_ok()
@@ -136,7 +150,17 @@ pub async fn login(
     }
 }
 
-pub async fn logout() -> HttpResponse {
+pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest) -> HttpResponse {
+    // Delete session from database if cookie exists
+    if let Some(cookie) = req.cookie("session_id") {
+        let session_id = cookie.value();
+        let _ = sqlx::query("DELETE FROM sessions WHERE id = $1")
+            .bind(session_id)
+            .execute(pool.get_ref())
+            .await;
+    }
+
+    // Clear the client-side cookie
     HttpResponse::Ok()
         .cookie(
             actix_web::cookie::Cookie::build("session_id", "")

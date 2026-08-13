@@ -7,10 +7,15 @@ pub struct Config {
     pub port: u16,
     pub domain: String,
     pub secret_key: String,
+    pub is_production: bool,
 }
 
 impl Config {
     pub fn from_env() -> Self {
+        let is_production = env::var("APP_ENV")
+            .map(|v| v == "production")
+            .unwrap_or(false);
+
         Config {
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "postgres://tubi:tubi_password@localhost:5432/ungdungtubi".into()),
@@ -21,8 +26,14 @@ impl Config {
                 .unwrap_or(8080),
             domain: env::var("DOMAIN")
                 .unwrap_or_else(|_| "tubi.louis.vangioitutien.com".into()),
-            secret_key: env::var("SECRET_KEY")
-                .unwrap_or_else(|_| "ung-dung-tu-bi-secret-key".into()),
+            secret_key: env::var("SECRET_KEY").unwrap_or_else(|_| {
+                if is_production {
+                    panic!("SECRET_KEY must be set in production environment");
+                }
+                log::warn!("⚠️ Using default SECRET_KEY — NOT for production!");
+                "ung-dung-tu-bi-dev-secret-key".into()
+            }),
+            is_production,
         }
     }
 }

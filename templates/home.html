@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 
-{% block title %}Ung Dung Tu Bi — Khong Gian{% endblock %}
+{% block title %}Ứng Dụng Từ Bi — Không Gian{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
@@ -14,77 +14,94 @@
     <div class="relative max-w-7xl mx-auto px-4 py-20 md:py-32 text-center"
          x-data="{ show: false }" x-init="setTimeout(() => show = true, 100)">
         <!-- Lotus Animation -->
-        <div class="mb-8" x-show="show"
+        <div class="mb-8 x-transition" x-show="show"
              x-transition:enter="transition ease-out duration-700"
              x-transition:enter-start="opacity-0 transform scale-50"
              x-transition:enter-end="opacity-100 transform scale-100">
-            <div class="w-24 h-24 mx-auto bg-lotus/20 rounded-full flex items-center justify-center ring-4 ring-lotus/30 shadow-2xl animate-float">
-                <span class="text-5xl">&#x1fab7;</span>
+            <div class="w-24 h-24 mx-auto bg-lotus/20 rounded-full flex items-center justify-center 
+                        ring-4 ring-lotus/30 shadow-2xl animate-float">
+                <span class="text-5xl">🪷</span>
             </div>
         </div>
         
-        <h1 class="text-4xl md:text-6xl font-bold text-white mb-4"
+        <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 x-transition"
             x-show="show"
             x-transition:enter="transition ease-out duration-700 delay-200"
             x-transition:enter-start="opacity-0 transform translate-y-8"
             x-transition:enter-end="opacity-100 transform translate-y-0">
-            Ung Dung Tu Bi
+            Ứng Dụng Từ Bi
         </h1>
         
-        <p class="text-lg md:text-xl text-tubi-200 mb-2"
+        <p class="text-lg md:text-xl text-tubi-200 mb-2 x-transition"
            x-show="show"
            x-transition:enter="transition ease-out duration-700 delay-400"
            x-transition:enter-start="opacity-0"
            x-transition:enter-end="opacity-100">
-            San choi tu dao · Thu vien kinh sach · Giac ngo va giai thoat
+            Sân chơi tu đạo · Thư viện kinh sách · Giác ngộ và giải thoát
         </p>
         
-        <p class="text-tubi-300 mb-8 italic"
+        <p class="text-tubi-300 mb-8 italic x-transition"
            x-show="show"
            x-transition:enter="transition ease-out duration-700 delay-500"
            x-transition:enter-start="opacity-0"
            x-transition:enter-end="opacity-100">
-            "Sieu thoat khong sieu thich. Giai thoat khong giai thich."
+            "Siêu thoát không siêu thích. Giải thoát không giải thích."
         </p>
         
-        <div class="flex flex-col sm:flex-row gap-4 justify-center"
+        <div class="flex flex-col sm:flex-row gap-4 justify-center x-transition"
              x-show="show"
              x-transition:enter="transition ease-out duration-700 delay-700"
              x-transition:enter-start="opacity-0 transform translate-y-4"
              x-transition:enter-end="opacity-100 transform translate-y-0">
+            {% if user.is_none() %}
             <a href="/dang-ky" 
-               class="bg-lotus hover:bg-golden text-tubi-900 px-8 py-3 rounded-xl text-lg font-semibold transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105">
-                &#x1fab7; Bat Dau Hanh Trinh
+               class="bg-lotus hover:bg-golden text-tubi-900 px-8 py-3 rounded-xl text-lg font-semibold 
+                      transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105">
+                🪷 Bắt Đầu Hành Trình
             </a>
             <a href="/dang-nhap" 
-               class="border-2 border-tubi-400 text-tubi-100 hover:bg-tubi-700 px-8 py-3 rounded-xl text-lg transition-all duration-300">
-                Dang Nhap
+               class="border-2 border-tubi-400 text-tubi-100 hover:bg-tubi-700 px-8 py-3 rounded-xl text-lg 
+                      transition-all duration-300">
+                Đăng Nhập
             </a>
+            {% else %}
+            <a href="/khong-gian" 
+               class="bg-lotus hover:bg-golden text-tubi-900 px-8 py-3 rounded-xl text-lg font-semibold 
+                      transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105">
+                🌍 Vào Không Gian
+            </a>
+            <a href="/kinh-sach" 
+               class="border-2 border-tubi-400 text-tubi-100 hover:bg-tubi-700 px-8 py-3 rounded-xl text-lg 
+                      transition-all duration-300">
+                📚 Kinh Sách
+            </a>
+            {% endif %}
         </div>
     </div>
 </section>
 
-<!-- 4 Chuyen Muc -->
+<!-- 4 Chuyên Mục -->
 <section class="max-w-7xl mx-auto px-4 py-16">
     <h2 class="text-2xl md:text-3xl font-bold text-center mb-12 text-tubi-900">
-        &#x1fab7; Bon Chuyen Muc Chinh
+        🪷 Bốn Chuyên Mục Chính
     </h2>
     
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
          x-data="{ cards: [
-            { icon: &#x27;&#x1F30D;&#x27;, title: &#x27;Khong Gian&#x27;, desc: &#x27;Khong gian ca nhan de tu tap, niem Phat, cong tu va ket noi ban be.&#x27;, link: &#x27;/&#x27; },
-            { icon: &#x27;&#x1F465;&#x27;, title: &#x27;Cong Dong&#x27;, desc: &#x27;Dien dan, nhom thao luan, chu de va live chat cung cong dong.&#x27;, link: &#x27;/cong-dong&#x27; },
-            { icon: &#x27;&#x1F464;&#x27;, title: &#x27;Ban Be&#x27;, desc: &#x27;Ket noi, nhan tin, gui thu va moi cong tu cung dao huu.&#x27;, link: &#x27;/ban-be&#x27; },
-            { icon: &#x27;&#x1F4DA;&#x27;, title: &#x27;Kinh Sach&#x27;, desc: &#x27;Thu vien kinh sach Phat giao, Dao giao va triet hoc.&#x27;, link: &#x27;/kinh-sach&#x27; }
+            { icon: '🌍', title: 'Không Gian', desc: 'Không gian cá nhân để tu tập, niệm Phật, cộng tu và kết nối bạn bè.', link: '/khong-gian' },
+            { icon: '👥', title: 'Cộng Đồng', desc: 'Diễn đàn, nhóm thảo luận, chủ đề và live chat cùng cộng đồng.', link: '/cong-dong' },
+            { icon: '👤', title: 'Bạn Bè', desc: 'Kết nối, nhắn tin, gửi thư và mời cộng tu cùng đạo hữu.', link: '/ban-be' },
+            { icon: '📚', title: 'Kinh Sách', desc: 'Thư viện kinh sách Phật giáo, Đạo giáo và triết học.', link: '/kinh-sach' }
          ] }">
         <template x-for="(card, i) in cards" :key="i">
             <a :href="card.link"
-               class="group bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-2 border border-gray-100 hover:border-tubi-200">
+               class="group bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 
+                      hover:-translate-y-2 border border-gray-100 hover:border-tubi-200">
                 <div class="text-4xl mb-4 group-hover:scale-110 transition-transform duration-300" x-text="card.icon"></div>
                 <h3 class="text-xl font-bold text-tubi-800 mb-2" x-text="card.title"></h3>
                 <p class="text-gray-600 text-sm leading-relaxed" x-text="card.desc"></p>
                 <div class="mt-4 text-tubi-600 text-sm font-medium group-hover:text-tubi-800 transition-colors">
-                    Kham pha &rarr;
+                    Khám phá →
                 </div>
             </a>
         </template>
@@ -95,23 +112,23 @@
 <section class="bg-tubi-50 py-16">
     <div class="max-w-7xl mx-auto px-4">
         <h2 class="text-2xl md:text-3xl font-bold text-center mb-12 text-tubi-900">
-            He Thong Cot Loi
+            Hệ Thống Cốt Lõi
         </h2>
         
         <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <!-- Niem Phat -->
+            <!-- Niệm Phật -->
             <div class="bg-white rounded-2xl p-6 shadow-sm">
                 <div class="flex items-center space-x-3 mb-4">
                     <div class="w-12 h-12 bg-tubi-100 rounded-xl flex items-center justify-center">
-                        <span class="text-2xl">&#x1F64F;</span>
+                        <span class="text-2xl">🙏</span>
                     </div>
-                    <h3 class="text-lg font-bold text-tubi-800">Nut Niem</h3>
+                    <h3 class="text-lg font-bold text-tubi-800">Nút Niệm</h3>
                 </div>
                 <p class="text-gray-600 text-sm mb-4">
-                    Nhan nut niem de dem so lan niem "A Di Da Phat". Moi lan niem tich luy Niem Luc A &mdash; vua la tai nguyen tu tap, vua la suc manh trong Sieu Do.
+                    Nhấn nút niệm để đếm số lần niệm "A Di Đà Phật". Mỗi lần niệm tích lũy Niệm Lực A — vừa là tài nguyên tu tập, vừa là sức mạnh trong Siêu Độ.
                 </p>
                 <div class="flex items-center space-x-4 text-sm">
-                    <span class="bg-tubi-100 text-tubi-800 px-3 py-1 rounded-full">1 niem = 1 A</span>
+                    <span class="bg-tubi-100 text-tubi-800 px-3 py-1 rounded-full">1 niệm = 1 A</span>
                     <span class="bg-tubi-100 text-tubi-800 px-3 py-1 rounded-full">1000 A = 1 K</span>
                 </div>
             </div>
@@ -120,33 +137,33 @@
             <div class="bg-white rounded-2xl p-6 shadow-sm">
                 <div class="flex items-center space-x-3 mb-4">
                     <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                        <span class="text-2xl">&#x26A1;</span>
+                        <span class="text-2xl">⚡</span>
                     </div>
-                    <h3 class="text-lg font-bold text-tubi-800">Thanh A &amp; I</h3>
+                    <h3 class="text-lg font-bold text-tubi-800">Thanh A & I</h3>
                 </div>
                 <p class="text-gray-600 text-sm mb-4">
-                    Thanh A kich hoat niem Phat voi song am lan toa. Thanh I dua vao trang thai thien dinh binh an, bat kha xam pham. Hai ky nang cot loi cua hanh trinh.
+                    Thanh A kích hoạt niệm Phật với sóng âm lan tỏa. Thanh I đưa vào trạng thái thiền định bình an, bất khả xâm phạm. Hai kỹ năng cốt lõi của hành trình.
                 </p>
                 <div class="flex items-center space-x-4 text-sm">
-                    <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">A: Cong Kich</span>
-                    <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full">I: Sinh Ton</span>
+                    <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">A: Công Kích</span>
+                    <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full">I: Sinh Tồn</span>
                 </div>
             </div>
             
-            <!-- Quy Tu Bi -->
+            <!-- Quỹ Từ Bi -->
             <div class="bg-white rounded-2xl p-6 shadow-sm">
                 <div class="flex items-center space-x-3 mb-4">
-                    <div class="w-12 h-12 rounded-xl flex items-center justify-center" style="background: rgba(255,179,0,0.2);">
-                        <span class="text-2xl">&#x1fab7;</span>
+                    <div class="w-12 h-12 bg-lotus/20 rounded-xl flex items-center justify-center">
+                        <span class="text-2xl">🪷</span>
                     </div>
-                    <h3 class="text-lg font-bold text-tubi-800">Quy Tu Bi</h3>
+                    <h3 class="text-lg font-bold text-tubi-800">Quỹ Từ Bi</h3>
                 </div>
                 <p class="text-gray-600 text-sm mb-4">
-                    Quy chung cua cong dong &mdash; cong khai, minh bach, cung quan ly. Dong gop, ho tro manh thuong quan, va chia se Quy Tu Bi cung nhau.
+                    Quỹ chung của cộng đồng — công khai, minh bạch, cùng quản lý. Đóng góp, hỗ trợ mạnh thường quân, và chia sẻ Quỹ Từ Bi cùng nhau.
                 </p>
                 <div class="flex items-center space-x-4 text-sm">
-                    <span class="px-3 py-1 rounded-full" style="background: rgba(255,179,0,0.2); color: #92400E;">Phieu Tu Bi</span>
-                    <span class="px-3 py-1 rounded-full" style="background: rgba(255,179,0,0.2); color: #92400E;">Dong Bi</span>
+                    <span class="bg-lotus/20 text-amber-800 px-3 py-1 rounded-full">Phiếu Từ Bi</span>
+                    <span class="bg-lotus/20 text-amber-800 px-3 py-1 rounded-full">Đồng Bi</span>
                 </div>
             </div>
         </div>
@@ -155,32 +172,35 @@
 
 <!-- Prayer Counter Demo -->
 <section class="max-w-7xl mx-auto px-4 py-16"
-         x-data="{ count: 0, a: 0, k: 0 }">
+         x-data="{ count: 0, isRunning: false, a: 0, k: 0 }">
     <div class="bg-white rounded-2xl p-8 shadow-lg max-w-lg mx-auto text-center">
-        <h3 class="text-xl font-bold text-tubi-800 mb-2">&#x1F64F; Thu Niem Phat</h3>
-        <p class="text-gray-500 text-sm mb-6">Nhan nut de dem so lan niem "A Di Da Phat"</p>
+        <h3 class="text-xl font-bold text-tubi-800 mb-2">🙏 Thử Niệm Phật</h3>
+        <p class="text-gray-500 text-sm mb-6">Nhấn nút để đếm số lần niệm "A Di Đà Phật"</p>
         
         <!-- Counter Display -->
         <div class="mb-6">
             <div class="text-6xl font-bold text-tubi-800" x-text="count"></div>
-            <div class="text-gray-400 text-sm mt-1">lan niem</div>
+            <div class="text-gray-400 text-sm mt-1">lần niệm</div>
         </div>
         
-        <!-- Niem Button -->
+        <!-- Niệm Button -->
         <button @click="count++; a++; if(a >= 1000) { k++; a = a - 1000 }"
-                class="w-32 h-32 bg-tubi-800 hover:bg-tubi-700 rounded-full text-white text-2xl font-bold shadow-lg hover:shadow-xl transition-all duration-300 active:scale-95 mx-auto block ring-4 ring-tubi-200 hover:ring-tubi-300">
-            &#x1F64F; Niem
+                class="w-32 h-32 bg-tubi-800 hover:bg-tubi-700 rounded-full text-white text-2xl font-bold
+                       shadow-lg hover:shadow-xl transition-all duration-300 
+                       active:scale-95 mx-auto block
+                       ring-4 ring-tubi-200 hover:ring-tubi-300">
+            🙏 Niệm
         </button>
         
         <!-- A & K Display -->
         <div class="mt-6 flex justify-center space-x-6">
             <div class="text-center">
                 <div class="text-2xl font-bold text-tubi-600" x-text="a"></div>
-                <div class="text-xs text-gray-400">Niem Luc A</div>
+                <div class="text-xs text-gray-400">Niệm Lực A</div>
             </div>
             <div class="text-center">
                 <div class="text-2xl font-bold text-lotus" x-text="k"></div>
-                <div class="text-xs text-gray-400">Tien K</div>
+                <div class="text-xs text-gray-400">Tiền K</div>
             </div>
         </div>
     </div>
@@ -189,13 +209,13 @@
 <!-- Quote Section -->
 <section class="bg-tubi-800 py-12">
     <div class="max-w-3xl mx-auto px-4 text-center">
-        <span class="text-4xl">&#x1fab7;</span>
+        <span class="text-4xl">🪷</span>
         <blockquote class="text-xl md:text-2xl text-tubi-100 mt-4 mb-6 italic leading-relaxed">
-            "Ai co nhieu A thi manh hon.<br>
-            Ai co nhieu I thi song lau hon.<br>
-            Don gian nhu vay la du."
+            "Ai có nhiều A thì mạnh hơn.<br>
+            Ai có nhiều I thì sống lâu hơn.<br>
+            Đơn giản như vậy là đủ."
         </blockquote>
-        <p class="text-tubi-300">&mdash; Triet ly Sieu Do</p>
+        <p class="text-tubi-300">— Triết lý Siêu Độ</p>
     </div>
 </section>
 {% endblock %}
