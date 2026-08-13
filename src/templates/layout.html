@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Ứng Dụng Từ Bi - Sân chơi tu đạo, phát triển thư viện kinh sách, hỗ trợ người tu hành giác ngộ và giải thoát">
+    <title>{% block title %}Ứng Dụng Từ Bi{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'tubi': {
+                            50: '#E8F5E9',
+                            100: '#C8E6C9',
+                            200: '#A5D6A7',
+                            300: '#81C784',
+                            400: '#66BB6A',
+                            500: '#4CAF50',
+                            600: '#43A047',
+                            700: '#388E3C',
+                            800: '#2E7D32',
+                            900: '#1B5E20',
+                        },
+                        'lotus': '#FFB300',
+                        'golden': '#FFA000',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/app.css">
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col" 
+      x-data="{ mobileMenu: false, currentTab: 'home' }">
+    
+    <!-- Header -->
+    <header class="bg-tubi-800 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Logo -->
+                <a href="/" class="flex items-center space-x-3 group">
+                    <div class="w-10 h-10 bg-lotus rounded-full flex items-center justify-center 
+                                group-hover:scale-110 transition-transform duration-300 shadow-md">
+                        <span class="text-tubi-900 text-xl">🪷</span>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-bold tracking-wide">ỨNG DỤNG TỪ BI</h1>
+                        <p class="text-xs text-tubi-200 -mt-1">Giác Ngộ · Giải Thoát · Từ Bi</p>
+                    </div>
+                </a>
+                
+                <!-- Desktop Navigation -->
+                <nav class="hidden md:flex items-center space-x-1">
+                    <a href="/" 
+                       class="nav-tab px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                              {% if active_page == "home" %}bg-tubi-900 text-white{% else %}text-tubi-100 hover:bg-tubi-700{% endif %}">
+                        🌍 Không Gian
+                    </a>
+                    <a href="/cong-dong" 
+                       class="nav-tab px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                              {% if active_page == "community" %}bg-tubi-900 text-white{% else %}text-tubi-100 hover:bg-tubi-700{% endif %}">
+                        👥 Cộng Đồng
+                    </a>
+                    <a href="/ban-be" 
+                       class="nav-tab px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                              {% if active_page == "friends" %}bg-tubi-900 text-white{% else %}text-tubi-100 hover:bg-tubi-700{% endif %}">
+                        👤 Bạn Bè
+                    </a>
+                    <a href="/kinh-sach" 
+                       class="nav-tab px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                              {% if active_page == "books" %}bg-tubi-900 text-white{% else %}text-tubi-100 hover:bg-tubi-700{% endif %}">
+                        📚 Kinh Sách
+                    </a>
+                </nav>
+                
+                <!-- User Menu -->
+                <div class="hidden md:flex items-center space-x-3">
+                    {% if user.is_some() %}
+                    <div class="flex items-center space-x-3">
+                        <span class="text-tubi-100 text-sm">
+                            🪷 {{ user.as_ref().unwrap().display_name }}
+                        </span>
+                        <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">
+                            Hồ sơ
+                        </a>
+                        <a href="/dang-xuat" class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors">
+                            Thoát
+                        </a>
+                    </div>
+                    {% else %}
+                    <a href="/dang-nhap" class="text-tubi-100 hover:text-white text-sm transition-colors">
+                        Đăng Nhập
+                    </a>
+                    <a href="/dang-ky" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                        Tham Gia
+                    </a>
+                    {% endif %}
+                </div>
+                
+                <!-- Mobile Menu Button -->
+                <button @click="mobileMenu = !mobileMenu" 
+                        class="md:hidden text-tubi-100 hover:text-white p-2">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                              d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Mobile Menu -->
+        <div x-show="mobileMenu" x-transition 
+             class="md:hidden bg-tubi-900 border-t border-tubi-700">
+            <div class="px-4 py-3 space-y-2">
+                <a href="/" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
+                <a href="/cong-dong" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👥 Cộng Đồng</a>
+                <a href="/ban-be" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Bạn Bè</a>
+                <a href="/kinh-sach" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📚 Kinh Sách</a>
+                {% if user.is_none() %}
+                <div class="pt-2 border-t border-tubi-700">
+                    <a href="/dang-nhap" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Đăng Nhập</a>
+                    <a href="/dang-ky" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">Tham Gia</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Bottom Navigation (Mobile) -->
+    <nav class="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
+        <div class="flex items-center justify-around h-16">
+            <a href="/" class="flex flex-col items-center justify-center space-y-0.5 
+               {% if active_page == 'home' %}text-tubi-700{% else %}text-gray-400{% endif %}">
+                <span class="text-xl">🌍</span>
+                <span class="text-xs">Không Gian</span>
+            </a>
+            <a href="/cong-dong" class="flex flex-col items-center justify-center space-y-0.5
+               {% if active_page == 'community' %}text-tubi-700{% else %}text-gray-400{% endif %}">
+                <span class="text-xl">👥</span>
+                <span class="text-xs">Cộng Đồng</span>
+            </a>
+            <a href="/" class="flex flex-col items-center justify-center -mt-4">
+                <div class="w-12 h-12 bg-tubi-800 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                    <span class="text-2xl">🪷</span>
+                </div>
+            </a>
+            <a href="/ban-be" class="flex flex-col items-center justify-center space-y-0.5
+               {% if active_page == 'friends' %}text-tubi-700{% else %}text-gray-400{% endif %}">
+                <span class="text-xl">👤</span>
+                <span class="text-xs">Bạn Bè</span>
+            </a>
+            <a href="/kinh-sach" class="flex flex-col items-center justify-center space-y-0.5
+               {% if active_page == 'books' %}text-tubi-700{% else %}text-gray-400{% endif %}">
+                <span class="text-xl">📚</span>
+                <span class="text-xs">Kinh Sách</span>
+            </a>
+        </div>
+    </nav>
+    
+    <!-- Footer (Desktop) -->
+    <footer class="hidden md:block bg-tubi-900 text-tubi-200 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <span class="text-2xl">🪷</span>
+                        <span class="font-bold text-white">Ứng Dụng Từ Bi</span>
+                    </div>
+                    <p class="text-sm text-tubi-300">
+                        Siêu thoát không siêu thích.<br>
+                        Giải thoát không giải thích.<br>
+                        Buông bỏ mới có thể trở về.
+                    </p>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-white mb-3">Chuyên Mục</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="/" class="hover:text-white transition-colors">Không Gian</a></li>
+                        <li><a href="/cong-dong" class="hover:text-white transition-colors">Cộng Đồng</a></li>
+                        <li><a href="/ban-be" class="hover:text-white transition-colors">Bạn Bè</a></li>
+                        <li><a href="/kinh-sach" class="hover:text-white transition-colors">Kinh Sách</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-white mb-3">Hệ Thống</h3>
+                    <ul class="space-y-2 text-sm">
+                        <li><a href="/quy-tu-bi" class="hover:text-white transition-colors">Quỹ Từ Bi</a></li>
+                        <li><a href="/thuong-thanh" class="hover:text-white transition-colors">Thương Thành</a></li>
+                        <li><a href="/bang-xep-hang" class="hover:text-white transition-colors">Bảng Xếp Hạng</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-white mb-3">Liên Hệ</h3>
+                    <p class="text-sm text-tubi-300">
+                        tubi.louis.vangioitutien.com
+                    </p>
+                </div>
+            </div>
+            <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
+                <p>🪷 Ứng Dụng Từ Bi v0.1 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Custom JS -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

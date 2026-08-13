@@ -1,0 +1,122 @@
+/* Ứng Dụng Từ Bi - Custom Styles */
+/* Domain: tubi.louis.vangioitutien.com */
+
+/* Lotus Animation */
+@keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* Ripple effect for prayer button */
+@keyframes ripple {
+    0% { transform: scale(0.8); opacity: 1; }
+    100% { transform: scale(2.5); opacity: 0; }
+}
+
+.prayer-ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(46, 125, 50, 0.3);
+    animation: ripple 1.5s ease-out;
+    pointer-events: none;
+}
+
+/* Glow effect for lotus */
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(255, 179, 0, 0.3); }
+    50% { box-shadow: 0 0 40px rgba(255, 179, 0, 0.6); }
+}
+
+.lotus-glow {
+    animation: glow 2s ease-in-out infinite;
+}
+
+/* A/I Bar animations */
+.bar-a {
+    background: linear-gradient(90deg, #2E7D32, #4CAF50);
+    transition: width 0.3s ease;
+}
+
+.bar-i {
+    background: linear-gradient(90deg, #FFA000, #FFB300);
+    transition: width 0.3s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #81C784;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #4CAF50;
+}
+
+/* HTMX indicators */
+.htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+}
+
+.htmx-request .htmx-indicator {
+    opacity: 1;
+}
+
+/* Navigation active state */
+.nav-tab.active {
+    background-color: #1B5E20;
+    color: white;
+}
+
+/* Bottom nav safe area */
+@supports (padding: max(0px)) {
+    nav.fixed.bottom-0 {
+        padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+/* Prayer counter pulse */
+@keyframes prayer-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.prayer-pulse {
+    animation: prayer-pulse 0.3s ease;
+}
+
+/* Responsive text */
+@media (max-width: 640px) {
+    .text-responsive {
+        font-size: 0.875rem;
+    }
+}
+
+@media (min-width: 641px) {
+    .text-responsive {
+        font-size: 1rem;
+    }
+}

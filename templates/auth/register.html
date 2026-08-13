@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block title %}Dang Ky — Ung Dung Tu Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-md mx-auto px-4 py-16"
+         x-data="{ email: '', password: '', confirm: '', name: '' }">
+    <div class="bg-white rounded-2xl p-8 shadow-lg">
+        <div class="text-center mb-8">
+            <span class="text-4xl">&#x1fab7;</span>
+            <h1 class="text-2xl font-bold text-tubi-800 mt-2">Tham Gia Ung Dung Tu Bi</h1>
+            <p class="text-gray-500 text-sm mt-1">Bat dau hanh trinh giac ngo va giai thoat</p>
+        </div>
+        
+        <form action="/dang-ky" method="POST" 
+              hx-post="/dang-ky" hx-swap="innerHTML" hx-target="#register-form"
+              id="register-form">
+            <!-- Ten hien thi -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ten Hien Thi</label>
+                <input type="text" name="display_name" x-model="name" required
+                       class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-tubi-500 focus:border-tubi-500 transition">
+            </div>
+            
+            <!-- Email -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" name="email" x-model="email" required
+                       class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-tubi-500 focus:border-tubi-500 transition">
+            </div>
+            
+            <!-- Mat khau -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mat Khau</label>
+                <input type="password" name="password" x-model="password" required minlength="6"
+                       class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-tubi-500 focus:border-tubi-500 transition">
+            </div>
+            
+            <!-- Xac nhan mat khau -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Xac Nhan Mat Khau</label>
+                <input type="password" name="confirm_password" x-model="confirm" required
+                       class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-tubi-500 focus:border-tubi-500 transition">
+            </div>
+            
+            <button type="submit"
+                    class="w-full bg-tubi-800 hover:bg-tubi-700 text-white py-3 rounded-xl font-semibold transition-colors shadow-md">
+                &#x1fab7; Tham Gia
+            </button>
+        </form>
+        
+        <p class="text-center text-sm text-gray-500 mt-6">
+            Da co tai khoan? 
+            <a href="/dang-nhap" class="text-tubi-600 hover:text-tubi-800 font-medium">Dang Nhap</a>
+        </p>
+    </div>
+</section>
+{% endblock %}
