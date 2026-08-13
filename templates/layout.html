@@ -104,9 +104,11 @@
                         <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">
                             Hồ sơ
                         </a>
-                        <a href="/dang-xuat" class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors">
+                        <a href="/dang-xuat" onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
+                           class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer">
                             Thoát
                         </a>
+                        <form id="logout-form" action="/dang-xuat" method="POST" class="hidden"></form>
                     </div>
                     {% else %}
                     <a href="/auth/google" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
@@ -141,7 +143,9 @@
                 {% else %}
                 <div class="pt-2 border-t border-tubi-700">
                     <a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Hồ sơ cá nhân</a>
-                    <a href="/dang-xuat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🚪 Thoát</a>
+                    <form action="/dang-xuat" method="POST" class="block">
+                        <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">🚪 Thoát</button>
+                    </form>
                 </div>
                 {% endif %}
             </div>
@@ -224,7 +228,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.4 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

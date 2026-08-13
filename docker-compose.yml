@@ -1,0 +1,62 @@
+# ────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — Ứng Dụng Từ Bi (DEV ONLY)
+#
+# Chạy Postgres 17 + app cùng lúc cho dev:
+#   docker compose up -d
+#
+# LƯU Ý: File này chỉ dùng cho DEV. Production deploy bằng Coolify.
+# ────────────────────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: tubi-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tubi
+      POSTGRES_PASSWORD: tubi_password
+      POSTGRES_DB: ungdungtubi
+    ports:
+      - "5432:5432"
+    volumes:
+      - tubi_pg_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tubi -d ungdungtubi"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tubi-app-dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      HOST: 0.0.0.0
+      PORT: 8080
+      DOMAIN: localhost
+      APP_BASE_URL: http://localhost:8080
+      SECRET_KEY: ung-dung-tu-bi-dev-secret-key
+      DATABASE_URL: postgres://tubi:tubi_password@postgres:5432/ungdungtubi
+      DB_MAX_CONNECTIONS: "5"
+      STATIC_DIR: /app/static
+      UPLOAD_DIR: /app/static/uploads
+      UPLOAD_URL_PREFIX: /static/uploads
+      MAX_UPLOAD_BYTES: "5242880"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/auth/google/callback}
+      RUN_MIGRATIONS: "true"
+      RUST_LOG: ungdungtubi=debug,actix_web=info,sqlx=warn
+    ports:
+      - "8080:8080"
+    volumes:
+      - tubi_uploads_dev:/app/static/uploads
+
+volumes:
+  tubi_pg_dev_data:
+  tubi_uploads_dev:

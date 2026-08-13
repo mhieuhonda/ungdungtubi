@@ -1,6 +1,6 @@
 [package]
 name = "ungdungtubi"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.97"
 
@@ -8,6 +8,7 @@ rust-version = "1.97"
 # Web framework
 actix-web = "4"
 actix-files = "0.6"
+actix-multipart = "0.7"
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate"] }
@@ -38,3 +39,23 @@ urlencoding = "2"
 
 # Random OAuth state
 rand = "0.8"
+
+# Hashing (checksum for uploaded files + audit)
+sha2 = "0.10"
+
+# Byte stream handling for multipart uploads
+bytes = "0.5"
+
+# Mime type sniffing for upload validation
+mime = "0.3"
+
+# Stream utilities for multipart upload
+futures-util = "0.3"
+
+[profile.release]
+# Optimise for smaller Docker image and faster runtime
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

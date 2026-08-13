@@ -10,7 +10,8 @@ use crate::models::user::{GoogleUserInfo, User};
 const USER_COLUMNS: &str = "id, email, display_name, password_hash, rank, \
     a_balance, k_balance, is_active, created_at, updated_at, \
     google_sub, avatar_url, email_verified, \
-    phap_danh, phap_hieu, but_danh, gender, bio";
+    phap_danh, phap_hieu, but_danh, gender, bio, \
+    avatar_upload_id";
 
 /// Tên cookie lưu OAuth state (chống CSRF).
 const OAUTH_STATE_COOKIE: &str = "oauth_state";

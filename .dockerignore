@@ -1,0 +1,49 @@
+# Build artifacts
+/target
+**/target
+**/*.rs.bk
+
+# Cargo lock (giữ cho binary, bỏ cho lib — đây là binary nên giữ)
+# Cargo.lock
+
+# Editor / OS files
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Env files (không bao gồm secrets vào image)
+.env
+.env.*
+!.env.example
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docs (không cần trong image runtime)
+HieuLouis/
+*.docx
+*.xlsx
+docs/
+*.md
+!README.md
+!CHANGELOG.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# CI
+.github/
+
+# Misc
+*.log
+*.pid
+.cargo
+.worklog.md

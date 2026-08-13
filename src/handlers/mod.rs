@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod uploads;
 
 use actix_web::{web, HttpRequest, Responder};
 use askama::Template;
@@ -8,13 +9,14 @@ use crate::models::user::{MemberRank, ProfileUpdate, User};
 
 /// Danh sách cột users đầy đủ (đồng bộ với model User).
 /// Tránh drift khi SELECT * — luôn liệt kê rõ ràng các cột.
-const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
+pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
     u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, \
     u.google_sub, u.avatar_url, u.email_verified, \
-    u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio";
+    u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
+    u.avatar_upload_id";
 
 /// Helper: Extract authenticated user from session cookie.
-async fn get_user_from_session(pool: &PgPool, req: &HttpRequest) -> Option<User> {
+pub async fn get_user_from_session(pool: &PgPool, req: &HttpRequest) -> Option<User> {
     let cookie = req.cookie("session_id")?;
     let session_id = cookie.value();
 
@@ -490,7 +492,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.4 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -542,20 +544,23 @@ fn render_user_menu_html(user: &Option<User>) -> String {
                 r#"<span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">{first_char}</span>"#
             )
         };
-        format!(
-            r#"<div class="flex items-center space-x-3">
-                {avatar_html}
-                <span class="text-tubi-100 text-sm" title="{rank_name}">
-                    {rank_icon} {name}
-                </span>
-                <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">Hồ sơ</a>
-                <a href="/dang-xuat" class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors">Thoát</a>
-            </div>"#,
-            avatar_html = avatar_html,
-            rank_name = u.rank_display(),
-            rank_icon = u.rank_icon(),
-            name = u.display_name
-        )
+        // Build bằng concat để tránh format! strict rules về dấu nháy đơn
+        let mut html = String::new();
+        html.push_str("<div class=\"flex items-center space-x-3\">");
+        html.push_str(&avatar_html);
+        html.push_str("<span class=\"text-tubi-100 text-sm\" title=\"");
+        html.push_str(u.rank_display());
+        html.push_str("\">");
+        html.push_str(u.rank_icon());
+        html.push(' ');
+        html.push_str(&u.display_name);
+        html.push_str("</span>");
+        html.push_str("<a href=\"/ca-nhan\" class=\"text-tubi-200 hover:text-white text-sm transition-colors\">Hồ sơ</a>");
+        html.push_str("<a href=\"#\" onclick=\"event.preventDefault(); document.getElementById(&#39;logout-form-desktop&#39;).submit();\" \
+                       class=\"bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer\">Thoát</a>");
+        html.push_str("<form id=\"logout-form-desktop\" action=\"/dang-xuat\" method=\"POST\" class=\"hidden\"></form>");
+        html.push_str("</div>");
+        html
     } else {
         r#"<a href="/auth/google" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
                 🪷 Đăng Nhập Bằng Google
@@ -569,7 +574,9 @@ fn render_mobile_user_menu_html(user: &Option<User>) -> String {
     if let Some(u) = user {
         let _ = u; // same content for both logged-in states
         r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
-           <a href="/dang-xuat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Thoát</a>"#
+           <form action="/dang-xuat" method="POST" class="block">
+               <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">Thoát</button>
+           </form>"#
             .to_string()
     } else {
         r#"<a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#

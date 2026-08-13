@@ -16,10 +16,12 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 |-----------|-----------|
 | Backend | Rust 1.97.1 + Actix-web |
 | Template | Askama 0.14 (type-safe HTML templates) |
-| Database | PostgreSQL + SQLx (async, compile-time checked) |
+| Database | PostgreSQL 17 + SQLx (async, compile-time checked) |
 | Frontend | HTMX (server-driven UI) + Alpine.js (reactive) |
 | Styling | Tailwind CSS |
 | Auth | Google OAuth 2.0 (OpenID Connect — userinfo) — đăng nhập duy nhất |
+| Container | Docker (multi-stage build, ~30 MB image) |
+| CI/CD | GitHub Actions → GHCR → Coolify webhook → auto deploy |
 
 ## 4 Chuyên Mục Chính
 
@@ -84,77 +86,136 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - Endpoint POST `/ca-nhan/cap-nhat` để cập nhật hồ sơ (validate input, không cho sửa email/rank/số dư)
 - **Mục tiêu:** Hồ sơ hoạt động, cấp bậc hiển thị đúng
 
-### Giai đoạn 5–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 5: Hạ tầng deploy — Docker + Coolify + storage ảnh ✅ (v0.5)
+- **Dockerfile multi-stage** với Rust 1.97.1, image final ~30 MB (glibc + stripped binary)
+- **GitHub Actions** workflow: build → push Docker image lên GHCR → trigger Coolify webhook
+- **Coolify** auto pull image mới + deploy lên domain `tubi.louis.vangioitutien.com`
+- **PostgreSQL 17** trên sub VPS (10.187.247.3) làm database + storage
+- **API upload ảnh** `/api/upload-image` (max 5 MB/ảnh, JPEG/PNG/WebP/GIF)
+- Migration 004: bảng `images` + `audit_log` + trigger `updated_at` tự động
+- Auto-run migrations khi khởi động (set `RUN_MIGRATIONS=true`)
+- Health check endpoint `/api/health` giờ check cả DB
+- **[SECURITY]** Bỏ GET `/dang-xuat` để chống CSRF — chỉ còn POST
+- **[SECURITY]** Logout form dùng JavaScript submit thay vì link GET
+- Graceful shutdown (30s timeout), 4 workers
+- DB pool size tunable qua env `DB_MAX_CONNECTIONS`
+- Release profile tối ưu (LTO thin, strip symbols, panic=abort)
+- **Mục tiêu:** Web chạy production ổn định, deploy tự động, sẵn sàng cho giai đoạn 6+
+
+### Giai đoạn 6–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 4 / v0.4)
+## Cấu Trúc Dự Án (Giai đoạn 5 / v0.5)
 
 ```
 ungdungtubi/
 ├── src/
-│   ├── main.rs              # Entry point + routes Google OAuth + hồ sơ + session cleanup
-│   ├── config.rs            # Config (DB, host, Google OAuth, production safety)
+│   ├── main.rs              # Entry point + routes + auto-migrate + health check DB
+│   ├── config.rs            # Config (DB, host, Google OAuth, static_dir, upload_dir)
 │   ├── db/
 │   │   └── mod.rs           # Database helpers (session cleanup)
 │   ├── errors/
 │   │   └── mod.rs           # AppError enum with HTTP response mapping
 │   ├── handlers/
-│   │   ├── mod.rs           # Page handlers + session auth helper + profile update
-│   │   └── auth.rs          # google_login, google_callback, logout
+│   │   ├── mod.rs           # Page handlers + session auth + profile update
+│   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
+│   │   └── uploads.rs       # [v0.5] Upload ảnh API (5MB max, SHA-256, dimensions)
 │   ├── models/
 │   │   ├── mod.rs
 │   │   └── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
 │   └── static/
 │       ├── css/app.css
-│       └── js/app.js
+│       ├── js/app.js
+│       └── uploads/         # [v0.5] Nơi lưu ảnh user upload
 ├── templates/                # Askama templates (Vietnamese)
 │   ├── layout.html
 │   ├── home.html
-│   ├── profile.html         # Trang hồ sơ + form chỉnh sửa + danh sách cấp bậc (Giai đoạn 4)
+│   ├── profile.html
 │   └── auth/
-│       └── login.html        # Chỉ còn nút "Đăng nhập bằng Google"
+│       └── login.html
 ├── migrations/
 │   ├── 001_create_users_sessions.sql
-│   ├── 002_google_oauth.sql  # password_hash NULL, google_sub, avatar_url, email_verified
-│   └── 003_member_profile_ranks.sql  # phap_danh/phap_hieu/but_danh/gender/bio + bảng member_ranks
+│   ├── 002_google_oauth.sql
+│   ├── 003_member_profile_ranks.sql
+│   └── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
+├── .github/workflows/
+│   └── docker.yml            # [v0.5] Build + push + trigger Coolify
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml
-├── .env.example              # Template cấu hình môi trường
+├── Cargo.toml                # v0.5.0, Rust 1.97, release profile tối ưu
+├── Dockerfile                # [v0.5] Multi-stage Rust 1.97.1, ~30 MB
+├── docker-compose.yml        # [v0.5] Dev environment (Postgres 17 + app)
+├── .env.example              # Template cấu hình môi trường v0.5
 └── README.md
 ```
 
 ## Cài Đặt & Chạy
+
+### Local dev với Docker Compose (Khuyên dùng)
 
 ```bash
 # 1. Clone
 git clone https://github.com/mhieuhonda/ungdungtubi.git
 cd ungdungtubi
 
-# 2. Tạo .env từ .env.example, điền DATABASE_URL + GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
+# 2. Tạo .env từ .env.example
 cp .env.example .env
-# Cập nhật GOOGLE_REDIRECT_URI cho khớp với Google Console
-#   Local:    http://localhost:8080/auth/google/callback
-#   Prod:     https://tubi.louis.vangioitutien.com/auth/google/callback
+# Điền GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (lấy từ Google Cloud Console)
+# Đặt GOOGLE_REDIRECT_URI=http://localhost:8080/auth/google/callback
+
+# 3. Chạy với Docker Compose (Postgres 17 + app cùng lúc)
+docker compose up -d
+
+# Server: http://localhost:8080
+# DB: postgres://tubi:tubi_password@localhost:5432/ungdungtubi
+```
+
+### Local dev thủ công (không Docker)
+
+```bash
+# 1. Clone
+git clone https://github.com/mhieuhonda/ungdungtubi.git
+cd ungdungtubi
+
+# 2. Tạo .env
+cp .env.example .env
+# Điền DATABASE_URL + GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET
 
 # 3. Cấu hình Google OAuth
 #    - Vào Google Cloud Console → APIs & Services → Credentials
 #    - Tạo OAuth 2.0 Client ID (Web application)
 #    - Thêm Authorized redirect URIs khớp với GOOGLE_REDIRECT_URI
-#    - Copy Client ID + Client Secret vào .env
 
 # 4. Tạo database + chạy migrations
 createdb ungdungtubi
 psql -d ungdungtubi -f migrations/001_create_users_sessions.sql
 psql -d ungdungtubi -f migrations/002_google_oauth.sql
 psql -d ungdungtubi -f migrations/003_member_profile_ranks.sql
+psql -d ungdungtubi -f migrations/004_storage_images_audit.sql
 
 # 5. Chạy
 cargo run
 # Server: http://localhost:8080
 ```
 
-## Routes (v0.4)
+### Production (qua Coolify + GitHub Actions)
+
+Workflow deploy tự động:
+
+1. **Push tag** `vX.Y.Z` lên GitHub → GitHub Actions trigger
+2. GitHub Actions build Docker image với Rust 1.97.1
+3. Push image lên `ghcr.io/mhieuhonda/ungdungtubi:vX.Y.Z` (cùng `:latest`)
+4. GitHub Actions gọi Coolify webhook
+5. Coolify pull image mới + redeploy lên `tubi.louis.vangioitutien.com`
+
+**Cấu hình cần thiết trên Coolify:**
+- Tạo service PostgreSQL 17 trên sub VPS 10.187.247.3
+- Tạo app từ Docker image `ghcr.io/mhieuhonda/ungdungtubi:latest`
+- Set env vars (xem `.env.example`)
+- Bind volume `/app/static/uploads` để giữ ảnh user
+- Cấu hình domain `tubi.louis.vangioitutien.com`
+
+## Routes (v0.5)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -163,9 +224,8 @@ cargo run
 | POST | `/dang-nhap` | Alias chuyển hướng tới `/auth/google` | Public |
 | GET | `/auth/google` | Redirect tới Google consent | Public |
 | GET | `/auth/google/callback` | OAuth callback → upsert user + tạo session | Public |
-| POST | `/dang-xuat` | Xoá session, redirect về `/` | Auth |
-| GET | `/dang-xuat` | Alias của POST (cho link đơn giản) | Auth |
-| GET | `/ca-nhan` | Hồ sơ cá nhân + form chỉnh sửa + danh sách cấp bậc | Auth (redirect → /dang-nhap nếu chưa) |
+| POST | `/dang-xuat` | Xoá session, redirect về `/` | Auth (POST-only để chống CSRF) |
+| GET | `/ca-nhan` | Hồ sơ cá nhân + form chỉnh sửa + danh sách cấp bậc | Auth |
 | POST | `/ca-nhan/cap-nhat` | Cập nhật hồ sơ | Auth |
 | GET | `/khong-gian` | Không Gian (placeholder) | Public |
 | GET | `/cong-dong` | Cộng Đồng (placeholder) | Public |
@@ -174,8 +234,10 @@ cargo run
 | GET | `/quy-tu-bi` | Quỹ Từ Bi (placeholder) | Public |
 | GET | `/thuong-thanh` | Thương Thành (placeholder) | Public |
 | GET | `/bang-xep-hang` | Bảng Xếp Hạng (placeholder) | Public |
-| GET | `/api/health` | Health check JSON | Public |
+| GET | `/api/health` | Health check JSON + DB status | Public |
 | POST | `/api/heartbeat` | Heartbeat giữ session | Auth |
+| GET | `/api/upload-info` | Trả về giới hạn upload | Public |
+| POST | `/api/upload-image` | Upload ảnh (5MB max, JPEG/PNG/WebP/GIF) | Auth |
 
 ## Phiên Bản
 
@@ -183,6 +245,7 @@ cargo run
 - **v0.2** — Giai đoạn 2: Hệ thống xác thực email/password
 - **v0.3** — Giai đoạn 3: Chuyển sang Google OAuth (đăng nhập duy nhất bằng Google)
 - **v0.4** — Giai đoạn 4: Hồ sơ thành viên & Hệ thống cấp bậc
+- **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 
 ---
 

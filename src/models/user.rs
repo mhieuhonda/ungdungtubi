@@ -42,6 +42,8 @@ pub struct User {
     pub gender: String,
     /// Tiểu sử / lời giới thiệu ngắn.
     pub bio: Option<String>,
+    /// ID ảnh avatar user tự upload (ưu tiên trước Google avatar_url).
+    pub avatar_upload_id: Option<Uuid>,
 }
 
 /// Dữ liệu lấy được từ Google userinfo endpoint.
