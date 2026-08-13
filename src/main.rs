@@ -14,30 +14,32 @@ use config::Config;
 async fn main() -> std::io::Result<()> {
     // Load .env
     dotenvy::dotenv().ok();
-    
+
     // Init logger
     env_logger::init();
-    
+
     // Load config
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
-    
-    log::info!("🪷 Ứng Dụng Từ Bi v0.2 — Khởi động...");
+
+    log::info!("🪷 Ứng Dụng Từ Bi v0.3 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("📡 Server: {}", bind_addr);
-    
+    log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
+
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
         .max_connections(5)
         .connect_lazy(&config.database_url)
         .expect("Không thể tạo PostgreSQL pool");
-    
+
     log::info!("✅ PostgreSQL pool đã cấu hình");
-    
+
     // Start background task: clean up expired sessions every hour
     let cleanup_pool = db_pool.clone();
     actix_web::rt::spawn(async move {
-        let mut interval = actix_web::rt::time::interval(std::time::Duration::from_secs(3600));
+        let mut interval =
+            actix_web::rt::time::interval(std::time::Duration::from_secs(3600));
         loop {
             interval.tick().await;
             match db::cleanup_expired_sessions(&cleanup_pool).await {
@@ -51,11 +53,11 @@ async fn main() -> std::io::Result<()> {
             }
         }
     });
-    
+
     // Start server
     log::info!("🚀 Server đang chạy tại http://{}", bind_addr);
     log::info!("🪷 Nguyện công đức vô lượng. Nam Mô A Di Đà Phật.");
-    
+
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
@@ -65,13 +67,20 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Compress::default())
             // Static files (no directory listing for security)
             .service(fs::Files::new("/static", "src/static"))
-            // Routes — Trang chủ & Auth
+            // Routes — Trang chủ
             .route("/", web::get().to(handlers::home))
+            // Routes — Auth (Google OAuth)
             .route("/dang-nhap", web::get().to(handlers::login_page))
-            .route("/dang-ky", web::get().to(handlers::register_page))
-            .route("/dang-nhap", web::post().to(handlers::auth::login))
-            .route("/dang-ky", web::post().to(handlers::auth::register))
+            // /dang-nhap cũng nhận POST để tương thích với các form cũ (chuyển hướng sang Google)
+            .route("/dang-nhap", web::post().to(handlers::auth::google_login))
             .route("/dang-xuat", web::post().to(handlers::auth::logout))
+            .route("/dang-xuat", web::get().to(handlers::auth::logout))
+            // Google OAuth endpoints
+            .route("/auth/google", web::get().to(handlers::auth::google_login))
+            .route(
+                "/auth/google/callback",
+                web::get().to(handlers::auth::google_callback),
+            )
             // Routes — 4 Chuyên Mục Chính
             .route("/khong-gian", web::get().to(handlers::khong_gian))
             .route("/cong-dong", web::get().to(handlers::cong_dong))
@@ -94,8 +103,9 @@ async fn main() -> std::io::Result<()> {
 async fn health_check() -> actix_web::HttpResponse {
     actix_web::HttpResponse::Ok().json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "domain": "tubi.louis.vangioitutien.com",
+        "auth": "google-oauth-only",
         "status": "running",
         "message": "Nguyện công đức vô lượng. Nam Mô A Di Đà Phật."
     }))

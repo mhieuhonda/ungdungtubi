@@ -54,15 +54,10 @@
              x-transition:enter-start="opacity-0 transform translate-y-4"
              x-transition:enter-end="opacity-100 transform translate-y-0">
             {% if user.is_none() %}
-            <a href="/dang-ky" 
+            <a href="/dang-nhap" 
                class="bg-lotus hover:bg-golden text-tubi-900 px-8 py-3 rounded-xl text-lg font-semibold 
                       transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105">
-                🪷 Bắt Đầu Hành Trình
-            </a>
-            <a href="/dang-nhap" 
-               class="border-2 border-tubi-400 text-tubi-100 hover:bg-tubi-700 px-8 py-3 rounded-xl text-lg 
-                      transition-all duration-300">
-                Đăng Nhập
+                🪷 Đăng Nhập Bằng Google
             </a>
             {% else %}
             <a href="/khong-gian" 

@@ -1,6 +1,6 @@
 [package]
 name = "ungdungtubi"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.97"
 
@@ -31,5 +31,11 @@ dotenvy = "0.15"
 env_logger = "0.11"
 log = "0.4"
 
-# Password hashing
-argon2 = "0.5"
+# HTTP client (Google OAuth token exchange + userinfo)
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "gzip"] }
+
+# URL encoding for OAuth params
+urlencoding = "2"
+
+# Random OAuth state
+rand = "0.8"

@@ -91,6 +91,13 @@
                 <div class="hidden md:flex items-center space-x-3">
                     {% if let Some(u) = user %}
                     <div class="flex items-center space-x-3">
+                        {% if let Some(avatar) = u.avatar_url %}
+                        <img src="{{ avatar }}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">
+                        {% else %}
+                        <span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">
+                            {{ u.display_name.chars().next().unwrap_or('🪷') }}
+                        </span>
+                        {% endif %}
                         <span class="text-tubi-100 text-sm">
                             🪷 {{ u.display_name }}
                         </span>
@@ -102,11 +109,8 @@
                         </a>
                     </div>
                     {% else %}
-                    <a href="/dang-nhap" class="text-tubi-100 hover:text-white text-sm transition-colors">
-                        Đăng Nhập
-                    </a>
-                    <a href="/dang-ky" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
-                        Tham Gia
+                    <a href="/dang-nhap" class="bg-lotus hover:bg-golden text-tubi-900 px-4 py-2 rounded-lg text-sm font-semibold transition-colors">
+                        🪷 Đăng Nhập Bằng Google
                     </a>
                     {% endif %}
                 </div>
@@ -132,8 +136,7 @@
                 <a href="/kinh-sach" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📚 Kinh Sách</a>
                 {% if user.is_none() %}
                 <div class="pt-2 border-t border-tubi-700">
-                    <a href="/dang-nhap" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Đăng Nhập</a>
-                    <a href="/dang-ky" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">Tham Gia</a>
+                    <a href="/dang-nhap" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>
                 </div>
                 {% endif %}
             </div>
@@ -216,7 +219,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.2 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
