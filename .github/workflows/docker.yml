@@ -32,7 +32,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: mhieuhonda/ungdungtubi
-  RUST_VERSION: '1.97.1'
 
 jobs:
   build-and-push:
@@ -55,7 +54,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📝 Compute image tags
+      - name: 📝 Compute image tags & labels
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -76,25 +75,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          build-args: |
-            RUST_VERSION=${{ env.RUST_VERSION }}
 
       - name: 📊 Output image digest
         run: |
-          echo "✅ Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          echo "Digest: ${{ steps.meta.outputs.tags }}"
+          echo "✅ Image pushed to ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           echo "Tags:"
           echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+          echo "Digest: ${{ steps.meta.outputs.digest }}"
 
   trigger-coolify:
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: ${{ secrets.COOLIFY_WEBHOOK_URL != '' }}
+    env:
+      COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
 
     steps:
-      - name: 🚀 Trigger Coolify Webhook
-        env:
-          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+      - name: 🚀 Trigger Coolify Webhook (skip if not configured)
+        if: env.COOLIFY_WEBHOOK_URL != ''
         run: |
           echo "📡 Gọi Coolify webhook để trigger deploy..."
           RESPONSE=$(curl -sS -X POST "$COOLIFY_WEBHOOK_URL" \
@@ -111,3 +108,10 @@ jobs:
             echo "⚠️ Coolify webhook trả về HTTP $HTTP_CODE — cần kiểm tra webhook URL."
             exit 1
           fi
+
+      - name: ℹ️ Skip Coolify trigger (no webhook URL configured)
+        if: env.COOLIFY_WEBHOOK_URL == ''
+        run: |
+          echo "ℹ️  COOLIFY_WEBHOOK_URL secret chưa được cấu hình."
+          echo "    Image đã được push lên GHCR — Coolify sẽ deploy theo lịch nếu đã set auto-deploy."
+          echo "    Để setup webhook tự động: Settings → Secrets → Add COOLIFY_WEBHOOK_URL"
