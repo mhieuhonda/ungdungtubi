@@ -11,7 +11,7 @@ use uuid::Uuid;
 /// nên `password_hash` chỉ còn áp dụng cho các tài khoản cũ
 /// đăng ký bằng email/password trước đây.
 ///
-/// Từ v0.4, thêm các trường hồ sơ: phap_danh, phap_hieu, but_danh, gender, bio.
+/// Từ v0.4, thêm các trường hồ sơ: `phap_danh`, `phap_hieu`, `but_danh`, gender, bio.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -42,7 +42,7 @@ pub struct User {
     pub gender: String,
     /// Tiểu sử / lời giới thiệu ngắn.
     pub bio: Option<String>,
-    /// ID ảnh avatar user tự upload (ưu tiên trước Google avatar_url).
+    /// ID ảnh avatar user tự upload (ưu tiên trước Google `avatar_url`).
     pub avatar_upload_id: Option<Uuid>,
 }
 
@@ -83,7 +83,6 @@ impl User {
     /// Tên hiển thị cấp bậc theo khoá `rank`.
     pub fn rank_display(&self) -> &str {
         match self.rank.as_str() {
-            "new" => "Người Mới",
             "normal" => "Người Thường",
             "common" => "Người Bình Thường",
             "good" => "Người Tốt",
@@ -99,7 +98,6 @@ impl User {
     /// Emoji đại diện cho cấp bậc.
     pub fn rank_icon(&self) -> &str {
         match self.rank.as_str() {
-            "new" => "🌱",
             "normal" => "🍃",
             "common" => "🌿",
             "good" => "🌳",
@@ -115,7 +113,6 @@ impl User {
     /// Màu sắc đại diện cho cấp bậc (hex).
     pub fn rank_color(&self) -> &str {
         match self.rank.as_str() {
-            "new" => "#9E9E9E",
             "normal" => "#795548",
             "common" => "#558B2F",
             "good" => "#388E3C",
@@ -129,11 +126,11 @@ impl User {
     }
 
     /// Kiểm tra user có đăng nhập qua Google hay không.
-    pub fn is_google_user(&self) -> bool {
+    pub const fn is_google_user(&self) -> bool {
         self.google_sub.is_some()
     }
 
-    /// Tên hiển thị ưu tiên theo thứ tự: pháp danh > pháp hiệu > bút danh > display_name.
+    /// Tên hiển thị ưu tiên theo thứ tự: pháp danh > pháp hiệu > bút danh > `display_name`.
     pub fn display_label(&self) -> &str {
         self.phap_danh
             .as_deref()

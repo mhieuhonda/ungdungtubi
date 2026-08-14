@@ -35,14 +35,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.7 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
-    log::info!("📡 Server: {}", bind_addr);
+    log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
-    log::info!("🖼️  Upload dir: {:?} (max {} bytes)", config.upload_dir, config.max_upload_bytes);
+    log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.7 — Migration Actix → Axum + giữ nguyên feature Cộng Đồng");
+    log::info!("📦 Phiên bản: v0.9 — Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 + Cộng Đồng");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -55,11 +55,11 @@ async fn main() -> std::io::Result<()> {
     // Auto-run migrations on startup
     // (chỉ chạy khi APP_ENV=production hoặc RUN_MIGRATIONS=true)
     let should_migrate = config.is_production
-        || std::env::var("RUN_MIGRATIONS").map(|v| v == "true").unwrap_or(false);
+        || std::env::var("RUN_MIGRATIONS").is_ok_and(|v| v == "true");
     if should_migrate {
         log::info!("🔄 Đang chạy migrations...");
         match sqlx::migrate!("./migrations").run(&db_pool).await {
-            Ok(_) => log::info!("✅ Migrations đã chạy xong"),
+            Ok(()) => log::info!("✅ Migrations đã chạy xong"),
             Err(e) => {
                 log::error!("❌ Lỗi chạy migrations: {e}");
                 log::error!("   Server vẫn khởi động để bạn có thể debug. Tắt RUN_MIGRATIONS để bỏ qua.");
@@ -86,16 +86,16 @@ async fn main() -> std::io::Result<()> {
     // Start background task: clean up expired sessions every hour
     let cleanup_pool = db_pool.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        let mut interval = tokio::time::interval(std::time::Duration::from_hours(1));
         loop {
             interval.tick().await;
             match db::cleanup_expired_sessions(&cleanup_pool).await {
                 Ok(count) if count > 0 => {
-                    log::info!("🧹 Đã xoá {} phiên hết hạn", count);
+                    log::info!("🧹 Đã xoá {count} phiên hết hạn");
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    log::warn!("⚠️ Lỗi xoá phiên hết hạn: {}", e);
+                    log::warn!("⚠️ Lỗi xoá phiên hết hạn: {e}");
                 }
             }
         }
@@ -103,7 +103,7 @@ async fn main() -> std::io::Result<()> {
 
     // Ensure upload directory exists
     if let Err(e) = std::fs::create_dir_all(&config.upload_dir) {
-        log::warn!("⚠️ Không tạo được upload_dir {:?}: {e}", config.upload_dir);
+        log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
     // Build shared state
@@ -118,7 +118,7 @@ async fn main() -> std::io::Result<()> {
 
     // Start server
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    log::info!("🚀 Server đang chạy tại http://{}", bind_addr);
+    log::info!("🚀 Server đang chạy tại http://{bind_addr}");
     log::info!("🪷 Nguyện công đức vô lượng. Nam Mô A Di Đà Phật.");
 
     axum::serve(listener, app)
@@ -204,18 +204,15 @@ async fn health_check(State(state): State<AppState>) -> Response {
         .fetch_one(&state.pool)
         .await;
 
-    let (db_status, db_version): (&str, String) = match db_ok {
-        Ok(v) => ("ok", v),
-        Err(_) => ("error", String::new()),
-    };
+    let (db_status, db_version): (&str, String) = db_ok.map_or_else(|_| ("error", String::new()), |v| ("ok", v));
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.7.0",
+        "version": "0.9.0",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 7,
-        "phase_name": "Migration Actix → Axum (giữ nguyên feature Cộng Đồng)",
+        "phase": 9,
+        "phase_name": "Ứng Dụng Từ Bi v0.9 — Codebase sạch lỗi, Axum 0.8 ổn định",
         "framework": "axum 0.8 + tower-http",
         "status": "running",
         "database": {
@@ -247,8 +244,8 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 
     log::info!("🛑 Tín hiệu dừng nhận được — đang graceful shutdown (timeout 30s)...");

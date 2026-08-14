@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::config::Config;
 use crate::models::user::{GoogleUserInfo, User};
 
-/// Danh sách cột users đầy đủ (đồng bộ với handlers::USER_COLUMNS và model User).
+/// Danh sách cột users đầy đủ (đồng bộ với `handlers::USER_COLUMNS` và model User).
 const USER_COLUMNS: &str = "id, email, display_name, password_hash, rank, \
     a_balance, k_balance, is_active, created_at, updated_at, \
     google_sub, avatar_url, email_verified, \
@@ -31,13 +31,16 @@ pub struct LoginQuery {
 /// GET /dang-nhap hoặc POST /dang-nhap hoặc GET /auth/google —
 /// chuyển hướng người dùng sang Google OAuth.
 ///
-/// Tạo state ngẫu nhiên, lưu vào cookie (HttpOnly, SameSite=Lax),
-/// sau đó redirect tới https://accounts.google.com/o/oauth2/v2/auth
+/// Tạo state ngẫu nhiên, lưu vào cookie (`HttpOnly`, `SameSite=Lax`),
+/// sau đó redirect tới <https://accounts.google.com/o/oauth2/v2/auth>
 /// với scope `openid email profile`.
 pub async fn google_login(
     State(state): State<AppState>,
     Query(query): Query<LoginQuery>,
 ) -> Response {
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+
     let config = &state.config;
 
     // Nếu chưa cấu hình Google OAuth → báo lỗi thân thiện.
@@ -51,13 +54,16 @@ pub async fn google_login(
     // Sinh state ngẫu nhiên 32 bytes (hex 64 chars).
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill(&mut bytes);
-    let state_value: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+    let state_value: String = bytes.iter().fold(String::with_capacity(64), |mut s, b| {
+        let _ = std::fmt::Write::write_fmt(&mut s, std::format_args!("{b:02x}"));
+        s
+    });
 
     // Lưu đường dẫn quay lại (nếu có query ?next=...) — chỉ cho phép path tương đối.
     let next = query
         .next
         .as_deref()
-        .map(|s| urlencoding::decode(s).ok().map(|s| s.into_owned()).unwrap_or_default())
+        .map(|s| urlencoding::decode(s).ok().map(std::borrow::Cow::into_owned).unwrap_or_default())
         .filter(|s| s.starts_with('/') && !s.starts_with("//"))
         .unwrap_or_else(|| "/".to_string());
 
@@ -76,9 +82,7 @@ pub async fn google_login(
     );
 
     // Build cookies to set in response.
-    use axum_extra::extract::cookie::{Cookie, SameSite};
-    use time::Duration;
-    let state_cookie = Cookie::build((OAUTH_STATE_COOKIE, state_value.clone()))
+    let state_cookie = Cookie::build((OAUTH_STATE_COOKIE, state_value))
         .path("/")
         .max_age(Duration::seconds(600))
         .http_only(true)
@@ -116,9 +120,9 @@ pub struct GoogleCallbackQuery {
 /// GET /auth/google/callback — Google redirect người dùng về đây.
 ///
 /// 1. Kiểm tra state từ cookie khớp query (chống CSRF).
-/// 2. Đổi code lấy access_token qua POST /o/oauth2/token.
+/// 2. Đổi code lấy `access_token` qua POST /o/oauth2/token.
 /// 3. Gọi /oauth2/v3/userinfo để lấy sub, email, name, picture.
-/// 4. Tìm user theo google_sub; nếu không có thì tạo mới.
+/// 4. Tìm user theo `google_sub`; nếu không có thì tạo mới.
 ///    Nếu email đã tồn tại trong hệ thống (tài khoản cũ) thì link luôn.
 /// 5. Tạo session, set cookie, redirect về `next` (mặc định "/").
 pub async fn google_callback(
@@ -133,7 +137,7 @@ pub async fn google_callback(
     if let Some(err) = &query.error {
         return error_page(
             "Chưa đăng nhập được bằng Google",
-            &format!("Google báo lỗi: {}. Vui lòng thử lại.", err),
+            &format!("Google báo lỗi: {err}. Vui lòng thử lại."),
         );
     }
 
@@ -225,6 +229,18 @@ pub async fn google_callback(
     }
 
     // Xoá cookie OAuth tạm + set session cookie.
+    build_session_redirect_response(
+        jar, config.is_production, &session_id, &return_path,
+    )
+}
+
+/// Build redirect response with session cookie set and OAuth cookies cleared.
+fn build_session_redirect_response(
+    jar: axum_extra::extract::CookieJar,
+    is_production: bool,
+    session_id: &str,
+    return_path: &str,
+) -> Response {
     use axum_extra::extract::cookie::{Cookie, SameSite};
     use time::Duration;
 
@@ -236,12 +252,12 @@ pub async fn google_callback(
         .path("/")
         .max_age(Duration::ZERO)
         .build();
-    let session_cookie = Cookie::build(("session_id", session_id.clone()))
+    let session_cookie = Cookie::build(("session_id", session_id.to_string()))
         .path("/")
         .max_age(Duration::days(7))
         .http_only(true)
         .same_site(SameSite::Lax)
-        .secure(config.is_production)
+        .secure(is_production)
         .build();
 
     let new_jar = jar
@@ -249,7 +265,7 @@ pub async fn google_callback(
         .remove(cleared_return)
         .add(session_cookie);
 
-    let mut resp = Redirect::to(&return_path).into_response();
+    let mut resp = Redirect::to(return_path).into_response();
     let headers = resp.headers_mut();
     for c in new_jar.iter() {
         if let Ok(s) = c.encoded().to_string().try_into() {
@@ -261,6 +277,9 @@ pub async fn google_callback(
 
 /// POST /dang-xuat — xoá session khỏi DB và cookie phía client.
 pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+
     if let Some(cookie) = jar.get("session_id") {
         let session_id = cookie.value();
         let _ = sqlx::query("DELETE FROM sessions WHERE id = $1")
@@ -269,8 +288,6 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
             .await;
     }
 
-    use axum_extra::extract::cookie::{Cookie, SameSite};
-    use time::Duration;
     let cleared = Cookie::build(("session_id", ""))
         .path("/")
         .max_age(Duration::ZERO)
@@ -307,7 +324,7 @@ struct GoogleUserinfoRaw {
     picture: Option<String>,
 }
 
-/// Đổi authorization code lấy access_token.
+/// Đổi authorization code lấy `access_token`.
 async fn exchange_code_for_token(
     config: &Config,
     code: &str,
@@ -388,7 +405,7 @@ async fn fetch_google_userinfo(access_token: &str) -> Result<GoogleUserInfo, Str
 }
 
 /// Tìm user theo `google_sub`. Nếu chưa có:
-/// - Nếu email trùng với tài khoản cũ đã đăng ký bằng email/password → link google_sub vào.
+/// - Nếu email trùng với tài khoản cũ đã đăng ký bằng email/password → link `google_sub` vào.
 /// - Nếu không → tạo user mới với rank "new", A=0, K=0.
 async fn upsert_google_user(
     pool: &sqlx::PgPool,

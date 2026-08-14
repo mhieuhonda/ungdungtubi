@@ -131,16 +131,15 @@ pub async fn ca_nhan(State(state): State<AppState>, jar: CookieJar) -> Response 
 /// POST /ca-nhan/cap-nhat — Cập nhật hồ sơ cá nhân.
 ///
 /// Chỉ cho phép cập nhật các trường:
-/// display_name, phap_danh, phap_hieu, but_danh, gender, bio.
-/// Không cho phép chỉnh email, rank, số dư A/K, is_active.
+/// `display_name`, `phap_danh`, `phap_hieu`, `but_danh`, gender, bio.
+/// Không cho phép chỉnh email, rank, số dư A/K, `is_active`.
 pub async fn cap_nhat_ho_so(
     State(state): State<AppState>,
     jar: CookieJar,
     Form(form): Form<ProfileUpdate>,
 ) -> Response {
-    let user = match get_user_from_session(&state.pool, &jar).await {
-        Some(u) => u,
-        None => return Redirect::to("/dang-nhap").into_response(),
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
     };
 
     // Validate
@@ -165,10 +164,10 @@ pub async fn cap_nhat_ho_so(
     }
 
     // Chuẩn hoá các trường tùy chọn (None nếu rỗng).
-    let phap_danh = normalize_optional(&form.phap_danh);
-    let phap_hieu = normalize_optional(&form.phap_hieu);
-    let but_danh = normalize_optional(&form.but_danh);
-    let bio = normalize_optional(&form.bio);
+    let phap_danh = normalize_optional(form.phap_danh.as_ref());
+    let phap_hieu = normalize_optional(form.phap_hieu.as_ref());
+    let but_danh = normalize_optional(form.but_danh.as_ref());
+    let bio = normalize_optional(form.bio.as_ref());
 
     // Cập nhật DB
     let update_sql = format!(
@@ -264,9 +263,8 @@ async fn render_profile_error(
 }
 
 /// Helper: Chuẩn hoá chuỗi tuỳ chọn (None nếu rỗng hoặc chỉ whitespace).
-fn normalize_optional(s: &Option<String>) -> Option<String> {
-    s.as_deref()
-        .map(|s| s.trim().to_string())
+fn normalize_optional(s: Option<&String>) -> Option<String> {
+    s.map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
 }
 
@@ -277,7 +275,7 @@ fn normalize_optional(s: &Option<String>) -> Option<String> {
 
 pub async fn khong_gian(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 5")
+    placeholder_page(user.as_ref(), "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 5")
 }
 
 pub async fn cong_dong(State(state): State<AppState>, jar: CookieJar) -> Response {
@@ -287,27 +285,27 @@ pub async fn cong_dong(State(state): State<AppState>, jar: CookieJar) -> Respons
 
 pub async fn ban_be(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "friends", "Bạn Bè", "👤", "Kết nối, nhắn tin, gửi thư — Kết bạn đạo hữu", "Giai đoạn 15")
+    placeholder_page(user.as_ref(), "friends", "Bạn Bè", "👤", "Kết nối, nhắn tin, gửi thư — Kết bạn đạo hữu", "Giai đoạn 15")
 }
 
 pub async fn kinh_sach(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "books", "Kinh Sách", "📚", "Thư viện kinh sách Phật giáo, Đạo giáo và triết học", "Giai đoạn 17")
+    placeholder_page(user.as_ref(), "books", "Kinh Sách", "📚", "Thư viện kinh sách Phật giáo, Đạo giáo và triết học", "Giai đoạn 17")
 }
 
 pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "", "Quỹ Từ Bi", "🪷", "Quỹ chung cộng đồng — quyên góp, phát quà, hỗ trợ mạnh thường quân", "Giai đoạn 10")
+    placeholder_page(user.as_ref(), "", "Quỹ Từ Bi", "🪷", "Quỹ chung cộng đồng — quyên góp, phát quà, hỗ trợ mạnh thường quân", "Giai đoạn 10")
 }
 
 pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 10")
+    placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 10")
 }
 
 pub async fn bang_xep_hang(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user, "", "Bảng Xếp Hạng", "🏆", "Thành tích niệm Phật, tài Phú K, niệm lực A, phiếu Từ Bi", "Giai đoạn 19")
+    placeholder_page(user.as_ref(), "", "Bảng Xếp Hạng", "🏆", "Thành tích niệm Phật, tài Phú K, niệm lực A, phiếu Từ Bi", "Giai đoạn 19")
 }
 
 /// API: Heartbeat — keeps session alive (called every 5 min by client JS).
@@ -318,8 +316,9 @@ pub async fn heartbeat() -> Response {
 // --- Helper ---
 
 /// Render trang "tính năng đang phát triển" dùng layout chính.
+#[allow(clippy::too_many_lines)]
 fn placeholder_page(
-    user: Option<User>,
+    user: Option<&User>,
     active_page: &str,
     title: &str,
     icon: &str,
@@ -336,8 +335,8 @@ fn placeholder_page(
 </section>"#
     );
 
-    let user_html = render_user_menu_html(&user);
-    let mobile_user_html = render_mobile_user_menu_html(&user);
+    let user_html = render_user_menu_html(user);
+    let mobile_user_html = render_mobile_user_menu_html(user);
 
     let nav_item = |href: &str, label: &str, emoji: &str, page: &str| -> String {
         let cls = if active_page == page {
@@ -474,7 +473,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -511,18 +510,22 @@ fn placeholder_page(
 }
 
 /// Helper: render HTML cho menu user ở header desktop.
-fn render_user_menu_html(user: &Option<User>) -> String {
+#[allow(clippy::option_if_let_else)]
+fn render_user_menu_html(user: Option<&User>) -> String {
     if let Some(u) = user {
-        let avatar_html = if let Some(avatar) = &u.avatar_url {
-            format!(
-                r#"<img src="{avatar}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">"#
-            )
-        } else {
-            let first_char = u.display_name.chars().next().unwrap_or('🪷');
-            format!(
-                r#"<span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">{first_char}</span>"#
-            )
-        };
+        let avatar_html = u.avatar_url.as_ref().map_or_else(
+            || {
+                let first_char = u.display_name.chars().next().unwrap_or('🪷');
+                format!(
+                    r#"<span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">{first_char}</span>"#
+                )
+            },
+            |avatar| {
+                format!(
+                    r#"<img src="{avatar}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">"#
+                )
+            },
+        );
         let mut html = String::new();
         html.push_str("<div class=\"flex items-center space-x-3\">");
         html.push_str(&avatar_html);
@@ -548,18 +551,16 @@ fn render_user_menu_html(user: &Option<User>) -> String {
 }
 
 /// Helper: render HTML cho menu user ở mobile menu.
-fn render_mobile_user_menu_html(user: &Option<User>) -> String {
-    if let Some(u) = user {
-        let _ = u;
-        r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
+fn render_mobile_user_menu_html(user: Option<&User>) -> String {
+    user.map_or_else(
+        || r#"<a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#
+            .to_string(),
+        |_| r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
            <form action="/dang-xuat" method="POST" class="block">
                <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">Thoát</button>
            </form>"#
-            .to_string()
-    } else {
-        r#"<a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#
-            .to_string()
-    }
+            .to_string(),
+    )
 }
 
 

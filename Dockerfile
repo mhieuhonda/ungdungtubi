@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ────────────────────────────────────────────────────────────────────────────
-# Dockerfile — Ứng Dụng Từ Bi (v0.5)
+# Dockerfile — Ứng Dụng Từ Bi (v0.9)
 # Multi-stage build với Rust 1.97.1
 #
 # Image final: ~30 MB (glibc + stripped binary + static assets)

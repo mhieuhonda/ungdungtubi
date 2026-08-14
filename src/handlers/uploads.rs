@@ -7,6 +7,8 @@
 //!   * Ghi metadata vào bảng `images`
 //!   * Trả về JSON `{ id, url, size, mime_type }`
 
+use std::fmt::Write;
+
 use axum::{
     body::Bytes,
     extract::{Multipart, State},
@@ -68,9 +70,7 @@ pub async fn upload_image(
     let config = &state.config;
 
     // 1. Auth
-    let user = match get_user_from_session(pool, &jar).await {
-        Some(u) => u,
-        None => {
+    let Some(user) = get_user_from_session(pool, &jar).await else {
             return (
                 StatusCode::UNAUTHORIZED,
                 Json(serde_json::json!({
@@ -78,12 +78,11 @@ pub async fn upload_image(
                 })),
             )
                 .into_response();
-        }
-    };
+        };
 
     // 2. Đảm bảo upload_dir tồn tại
     if let Err(e) = std::fs::create_dir_all(&config.upload_dir) {
-        log::error!("❌ Không tạo được upload_dir {:?}: {e}", config.upload_dir);
+        log::error!("❌ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({
@@ -93,78 +92,12 @@ pub async fn upload_image(
             .into_response();
     }
 
-    // 3. Đọc field `file` từ multipart (axum::extract::Multipart)
-    let mut original_name: Option<String> = None;
-    let mut detected_mime: Option<String> = None;
-    let mut field_count = 0u32;
-    let mut accumulated: Vec<u8> = Vec::new();
-
-    while let Ok(Some(field)) = multipart.next_field().await {
-        field_count += 1;
-        if field_count > 5 {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({
-                    "error": "Quá nhiều field trong form upload."
-                })),
-            )
-                .into_response();
-        }
-
-        let field_name = field.name().unwrap_or("").to_string();
-        let field_filename = field.file_name().map(|s| s.to_string());
-        let content_type = field.content_type().map(|m| m.to_string());
-
-        if field_name != "file" {
-            // Skip các field khác (chỉ cho phép `file`)
-            continue;
-        }
-
-        // Lưu filename + mime từ field này
-        if let Some(fname) = field_filename {
-            let safe: String = fname
-                .chars()
-                .filter(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-'))
-                .collect();
-            if !safe.is_empty() {
-                original_name = Some(safe);
-            }
-        }
-        if let Some(ct) = content_type {
-            detected_mime = Some(ct);
-        }
-
-        // Đọc bytes — axum::Field đọc toàn bộ nội dung field bằng `bytes()`
-        match field.bytes().await {
-            Ok(chunk) => {
-                accumulated.extend_from_slice(&chunk);
-                if accumulated.len() as u64 > config.max_upload_bytes as u64 {
-                    return (
-                        StatusCode::PAYLOAD_TOO_LARGE,
-                        Json(serde_json::json!({
-                            "error": format!(
-                                "Ảnh vượt quá giới hạn {} bytes.",
-                                config.max_upload_bytes
-                            )
-                        })),
-                    )
-                        .into_response();
-                }
-            }
-            Err(e) => {
-                log::error!("❌ Lỗi đọc field multipart: {e}");
-                return (
-                    StatusCode::BAD_REQUEST,
-                    Json(serde_json::json!({
-                        "error": "Không đọc được dữ liệu upload."
-                    })),
-                )
-                    .into_response();
-            }
-        }
-    }
-
-    let file_bytes: Bytes = Bytes::from(accumulated);
+    // 3. Đọc field `file` từ multipart
+    let (file_bytes, original_name, detected_mime) =
+        match read_multipart_file(&mut multipart, config.max_upload_bytes).await {
+            Ok(result) => result,
+            Err(resp) => return resp,
+        };
 
     if file_bytes.is_empty() {
         return (
@@ -177,13 +110,8 @@ pub async fn upload_image(
     }
 
     // 4. Validate MIME type
-    let mime = match detected_mime.as_deref() {
-        Some(m) => parse_mime(m).unwrap_or_default(),
-        None => String::new(),
-    };
-    let ext = match mime_to_ext(&mime) {
-        Some(e) => e,
-        None => {
+    let mime = detected_mime.as_deref().map_or_else(String::new, |m| parse_mime(m).unwrap_or_default());
+    let Some(ext) = mime_to_ext(&mime) else {
             return (
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
                 Json(serde_json::json!({
@@ -191,82 +119,35 @@ pub async fn upload_image(
                 })),
             )
                 .into_response();
-        }
-    };
+        };
 
-    // 5. Tính SHA-256
-    let mut hasher = Sha256::new();
-    hasher.update(&file_bytes);
-    let sha256_hex = hasher.finalize();
-    let sha256_str = hex_encode(&sha256_hex);
-
-    // 6. Kiểm tra ảnh trùng (theo sha256 của user)
-    let duplicate_check = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM images WHERE sha256 = $1 AND uploader_id = $2 LIMIT 1",
-    )
-    .bind(&sha256_str)
-    .bind(user.id)
-    .fetch_optional(pool)
-    .await;
-
-    if let Ok(Some(existing_id)) = duplicate_check {
-        let url = format!("{}/{existing_id}.{ext}", config.upload_url_prefix);
-        return Json(serde_json::json!({
-            "id": existing_id,
-            "url": url,
-            "duplicate": true,
-            "size": file_bytes.len(),
-            "mime_type": mime,
-        }))
-        .into_response();
+    // 5. Tính SHA-256 + kiểm tra ảnh trùng
+    let sha256_str = compute_sha256(&file_bytes);
+    if let Some(resp) = check_duplicate_image(pool, user.id, &sha256_str, ext, &config.upload_url_prefix, &mime, &file_bytes).await {
+        return resp;
     }
 
-    // 7. Sinh file_id + stored_filename
+    // 6. Ghi metadata + ghi file
     let file_id = Uuid::new_v4();
     let stored_filename = format!("{file_id}.{ext}");
-
-    // 8. Đọc kích thước ảnh (đơn giản: chỉ JPEG/PNG/WebP/GIF header)
     let (width, height) = parse_image_dimensions(&file_bytes, &mime);
 
-    // 9. Ghi vào DB trước khi ghi file (để rollback dễ hơn)
-    let original_name = original_name.unwrap_or_else(|| format!("upload.{ext}"));
-    let insert_result = sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO images
-            (id, uploader_id, original_name, stored_filename, mime_type,
-             size_bytes, sha256, width, height, purpose, is_public)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'other', true)
-         RETURNING id",
-    )
-    .bind(file_id)
-    .bind(user.id)
-    .bind(&original_name)
-    .bind(&stored_filename)
-    .bind(&mime)
-    .bind(file_bytes.len() as i64)
-    .bind(&sha256_str)
-    .bind(width)
-    .bind(height)
-    .fetch_one(pool)
-    .await;
-
-    let image_id = match insert_result {
-        Ok(id) => id,
-        Err(e) => {
-            log::error!("❌ Lỗi ghi metadata ảnh: {e}");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({
-                    "error": "Không ghi được metadata ảnh."
-                })),
-            )
-                .into_response();
-        }
+    let Ok(image_id) = insert_image_metadata(
+        pool, file_id, user.id, original_name.as_ref(), &stored_filename,
+        &mime, &file_bytes, &sha256_str, width, height, ext,
+    ).await else {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "Không ghi được metadata ảnh."
+            })),
+        )
+            .into_response();
     };
 
-    // 10. Ghi file ra filesystem
     let file_path = config.upload_dir.join(&stored_filename);
     if let Err(e) = std::fs::write(&file_path, &file_bytes) {
-        log::error!("❌ Lỗi ghi file ảnh {:?}: {e}", file_path);
+        log::error!("❌ Lỗi ghi file ảnh {}: {e}", file_path.display());
         let _ = sqlx::query("DELETE FROM images WHERE id = $1")
             .bind(image_id)
             .execute(pool)
@@ -281,32 +162,164 @@ pub async fn upload_image(
     }
 
     let url = format!("{}/{stored_filename}", config.upload_url_prefix);
-
-    log::info!(
-        "🖼️  User {} uploaded image {} ({} bytes, {})",
-        user.id,
-        image_id,
-        file_bytes.len(),
-        mime
-    );
+    log::info!("🖼️  User {} uploaded image {} ({} bytes, {})", user.id, image_id, file_bytes.len(), mime);
 
     Json(serde_json::json!({
-        "id": image_id,
-        "url": url,
-        "size": file_bytes.len(),
-        "mime_type": mime,
-        "width": width,
-        "height": height,
-        "sha256": sha256_str,
+        "id": image_id, "url": url, "size": file_bytes.len(),
+        "mime_type": mime, "width": width, "height": height, "sha256": sha256_str,
     }))
     .into_response()
+}
+
+/// Compute SHA-256 hex string from bytes.
+fn compute_sha256(file_bytes: &Bytes) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(file_bytes);
+    hex_encode(&hasher.finalize())
+}
+
+/// Check for duplicate image by SHA-256. Returns Some(response) if duplicate found.
+async fn check_duplicate_image(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    sha256_str: &str,
+    ext: &str,
+    upload_url_prefix: &str,
+    mime: &str,
+    file_bytes: &Bytes,
+) -> Option<Response> {
+    let existing_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM images WHERE sha256 = $1 AND uploader_id = $2 LIMIT 1",
+    )
+    .bind(sha256_str)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .ok()??;
+
+    let url = format!("{upload_url_prefix}/{existing_id}.{ext}");
+    Some(Json(serde_json::json!({
+        "id": existing_id, "url": url, "duplicate": true,
+        "size": file_bytes.len(), "mime_type": mime,
+    })).into_response())
+}
+
+/// Read multipart fields and extract the `file` field.
+///
+/// Returns `(file_bytes, original_name, detected_mime)` or an error response.
+async fn read_multipart_file(
+    multipart: &mut Multipart,
+    max_upload_bytes: usize,
+) -> Result<(Bytes, Option<String>, Option<String>), Response> {
+    let mut original_name: Option<String> = None;
+    let mut detected_mime: Option<String> = None;
+    let mut field_count = 0u32;
+    let mut accumulated: Vec<u8> = Vec::new();
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        field_count += 1;
+        if field_count > 5 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "Quá nhiều field trong form upload."
+                })),
+            )
+                .into_response());
+        }
+
+        let field_name = field.name().unwrap_or("").to_string();
+        let field_filename = field.file_name().map(std::string::ToString::to_string);
+        let content_type = field.content_type().map(std::string::ToString::to_string);
+
+        if field_name != "file" {
+            continue;
+        }
+
+        if let Some(fname) = field_filename {
+            let safe: String = fname
+                .chars()
+                .filter(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-'))
+                .collect();
+            if !safe.is_empty() {
+                original_name = Some(safe);
+            }
+        }
+        if let Some(ct) = content_type {
+            detected_mime = Some(ct);
+        }
+
+        match field.bytes().await {
+            Ok(chunk) => {
+                accumulated.extend_from_slice(&chunk);
+                if accumulated.len() as u64 > max_upload_bytes as u64 {
+                    return Err((
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        Json(serde_json::json!({
+                            "error": format!("Ảnh vượt quá giới hạn {max_upload_bytes} bytes.")
+                        })),
+                    )
+                        .into_response());
+                }
+            }
+            Err(e) => {
+                log::error!("❌ Lỗi đọc field multipart: {e}");
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": "Không đọc được dữ liệu upload."
+                    })),
+                )
+                    .into_response());
+            }
+        }
+    }
+
+    Ok((Bytes::from(accumulated), original_name, detected_mime))
+}
+
+/// Insert image metadata into the database.
+#[allow(clippy::too_many_arguments)]
+async fn insert_image_metadata(
+    pool: &sqlx::PgPool,
+    file_id: Uuid,
+    uploader_id: Uuid,
+    original_name: Option<&String>,
+    stored_filename: &str,
+    mime: &str,
+    file_bytes: &Bytes,
+    sha256_str: &str,
+    width: Option<i32>,
+    height: Option<i32>,
+    ext: &str,
+) -> Result<Uuid, sqlx::Error> {
+    let default_name = format!("upload.{ext}");
+    let original_name = original_name.map_or(&default_name, |s| s);
+    sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO images
+            (id, uploader_id, original_name, stored_filename, mime_type,
+             size_bytes, sha256, width, height, purpose, is_public)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'other', true)
+         RETURNING id",
+    )
+    .bind(file_id)
+    .bind(uploader_id)
+    .bind(original_name)
+    .bind(stored_filename)
+    .bind(mime)
+    .bind(i64::try_from(file_bytes.len()).unwrap_or(i64::MAX))
+    .bind(sha256_str)
+    .bind(width)
+    .bind(height)
+    .fetch_one(pool)
+    .await
 }
 
 /// Helper: hex-encode 32 bytes thành 64-char string.
 fn hex_encode(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
-        s.push_str(&format!("{:02x}", b));
+        let _ = write!(s, "{b:02x}");
     }
     s
 }
@@ -322,6 +335,7 @@ fn parse_image_dimensions(bytes: &[u8], mime: &str) -> (Option<i32>, Option<i32>
     }
 }
 
+#[allow(clippy::cast_possible_wrap)]
 fn parse_png_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
     if bytes.len() < 24 || &bytes[0..8] != b"\x89PNG\r\n\x1a\n" {
         return (None, None);
@@ -337,7 +351,7 @@ fn parse_gif_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
     }
     let w = u16::from_le_bytes([bytes[6], bytes[7]]);
     let h = u16::from_le_bytes([bytes[8], bytes[9]]);
-    (Some(w as i32), Some(h as i32))
+    (Some(i32::from(w)), Some(i32::from(h)))
 }
 
 fn parse_jpeg_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
@@ -365,7 +379,7 @@ fn parse_jpeg_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
             }
             let h = u16::from_be_bytes([bytes[i + 3], bytes[i + 4]]);
             let w = u16::from_be_bytes([bytes[i + 5], bytes[i + 6]]);
-            return (Some(w as i32), Some(h as i32));
+            return (Some(i32::from(w)), Some(i32::from(h)));
         }
 
         if i + 1 >= bytes.len() {
@@ -380,6 +394,7 @@ fn parse_jpeg_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
     (None, None)
 }
 
+#[allow(clippy::cast_possible_wrap)]
 fn parse_webp_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
     if bytes.len() < 30 || &bytes[0..4] != b"RIFF" || &bytes[8..12] != b"WEBP" {
         return (None, None);
@@ -392,16 +407,16 @@ fn parse_webp_dimensions(bytes: &[u8]) -> (Option<i32>, Option<i32>) {
             }
             let w = u16::from_le_bytes([bytes[26], bytes[27]]) & 0x3FFF;
             let h = u16::from_le_bytes([bytes[28], bytes[29]]) & 0x3FFF;
-            (Some(w as i32), Some(h as i32))
+            (Some(i32::from(w)), Some(i32::from(h)))
         }
         b"VP8L" => {
             if bytes.len() < 25 {
                 return (None, None);
             }
-            let b0 = bytes[21] as u32;
-            let b1 = bytes[22] as u32;
-            let b2 = bytes[23] as u32;
-            let b3 = bytes[24] as u32;
+            let b0 = u32::from(bytes[21]);
+            let b1 = u32::from(bytes[22]);
+            let b2 = u32::from(bytes[23]);
+            let b3 = u32::from(bytes[24]);
             let w = 1 + (b0 | ((b1 & 0x3F) << 8));
             let h = 1 + (((b1 >> 6) & 0x03) | (b2 << 2) | ((b3 & 0x0F) << 10));
             (Some(w as i32), Some(h as i32))

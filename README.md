@@ -287,7 +287,7 @@ Workflow deploy tự động:
 - **v0.4** — Giai đoạn 4: Hồ sơ thành viên & Hệ thống cấp bậc
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
-- **v0.7** — Migration Actix-web → Axum 0.8 (giữ nguyên feature v0.6, Rust 1.97.1)
+- **v0.9** — Giai đoạn 9: Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 ổn định
 
 ---
 

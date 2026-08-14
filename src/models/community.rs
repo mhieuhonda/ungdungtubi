@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 /// Một nhóm cộng đồng.
 ///
-/// Mỗi nhóm chứa nhiều chủ đề (topics) và có nhiều thành viên (group_members).
+/// Mỗi nhóm chứa nhiều chủ đề (topics) và có nhiều thành viên (`group_members`).
 /// Vai trò của thành viên được phân biệt qua bảng `group_members`.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Group {

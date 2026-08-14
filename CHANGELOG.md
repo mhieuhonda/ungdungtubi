@@ -6,6 +6,36 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.0] — 2026-08-14 — Ứng Dụng Từ Bi v0.9: Codebase sạch lỗi, Axum 0.8 ổn định
+
+### Sửa
+- **Fix triệt để 126 clippy warnings (pedantic + nursery)** — toàn bộ codebase giờ pass `cargo clippy --all-targets --all-features -- -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery` với 0 lỗi.
+  - `src/config.rs`: `doc_markdown`, `map_unwrap_or` → `is_ok_and`/`map_or_else`, `manual_assert`, `use_self`
+  - `src/errors/mod.rs`: `use_self`, `match_same_arms`
+  - `src/handlers/auth.rs`: `doc_markdown`, `format_collect`, `redundant_closure`, `items_after_statements`, `redundant_clone`, `uninlined_format_args`, `too_many_lines` (extracted `build_session_redirect_response`), `let_and_return`
+  - `src/handlers/community.rs`: `doc_markdown`, `manual_let_else` (7 instances), `map_unwrap_or`, `too_many_lines` (extracted `render_create_group_error` + `insert_group_with_owner`), `too_many_arguments`, `ref_option`
+  - `src/handlers/uploads.rs`: `manual_let_else`, `unnecessary_debug_formatting`, `redundant_closure`, `option_if_let_else`, `format_push_string` → `write!`, `uninlined_format_args`, `cast_possible_wrap`, `cast_lossless`, `too_many_lines` (extracted 4 helpers), `items_after_statements`
+  - `src/handlers/mod.rs`: `doc_markdown`, `manual_let_else`, `ref_option`, `needless_pass_by_value`, `option_if_let_else`, `too_many_lines`
+  - `src/main.rs`: `uninlined_format_args`, `unnecessary_debug_formatting`, `map_unwrap_or` → `is_ok_and`, `ignored_unit_patterns`, `duration_suboptimal_units`, `option_if_let_else`
+  - `src/models/user.rs`: `match_same_arms`, `missing_const_for_fn`, `doc_markdown`
+  - `src/models/community.rs`: `doc_markdown`
+- **Bump version**: 0.7.0 → 0.9.0
+
+  - `Cargo.toml`: version `0.9.0`
+  - `main.rs` health endpoint: `version: 0.9.0`, `phase: 9`, `phase_name` cập nhật
+  - `templates/layout.html` footer: v0.9
+  - `handlers/mod.rs` placeholder_page footer: v0.9
+
+### Giữ nguyên
+- **Toàn bộ logic nghiệp vụ** — không thay đổi bất kỳ chức năng nào.
+- **Toàn bộ SQL queries** — không thay đổi schema hay migration files.
+- **Toàn bộ Askama templates** — chỉ cập nhật số version trong footer.
+- **Toàn bộ model structs** — không đổi.
+- **Yêu cầu Rust 1.97.1** — `Cargo.toml` vẫn `rust-version = "1.97"`.
+- **API surface** — tất cả endpoint giữ nguyên hoàn toàn.
+
+---
+
 ## [0.7.0] — 2026-08-14 — Migration Actix-web → Axum (giữ nguyên feature Cộng Đồng)
 
 ### Thay đổi

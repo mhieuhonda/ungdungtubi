@@ -51,7 +51,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8080/auth/google/callback}
       RUN_MIGRATIONS: "true"
-      RUST_LOG: ungdungtubi=debug,actix_web=info,sqlx=warn
+      RUST_LOG: ungdungtubi=debug,axum=info,tower_http=info,sqlx=warn
     ports:
       - "8080:8080"
     volumes:

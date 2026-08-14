@@ -15,7 +15,7 @@ pub struct Config {
     pub google_client_id: String,
     /// Google OAuth client secret
     pub google_client_secret: String,
-    /// OAuth redirect URI (e.g. https://tubi.louis.vangioitutien.com/auth/google/callback)
+    /// OAuth redirect URI (e.g. <https://tubi.louis.vangioitutien.com/auth/google/callback>)
     pub google_redirect_uri: String,
     /// Base URL of the app for building absolute redirect URLs
     pub app_base_url: String,
@@ -35,14 +35,10 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Self {
-        let is_production = env::var("APP_ENV")
-            .map(|v| v == "production")
-            .unwrap_or(false);
+        let is_production = env::var("APP_ENV").is_ok_and(|v| v == "production");
 
         let secret_key = env::var("SECRET_KEY").unwrap_or_else(|_| {
-            if is_production {
-                panic!("SECRET_KEY must be set in production environment");
-            }
+            assert!(!is_production, "SECRET_KEY must be set in production environment");
             log::warn!("⚠️ Using default SECRET_KEY — NOT for production!");
             "ung-dung-tu-bi-dev-secret-key".into()
         });
@@ -56,17 +52,13 @@ impl Config {
         });
 
         let google_client_id = env::var("GOOGLE_CLIENT_ID").unwrap_or_else(|_| {
-            if is_production {
-                panic!("GOOGLE_CLIENT_ID must be set in production environment");
-            }
+            assert!(!is_production, "GOOGLE_CLIENT_ID must be set in production environment");
             log::warn!("⚠️ GOOGLE_CLIENT_ID is not set — Google login will not work!");
             String::new()
         });
 
         let google_client_secret = env::var("GOOGLE_CLIENT_SECRET").unwrap_or_else(|_| {
-            if is_production {
-                panic!("GOOGLE_CLIENT_SECRET must be set in production environment");
-            }
+            assert!(!is_production, "GOOGLE_CLIENT_SECRET must be set in production environment");
             log::warn!("⚠️ GOOGLE_CLIENT_SECRET is not set — Google login will not work!");
             String::new()
         });
@@ -77,24 +69,20 @@ impl Config {
             env::var("GOOGLE_REDIRECT_URI").unwrap_or(default_redirect);
 
         // Static directory: prefer STATIC_DIR env (set in Docker), else dev path.
-        let static_dir = env::var("STATIC_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
+        let static_dir = env::var("STATIC_DIR").map_or_else(|_| {
                 // Dev fallback: <project_root>/src/static
                 let mut p = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                 p.push("src");
                 p.push("static");
                 p
-            });
+            }, PathBuf::from);
 
         // Upload directory: prefer UPLOAD_DIR env, else <static_dir>/uploads
-        let upload_dir = env::var("UPLOAD_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
+        let upload_dir = env::var("UPLOAD_DIR").map_or_else(|_| {
                 let mut p = static_dir.clone();
                 p.push("uploads");
                 p
-            });
+            }, PathBuf::from);
 
         // Max upload size: default 5 MB
         let max_upload_bytes = env::var("MAX_UPLOAD_BYTES")
@@ -111,7 +99,7 @@ impl Config {
         let upload_url_prefix =
             env::var("UPLOAD_URL_PREFIX").unwrap_or_else(|_| "/static/uploads".into());
 
-        Config {
+        Self {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://tubi:tubi_password@localhost:5432/ungdungtubi".into()
             }),
