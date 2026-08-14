@@ -79,12 +79,12 @@ jobs:
   trigger-coolify:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
 
     steps:
       - name: 🚀 Trigger Coolify Webhook (skip if not configured)
-        if: ${{ secrets.COOLIFY_WEBHOOK_URL != '' }}
-        env:
-          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+        if: env.COOLIFY_WEBHOOK_URL != ''
         run: |
           echo "📡 Gọi Coolify webhook để trigger deploy..."
           RESPONSE=$(curl -sS -X POST "$COOLIFY_WEBHOOK_URL" \
@@ -103,7 +103,7 @@ jobs:
           fi
 
       - name: ℹ️ Skip Coolify trigger (no webhook URL configured)
-        if: ${{ secrets.COOLIFY_WEBHOOK_URL == '' }}
+        if: env.COOLIFY_WEBHOOK_URL == ''
         run: |
           echo "ℹ️  COOLIFY_WEBHOOK_URL secret chưa được cấu hình."
           echo "    Image đã được push lên GHCR — Coolify sẽ deploy theo lịch nếu đã set auto-deploy."
