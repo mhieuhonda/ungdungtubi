@@ -331,7 +331,7 @@ async fn handle_chat_socket(
 
             // Persist vào DB — dùng ChatMessage (không có author info) vì
             // INSERT RETURNING không trả về columns từ users table.
-            let saved: Option<ChatMessageWithAuthor> = sqlx::query_as::<_, ChatMessage>(
+            let saved: Option<ChatMessageWithAuthor> = match sqlx::query_as::<_, ChatMessage>(
                 "INSERT INTO group_chat_messages (group_id, author_id, body)
                  VALUES ($1, $2, $3)
                  RETURNING id, group_id, author_id, body, is_active, created_at",
@@ -341,18 +341,30 @@ async fn handle_chat_socket(
             .bind(&body)
             .fetch_one(&pool)
             .await
-            .ok()
-            .map(|m| ChatMessageWithAuthor {
-                id: m.id,
-                group_id: m.group_id,
-                author_id: m.author_id,
-                body: m.body,
-                is_active: m.is_active,
-                created_at: m.created_at,
-                author_display_name: user_display_name.clone(),
-                author_avatar_url: user_avatar_url.clone(),
-                author_rank: user_rank.clone(),
-            });
+            {
+                Ok(m) => Some(ChatMessageWithAuthor {
+                    id: m.id,
+                    group_id: m.group_id,
+                    author_id: m.author_id,
+                    body: m.body,
+                    is_active: m.is_active,
+                    created_at: m.created_at,
+                    author_display_name: user_display_name.clone(),
+                    author_avatar_url: user_avatar_url.clone(),
+                    author_rank: user_rank.clone(),
+                }),
+                Err(e) => {
+                    // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop
+                    log::error!("❌ Lỗi lưu group chat message: {e}");
+                    let err_payload = serde_json::json!({
+                        "type": "error",
+                        "message": "Không lưu được tin nhắn. Vui lòng thử lại."
+                    })
+                    .to_string();
+                    let _ = err_tx.send(err_payload);
+                    None
+                }
+            };
 
             if let Some(msg) = saved {
                 let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
@@ -421,6 +433,41 @@ impl GlobalChatHub {
     /// Broadcast một payload JSON đến tất cả client đang kết nối chat chung.
     pub async fn broadcast(&self, payload: BroadcastPayload) {
         let tx = self.subscribe().await;
+        let _ = tx.send(payload);
+    }
+}
+
+// ====================================================================
+// DM Chat Hub — v0.9.5 Giai đoạn 9
+// Quản lý broadcast channel per-conversation cho Direct Messages 1-1
+// ====================================================================
+
+/// Sức chứa broadcast channel cho một conversation.
+const DM_CHANNEL_CAPACITY: usize = 128;
+
+/// Hub quản lý các broadcast channel cho Direct Messages (1-1 chat).
+///
+/// Tương tự ChatHub (per-group), nhưng dùng conversation_id thay vì group_id.
+#[derive(Clone, Default)]
+pub struct DmChatHub {
+    channels: Arc<Mutex<HashMap<Uuid, broadcast::Sender<BroadcastPayload>>>>,
+}
+
+impl DmChatHub {
+    /// Lấy (hoặc tạo nếu chưa có) broadcast sender cho conversation.
+    pub async fn subscribe(&self, conversation_id: Uuid) -> broadcast::Sender<BroadcastPayload> {
+        let mut map = self.channels.lock().await;
+        map.entry(conversation_id)
+            .or_insert_with(|| {
+                let (tx, _rx) = broadcast::channel(DM_CHANNEL_CAPACITY);
+                tx
+            })
+            .clone()
+    }
+
+    /// Broadcast một payload JSON đến tất cả client trong conversation.
+    pub async fn broadcast(&self, conversation_id: Uuid, payload: BroadcastPayload) {
+        let tx = self.subscribe(conversation_id).await;
         let _ = tx.send(payload);
     }
 }
@@ -571,7 +618,7 @@ async fn handle_global_chat_socket(
 
             // Persist vào DB
             use crate::models::community::{GlobalChatMessage, GlobalChatMessageWithAuthor};
-            let saved: Option<GlobalChatMessageWithAuthor> = sqlx::query_as::<_, GlobalChatMessage>(
+            let saved: Option<GlobalChatMessageWithAuthor> = match sqlx::query_as::<_, GlobalChatMessage>(
                 "INSERT INTO global_chat_messages (author_id, body)
                  VALUES ($1, $2)
                  RETURNING id, author_id, body, is_active, created_at",
@@ -580,17 +627,29 @@ async fn handle_global_chat_socket(
             .bind(&body)
             .fetch_one(&pool)
             .await
-            .ok()
-            .map(|m| GlobalChatMessageWithAuthor {
-                id: m.id,
-                author_id: m.author_id,
-                body: m.body,
-                is_active: m.is_active,
-                created_at: m.created_at,
-                author_display_name: user_display_name.clone(),
-                author_avatar_url: user_avatar_url.clone(),
-                author_rank: user_rank.clone(),
-            });
+            {
+                Ok(m) => Some(GlobalChatMessageWithAuthor {
+                    id: m.id,
+                    author_id: m.author_id,
+                    body: m.body,
+                    is_active: m.is_active,
+                    created_at: m.created_at,
+                    author_display_name: user_display_name.clone(),
+                    author_avatar_url: user_avatar_url.clone(),
+                    author_rank: user_rank.clone(),
+                }),
+                Err(e) => {
+                    // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop
+                    log::error!("❌ Lỗi lưu global chat message: {e}");
+                    let err_payload = serde_json::json!({
+                        "type": "error",
+                        "message": "Không lưu được tin nhắn. Vui lòng thử lại."
+                    })
+                    .to_string();
+                    let _ = err_tx.send(err_payload);
+                    None
+                }
+            };
 
             if let Some(msg) = saved {
                 let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());

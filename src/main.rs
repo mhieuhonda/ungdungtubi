@@ -15,17 +15,19 @@ mod handlers;
 mod models;
 
 use config::Config;
-use handlers::chat::{ChatHub, GlobalChatHub};
+use handlers::chat::{ChatHub, DmChatHub, GlobalChatHub};
 
 /// Shared application state — replaces actix-web's `web::Data<T>`.
 ///
 /// v0.9.3: thêm `global_chat_hub` cho Chat Chung toàn platform.
+/// v0.9.5: thêm `dm_chat_hub` cho Direct Messages 1-1 (Giai đoạn 9).
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
     pub chat_hub: ChatHub,
     pub global_chat_hub: GlobalChatHub,
+    pub dm_chat_hub: DmChatHub,
 }
 
 #[tokio::main]
@@ -40,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.4 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.5 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.4 — Giai đoạn 8: CI/CD GitHub Actions + Docker Image + Coolify webhook auto-deploy");
+    log::info!("📦 Phiên bản: v0.9.5 — Giai đoạn 9: Module Bạn Bè + Fix live chat bugs");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -111,12 +113,13 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
-    // Build shared state (v0.9.3: + chat_hub + global_chat_hub)
+    // Build shared state (v0.9.3: + chat_hub + global_chat_hub; v0.9.5: + dm_chat_hub)
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
         chat_hub: ChatHub::default(),
         global_chat_hub: GlobalChatHub::default(),
+        dm_chat_hub: DmChatHub::default(),
     };
 
     // Build router
@@ -213,6 +216,30 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/cong-dong/nhom/{slug}/doi-anh",
             post(handlers::community::change_group_cover),
         )
+        // Routes — Bạn Bè (v0.9.5 — Giai đoạn 9)
+        .route("/ban-be", get(handlers::friends::ban_be_index))
+        .route("/ban-be/keu-ban/{user_id}", post(handlers::friends::send_friend_request))
+        .route("/ban-be/chap-nhan/{friendship_id}", post(handlers::friends::accept_friend_request))
+        .route("/ban-be/tu-choi/{friendship_id}", post(handlers::friends::decline_friend_request))
+        .route("/ban-be/huy-ket-ban/{user_id}", post(handlers::friends::remove_friend))
+        .route("/ban-be/tao-conversation", post(handlers::friends::create_conversation))
+        .route("/ban-be/tin-nhan", get(handlers::friends::dm_inbox))
+        .route("/ban-be/tin-nhan/{conversation_id}", get(handlers::friends::dm_view))
+        .route(
+            "/ws/ban-be/tin-nhan/{conversation_id}",
+            get(handlers::friends::dm_ws_upgrade),
+        )
+        .route(
+            "/api/ban-be/tin-nhan/{conversation_id}/history",
+            get(handlers::friends::dm_history),
+        )
+        .route("/ban-be/thu", get(handlers::friends::mail_inbox))
+        .route("/ban-be/thu/gui", get(handlers::friends::mail_compose_form).post(handlers::friends::mail_send))
+        .route("/ban-be/thu/{mail_id}", get(handlers::friends::mail_view))
+        .route("/ban-be/thong-bao", get(handlers::friends::notifications_list))
+        .route("/api/ban-be/thong-bao/chua-doc", get(handlers::friends::notifications_unread_count))
+        .route("/api/ban-be/thong-bao/{notification_id}/da-doc", post(handlers::friends::mark_notification_read))
+        .route("/ban-be/tim-kiem", get(handlers::friends::search_users))
         // API
         .route("/api/health", get(health_check))
         .route("/api/heartbeat", post(handlers::heartbeat))
@@ -239,11 +266,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.4",
+        "version": "0.9.5",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 8,
-        "phase_name": "Giai đoạn 8 — CI/CD GitHub Actions + Docker Image + Coolify auto-deploy",
+        "phase": 9,
+        "phase_name": "Giai đoạn 9 — Module Bạn Bè (Friends + DM + Mail + Notifications) + Fix live chat bugs",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -254,7 +281,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "live-chat-websocket",
             "global-chat-websocket",
             "avatar-upload",
-            "group-cover-upload"
+            "group-cover-upload",
+            "friends-system",
+            "direct-messaging",
+            "mail-inbox",
+            "notifications"
         ],
         "database": {
             "status": db_status,

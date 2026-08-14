@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod chat;
 pub mod community;
+pub mod friends;
 pub mod uploads;
 
 use axum::{
@@ -285,8 +286,8 @@ pub async fn cong_dong(State(state): State<AppState>, jar: CookieJar) -> Respons
 }
 
 pub async fn ban_be(State(state): State<AppState>, jar: CookieJar) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "friends", "Bạn Bè", "👤", "Kết nối, nhắn tin, gửi thư — Kết bạn đạo hữu", "Giai đoạn 15")
+    // [v0.9.5] Giai đoạn 9 — delegate cho friends handler
+    friends::ban_be_index(State(state), jar).await
 }
 
 pub async fn kinh_sach(State(state): State<AppState>, jar: CookieJar) -> Response {
@@ -477,7 +478,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

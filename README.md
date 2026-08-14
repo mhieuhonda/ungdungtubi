@@ -156,11 +156,20 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
   - Image có thể ký (provenance/SBOM optional)
 - **Mục tiêu:** Push code → tự động build & deploy trong < 5 phút, không cần thao tác thủ công
 
-### Giai đoạn 8–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 9: Module Bạn Bè — Friends + DM + Mail + Notifications ✅ (v0.9.5)
+- **BB-01 Kết bạn (Friend System)**: gửi/nhận/từ chối/hủy lời mời kết bạn; tìm user theo tên/email/pháp danh
+- **BB-02 Nhắn tin 1-1 (Direct Messaging)**: WebSocket realtime `/ws/ban-be/tin-nhan/{conversation_id}` (reuse ChatHub pattern, `DmChatHub` per-conversation capacity 128), REST history paginated, `dmChat()` Alpine.js component với auto-reconnect backoff
+- **BB-03 Gửi thư (Mail/Inbox)**: thư dài (subject max 200 + body TEXT), hộp thư đến/đi, auto mark as read, notifications cho recipient
+- **Notification Center**: bảng `notifications` (JSONB payload), bell icon ở header với red badge (poll mỗi 30s), types: friend_request/friend_accept/mail/dm/system/group_invite
+- **4 migration mới**: `008_friendships.sql`, `009_conversations_direct_messages.sql`, `010_mails.sql`, `011_notifications.sql`
+- **Bug fixes**: Fix live chat tổng luôn báo "đang kết nối..." (bỏ check `document.cookie.includes('session_id')` vì cookie HttpOnly không đọc được qua `document.cookie`); thêm server-side logging cho WS errors; fix version strings v0.9.3 → v0.9.5
+- **Mục tiêu:** Thành viên có thể kết bạn, nhắn tin realtime 1-1, gửi thư dài, nhận thông báo — bù lỗ hổng social của v0.9.4
+
+### Giai đoạn 10–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 8 / v0.9.4)
+## Cấu Trúc Dự Án (Giai đoạn 9 / v0.9.5)
 
 ```
 ungdungtubi/
@@ -350,6 +359,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.2** — Giai đoạn 7: Live Chat WebSocket trong Nhóm (Axum 0.8 ws + ChatHub broadcast + Alpine.js liveChat component)
 - **v0.9.3** — Fix live chat (mpsc channel + tokio::select!), thêm Chat Chung toàn platform, avatar/group image upload, favicon
 - **v0.9.4** — Giai đoạn 8: CI/CD tự động (GitHub Actions build & push Docker Image lên GHCR → Coolify auto pull & deploy)
+- **v0.9.5** — Giai đoạn 9: Module Bạn Bè (Friends + DM 1-1 WebSocket + Mail + Notifications) + Fix live chat bugs (HttpOnly cookie check)
 
 ---
 

@@ -1,0 +1,66 @@
+{% extends "layout.html" %}
+{% block title %}Hộp Thư — Bạn Bè — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <nav class="text-sm text-gray-500 mb-4">
+    <a href="/ban-be" class="hover:text-tubi-700">👤 Bạn Bè</a>
+    <span class="mx-2">›</span>
+    <span class="text-gray-700">Thư</span>
+  </nav>
+
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <h1 class="text-xl font-bold text-gray-900">
+        ✉️ Hộp Thư 
+        {% if unread_count > 0 %}<span class="ml-2 text-xs bg-red-100 text-red-700 rounded-full px-2 py-0.5">{{ unread_count }} chưa đọc</span>{% endif %}
+      </h1>
+      <a href="/ban-be/thu/gui" class="text-sm text-white px-3 py-2 rounded-lg font-semibold hover:opacity-90 transition" style="background-color:#388E3C">
+        ✏️ Soạn thư
+      </a>
+    </div>
+
+    {% if mails.is_empty() %}
+    <div class="px-6 py-16 text-center text-gray-500">
+      <span class="text-5xl block mb-3">📭</span>
+      <p class="mb-2">Hộp thư trống.</p>
+      <p class="text-sm text-gray-400">Thư bạn nhận được sẽ hiển thị tại đây.</p>
+    </div>
+    {% else %}
+    <ul class="divide-y divide-gray-100">
+      {% for m in &mails %}
+      <li>
+        <a href="/ban-be/thu/{{ m.id }}" class="block px-6 py-4 hover:bg-gray-50 transition-colors{% if !m.is_read %} bg-amber-50/50{% endif %}">
+          <div class="flex items-start gap-3">
+            {% if let Some(avatar) = &m.sender_avatar_url %}
+            <img src="{{ avatar }}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">
+            {% else %}
+            <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">
+              {{ m.sender_display_name.chars().next().unwrap_or('🪷') }}
+            </div>
+            {% endif %}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-semibold text-gray-900 truncate{% if !m.is_read %} font-bold{% endif %}">{{ m.sender_display_name }}</span>
+                <span class="text-xs text-gray-400 flex-shrink-0">{{ m.created_at.format("%d/%m/%Y %H:%M") }}</span>
+              </div>
+              <div class="text-sm truncate mt-0.5{% if !m.is_read %} font-semibold text-gray-900{% else %} text-gray-700{% endif %}">{{ m.subject }}</div>
+              <p class="text-xs text-gray-400 truncate mt-0.5">{{ m.body }}</p>
+            </div>
+            {% if !m.is_read %}<span class="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 mt-2"></span>{% endif %}
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <div class="mt-6">
+    <a href="/ban-be" class="text-sm text-gray-500 hover:text-tubi-700">← Quay lại Bạn Bè</a>
+  </div>
+
+</section>
+
+{% endblock %}

@@ -97,7 +97,14 @@
                 <!-- User Menu -->
                 <div class="hidden md:flex items-center space-x-3">
                     {% if let Some(u) = user %}
-                    <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-3" x-data="notificationBadge()" x-init="init()">
+                        <!-- Notification bell -->
+                        <a href="/ban-be/thong-bao" class="relative text-tubi-100 hover:text-white p-1.5 rounded-lg hover:bg-tubi-700 transition-colors" title="Thông báo">
+                            🔔
+                            <span x-show="unreadCount > 0" x-cloak
+                                  class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"
+                                  x-text="unreadCount > 9 ? '9+' : unreadCount"></span>
+                        </a>
                         {% if let Some(avatar) = u.avatar_url %}
                         <img src="{{ avatar }}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">
                         {% else %}
@@ -110,6 +117,9 @@
                         </span>
                         <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">
                             Hồ sơ
+                        </a>
+                        <a href="/ban-be" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Bạn Bè">
+                            👤 Bạn Bè
                         </a>
                         <a href="/dang-xuat" onclick="event.preventDefault(); document.getElementById('logout-form').submit();"
                            class="bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer">
@@ -236,7 +246,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

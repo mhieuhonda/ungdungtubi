@@ -1,6 +1,6 @@
 [package]
 name = "ungdungtubi"
-version = "0.9.4"
+version = "0.9.5"
 edition = "2024"
 rust-version = "1.97"
 
@@ -13,7 +13,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace", "compression-gzip", "cors"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate", "json"] }
 
 # Templates
 askama = "0.14"

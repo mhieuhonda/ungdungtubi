@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+{% block title %}Tìm Bạn — Bạn Bè — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <nav class="text-sm text-gray-500 mb-4">
+    <a href="/ban-be" class="hover:text-tubi-700">👤 Bạn Bè</a>
+    <span class="mx-2">›</span>
+    <span class="text-gray-700">Tìm bạn</span>
+  </nav>
+
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h1 class="text-xl font-bold text-gray-900">🔍 Tìm Đạo Hữu</h1>
+      <p class="text-sm text-gray-500 mt-1">Tìm theo tên hiển thị, email, pháp danh, pháp hiệu hoặc bút danh.</p>
+    </div>
+    <div class="p-6">
+      <form method="GET" action="/ban-be/tim-kiem" class="flex gap-2">
+        <input type="text" name="q" value="{{ query }}" required
+               placeholder="Nhập tên hoặc email..."
+               class="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent">
+        <button type="submit" class="text-white px-5 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition" style="background-color:#388E3C">
+          🔍 Tìm
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if !query.is_empty() %}
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-sm font-semibold text-gray-700">Kết quả cho "{{ query }}" ({{ results.len() }})</h2>
+    </div>
+    {% if results.is_empty() %}
+    <div class="px-6 py-12 text-center text-gray-500">
+      <span class="text-3xl block mb-2">🪷</span>
+      <p>Không tìm thấy đạo hữu nào phù hợp.</p>
+    </div>
+    {% else %}
+    <ul class="divide-y divide-gray-100">
+      {% for r in &results %}
+      <li class="px-6 py-4 flex items-center gap-4">
+        {% if let Some(avatar) = &r.avatar_url %}
+        <img src="{{ avatar }}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">
+        {% else %}
+        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">
+          {{ r.display_name.chars().next().unwrap_or('🪷') }}
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-gray-900 truncate">{{ r.display_name }}</div>
+          {% if r.is_friend %}
+          <div class="text-xs text-green-600">✓ Đã là bạn bè</div>
+          {% elif r.pending_sent %}
+          <div class="text-xs text-amber-600">⏳ Đã gửi lời mời — đang chờ phản hồi</div>
+          {% elif r.pending_received %}
+          <div class="text-xs text-blue-600">📨 Đã gửi cho bạn lời mời kết bạn — <a href="/ban-be" class="underline">xem</a></div>
+          {% else %}
+          <div class="text-xs text-gray-400">Chưa kết bạn</div>
+          {% endif %}
+        </div>
+        {% if !r.is_friend && !r.pending_sent && !r.pending_received %}
+        <form method="POST" action="/ban-be/keu-ban/{{ r.id }}" class="inline">
+          <button type="submit" class="text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
+            + Kết bạn
+          </button>
+        </form>
+        {% endif %}
+        {% if r.pending_received %}
+        <a href="/ban-be" class="text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
+          ✓ Chấp nhận
+        </a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="mt-6">
+    <a href="/ban-be" class="text-sm text-gray-500 hover:text-tubi-700">← Quay lại Bạn Bè</a>
+  </div>
+
+</section>
+
+{% endblock %}

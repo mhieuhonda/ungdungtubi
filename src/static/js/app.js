@@ -306,9 +306,11 @@ function globalChat() {
         initialized: false,
 
         // --- Lifecycle ---
+        // [v0.9.5 fix] Bỏ check `document.cookie.includes('session_id')` vì
+        // cookie `session_id` là HttpOnly → `document.cookie` không đọc được.
+        // Layout đã chỉ render global chat khi user đăng nhập (`{% if let Some(_u) = user %}`),
+        // nên không cần check lại ở client. Server sẽ trả 401 nếu chưa đăng nhập.
         init() {
-            // Chỉ khởi tạo nếu đã đăng nhập
-            if (!document.cookie.includes('session_id')) return;
             this.initialized = true;
             // Tải history ban đầu
             this.loadHistory();
@@ -551,3 +553,184 @@ function chatBubble() {
 }
 
 window.chatBubble = chatBubble;
+
+// ====================================================================
+// Direct Message Chat Alpine.js component — v0.9.5 Giai đoạn 9
+// 1-on-1 realtime chat via WebSocket
+//
+// Cách dùng (trong template):
+//   <div x-data="dmChat({
+//     conversationId: '...',
+//     otherUserId: '...',
+//     otherDisplayName: '...',
+//     initialMessages: [...]
+//   })" x-init="init()">
+// ====================================================================
+
+function dmChat(opts) {
+    return {
+        // --- State ---
+        conversationId: opts.conversationId || '',
+        otherUserId: opts.otherUserId || '',
+        otherDisplayName: opts.otherDisplayName || '',
+        messages: Array.isArray(opts.initialMessages) ? opts.initialMessages.slice() : [],
+        draft: '',
+        connected: false,
+        error: '',
+        socket: null,
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+        reconnectTimer: null,
+
+        // --- Lifecycle ---
+        init() {
+            this.$nextTick(() => this.scrollToBottom());
+            this.connect();
+        },
+
+        // --- WebSocket ---
+        connect() {
+            if (this.socket) {
+                try { this.socket.close(); } catch (_) {}
+                this.socket = null;
+            }
+
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const url = `${proto}//${host}/ws/ban-be/tin-nhan/${encodeURIComponent(this.conversationId)}`;
+
+            try {
+                this.socket = new WebSocket(url);
+            } catch (e) {
+                this.error = 'Trình duyệt không hỗ trợ WebSocket';
+                return;
+            }
+
+            this.socket.onopen = () => {
+                this.connected = true;
+                this.error = '';
+                this.reconnectAttempts = 0;
+            };
+
+            this.socket.onmessage = (event) => {
+                this.handleIncoming(event.data);
+            };
+
+            this.socket.onclose = (event) => {
+                this.connected = false;
+                if (event.code === 1008) {
+                    this.error = event.reason || 'Không có quyền chat';
+                    return;
+                }
+                this.scheduleReconnect();
+            };
+
+            this.socket.onerror = () => {
+                this.connected = false;
+                this.error = 'Lỗi kết nối';
+            };
+        },
+
+        scheduleReconnect() {
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                this.error = `Không thể kết nối sau ${this.maxReconnectAttempts} lần thử. Tải lại trang.`;
+                return;
+            }
+            this.reconnectAttempts += 1;
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+            this.error = `Mất kết nối — thử lại sau ${Math.round(delay/1000)}s…`;
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => this.connect(), delay);
+        },
+
+        handleIncoming(raw) {
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (_) { return; }
+
+            if (data.type === 'error' && typeof data.message === 'string') {
+                this.error = data.message;
+                setTimeout(() => { this.error = ''; }, 3000);
+                return;
+            }
+
+            if (data.id && data.body && data.author_display_name) {
+                if (this.messages.some(m => m.id === data.id)) return;
+                this.messages.push(data);
+                this.$nextTick(() => this.scrollToBottom());
+            }
+        },
+
+        send() {
+            const body = this.draft.trim();
+            if (!body) return;
+            if (!this.connected || !this.socket) {
+                this.error = 'Chưa kết nối — vui lòng đợi';
+                return;
+            }
+            if (body.length > 1000) {
+                this.error = 'Tin nhắn quá dài (tối đa 1000 ký tự)';
+                return;
+            }
+
+            try {
+                this.socket.send(body);
+                this.draft = '';
+                this.error = '';
+            } catch (e) {
+                this.error = 'Không gửi được tin nhắn';
+            }
+        },
+
+        scrollToBottom() {
+            const el = this.$refs.messages;
+            if (el) {
+                el.scrollTop = el.scrollHeight;
+            }
+        },
+
+        formatTime(isoStr) {
+            try {
+                const dt = new Date(isoStr);
+                return new Intl.DateTimeFormat('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    day: '2-digit',
+                    month: '2-digit',
+                }).format(dt);
+            } catch (_) {
+                return '';
+            }
+        },
+    };
+}
+
+window.dmChat = dmChat;
+
+// ====================================================================
+// Notification badge poller — v0.9.5 Giai đoạn 9
+// Cứ 30s gọi /api/ban-be/thong-bao/chua-doc để cập nhật badge
+// ====================================================================
+
+function notificationBadge() {
+    return {
+        unreadCount: 0,
+        init() {
+            // Chỉ khởi tạo nếu đã đăng nhập (layout có render badge)
+            this.fetchUnread();
+            setInterval(() => this.fetchUnread(), 30000);
+        },
+        async fetchUnread() {
+            try {
+                const resp = await fetch('/api/ban-be/thong-bao/chua-doc', { credentials: 'same-origin' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.unreadCount = data.unread_count || 0;
+                }
+            } catch (_) {}
+        },
+    };
+}
+
+window.notificationBadge = notificationBadge;

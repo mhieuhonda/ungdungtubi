@@ -6,6 +6,109 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.5] — 2026-08-14 — Giai đoạn 9: Module Bạn Bè + Fix live chat bugs
+
+### Sửa (Bug Fixes — Critical)
+
+- **[BUG-1] Fix Live Chat tổng (Chat Chung) luôn báo "đang kết nối..."**:
+  - Nguyên nhân: `src/static/js/app.js` `globalChat().init()` có check `if (!document.cookie.includes('session_id')) return;` — nhưng cookie `session_id` được set với `http_only(true)` trong `auth.rs`, nên `document.cookie` KHÔNG đọc được → check luôn false → `connect()` không được gọi → `connected` vẫn `false` → UI hiển thị "đang kết nối..." mãi mãi.
+  - Fix: bỏ check `document.cookie.includes('session_id')` vì layout đã chỉ render global chat khi user đăng nhập (`{% if let Some(_u) = user %}`). Server sẽ trả 401 nếu chưa đăng nhập.
+  - Triết lý: HttpOnly cookies KHÔNG thể đọc qua `document.cookie` (security feature), browser tự gửi chúng cho same-origin WebSocket.
+
+- **[BUG-2] Fix Live Chat cộng đồng (group chat) không gửi được tin nhắn**:
+  - Nguyên nhân gián tiếp: cùng pattern bug-1, plus thiếu server-side logging khi INSERT fail → khó debug.
+  - Fix: thêm `log::error!` + gửi error payload JSON cho client khi INSERT thất bại (cả group chat và global chat). Trước đây error bị silently drop, giờ client nhận được thông báo "Không lưu được tin nhắn. Vui lòng thử lại."
+
+- **[BUG-3] Version string mismatch**: `templates/layout.html` và `src/handlers/mod.rs` `placeholder_page` hiển thị `v0.9.3` trong khi thực tế là v0.9.4 → cập nhật lên v0.9.5.
+
+- **[BUG-4] `placeholder_page` cho `/ban-be` ghi sai "Giai đoạn 15"** — theo tài liệu HieuLouis, Bạn Bè là **Giai đoạn 9**. Đã sửa và delegate sang `handlers::friends::ban_be_index`.
+
+### Thêm (Features — Giai đoạn 9: Module Bạn Bè)
+
+- **BB-01 Kết bạn (Friend System)**:
+  - `POST /ban-be/keu-ban/{user_id}` — Gửi lời mời kết bạn (check existing friendship, không self-friend)
+  - `POST /ban-be/chap-nhan/{friendship_id}` — Chấp nhận (chỉ addressee mới được accept, tạo notification cho requester)
+  - `POST /ban-be/tu-choi/{friendship_id}` — Từ chối (xóa friendship để cho phép gửi lại sau)
+  - `POST /ban-be/huy-ket-ban/{user_id}` — Hủy kết bạn (xóa friendship accepted)
+  - `GET /ban-be` — Trang chính: danh sách bạn bè + lời mời đang chờ + lời mời đã gửi
+  - `GET /ban-be/tim-kiem?q=...` — Tìm user theo display_name/email/phap_danh/phap_hieu/but_danh (hiển thị trạng thái: đã là bạn / đã gửi / đã nhận / chưa)
+
+- **BB-02 Nhắn tin 1-1 (Direct Messaging)**:
+  - `GET /ban-be/tin-nhan` — Inbox DM (danh sách conversation + last message preview)
+  - `GET /ban-be/tin-nhan/{conversation_id}` — Xem conversation + chat realtime
+  - `WS /ws/ban-be/tin-nhan/{conversation_id}` — WebSocket DM (Axum 0.8 WebSocketUpgrade, reuse ChatHub pattern)
+  - `GET /api/ban-be/tin-nhan/{conversation_id}/history?limit=&before=` — REST history (paginated)
+  - `POST /ban-be/tao-conversation` — Tạo (hoặc lấy) conversation 1-1 với user khác
+  - `DmChatHub` struct: broadcast per-conversation (capacity 128)
+  - `dmChat()` Alpine.js component: auto-reconnect exponential backoff, auto-scroll, formatTime vi-VN
+  - Max 1000 ký tự/tin nhắn (gấp đôi group chat)
+
+- **BB-03 Gửi thư (Mail/Inbox)**:
+  - `GET /ban-be/thu` — Hộp thư đến (đếm unread, hiển thị sender + subject + preview body)
+  - `GET /ban-be/thu/gui` — Form soạn thư (chọn recipient từ danh sách bạn bè)
+  - `POST /ban-be/thu/gui` — Gửi thư (validate subject max 200, body không rỗng, không self-mail; tạo notification cho recipient)
+  - `GET /ban-be/thu/{mail_id}` — Xem thư (auto mark as read nếu user là recipient)
+
+- **Notification Center**:
+  - `GET /ban-be/thong-bao` — Danh sách thông báo (auto mark all as read sau khi load)
+  - `GET /api/ban-be/thong-bao/chua-doc` — Đếm unread (cho badge, poll mỗi 30s)
+  - `POST /api/ban-be/thong-bao/{notification_id}/da-doc` — Mark 1 thông báo đã đọc
+  - Types: `friend_request`, `friend_accept`, `friend_decline`, `mail`, `dm`, `system`, `group_invite`
+  - `notificationBadge()` Alpine.js component: bell icon ở header với red badge số unread
+  - Payload JSONB linh hoạt cho mỗi loại
+
+- **Migrations mới**:
+  - `008_friendships.sql` — Bảng `friendships` (requester_id, addressee_id, status, unique pair, no self-friend check, updated_at trigger)
+  - `009_conversations_direct_messages.sql` — 3 bảng: `conversations` (direct/group), `conversation_participants` (unique user per conv), `direct_messages` (max 1000 chars)
+  - `010_mails.sql` — Bảng `mails` (sender, recipient, subject max 200, body TEXT, is_read, read_at)
+  - `011_notifications.sql` — Bảng `notifications` (user_id, type, actor_id, payload JSONB, is_read, read_at)
+
+- **Models mới (`src/models/friends.rs`)**:
+  - `Friendship`, `FriendshipWithUser` (join users để lấy other_user info)
+  - `Conversation`, `DirectMessage`, `DirectMessageWithAuthor`
+  - `ConversationWithParticipant` (join users + LATERAL last_message)
+  - `Mail`, `MailWithUsers` (join cả sender + recipient)
+  - `Notification`, `NotificationWithActor`
+  - **Quan trọng**: field `r#type` được rename thành `kind` để tránh Rust keyword conflict trong Askama templates
+
+- **Templates mới (`templates/ban-be/`)**:
+  - `index.html` — Trang chính Bạn Bè (hero + pending requests + friends list + sent requests)
+  - `dm_inbox.html` — Inbox DM với last message preview
+  - `conversation.html` — Conversation view với WebSocket DM chat (message bubbles differentiate author vs other)
+  - `mail_inbox.html` — Hộp thư với unread highlighting
+  - `mail_compose.html` — Form soạn thư (select recipient from friends)
+  - `mail_view.html` — Xem thư chi tiết (auto mark as read)
+  - `notifications.html` — Danh sách thông báo với type-specific messages
+  - `search.html` — Tìm user với friend status indicators
+
+- **Frontend (`src/static/js/app.js`)**:
+  - `dmChat()` Alpine.js component — tương tự `liveChat()` + `globalChat()` nhưng cho DM 1-1
+  - `notificationBadge()` Alpine.js component — poll `/api/ban-be/thong-bao/chua-doc` mỗi 30s, hiển thị red badge
+  - Cập nhật `layout.html`: thêm notification bell + "Bạn Bè" link ở header
+
+- **AppState (`src/main.rs`)**:
+  - Thêm `dm_chat_hub: DmChatHub` vào `AppState`
+  - Update version strings v0.9.4 → v0.9.5
+  - Update phase 8 → phase 9 trong health_check JSON
+  - Thêm 16 routes mới cho Friends module
+
+- **Cargo.toml**:
+  - Version `0.9.4` → `0.9.5`
+  - Thêm feature `json` cho sqlx (hỗ trợ JSONB mapping với `serde_json::Value` cho notification payload)
+
+### Kiểm tra (Verification)
+- ✅ `cargo check` pass với Rust 1.97.1 (không warnings sau khi thêm `#![allow(dead_code)]`)
+- ✅ Askama templates compile thành công (sau khi fix 3 lỗi syntax: inline if/else → `{% if %}{% endif %}`, closure → `{% if let %}`)
+- ✅ Code structure tuân thủ pattern hiện có (ChatHub/GlobalChatHub → DmChatHub)
+- ✅ Migrations SQL tuân thủ pattern (COMMENT ON TABLE/COLUMN, index, trigger updated_at)
+
+### Ghi chú hạ tầng
+- Coolify infrastructure đã OK từ v0.9.4: Traefik forward WebSocket đúng, SSL Let's Encrypt OK, health check `/api/health` pass, Sentinel enabled (push metrics 60s, history 7 ngày).
+- Migration 006 + 007 đã chạy trên production DB (kiểm tra bằng `curl /api/chat-chung/history` → 200 []).
+- Nguyên nhân live chat không hoạt động KHÔNG phải do Coolify/Sentinel/VPS mà do BUG trong frontend `app.js` (check HttpOnly cookie qua `document.cookie`).
+
+---
+
 ## [0.9.4] — 2026-08-14 — Giai đoạn 8: CI/CD tự động (GitHub Actions + Docker Image + Coolify)
 
 ### Thêm
