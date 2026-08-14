@@ -80,7 +80,7 @@
           <span class="inline-flex items-center gap-2 text-sm text-tubi-700 font-medium" style="color:#2E7D32">
             ✓ Đã tham gia · {{ m.role_icon() }} {{ m.role_display() }}
           </span>
-          {% if m.role == "owner" or m.role == "admin" %}
+          {% if m.role == "owner" || m.role == "admin" %}
           <!-- Change cover image (owner/admin only) -->
           <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/doi-anh"
                 enctype="multipart/form-data" class="inline"
