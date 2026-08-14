@@ -11,7 +11,7 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 ### Thêm
 - **Workflow `.github/workflows/docker.yml`** — pipeline CI/CD hoàn toàn tự động:
   - Trigger: push lên branch `main` hoặc tạo tag `v*` (hỗ trợ cả `workflow_dispatch` để chạy thủ công)
-  - **Job `build-and-push`**: build multi-stage Docker image với Rust 1.97.1-slim-bookworm, push lên GHCR (`ghcr.io/mhieuhonda/ungdungtubi`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`, `<branch>`
+  - **Job `build-and-push`**: build multi-stage Docker image với Rust 1.97.1-slim-bookworm, push lên GHCR (`ghcr.io/mhieuhonda/tubi-app`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`, `<branch>`. *(Image name `tubi-app` thay vì `ungdungtubi` để tránh conflict với GHCR package cũ `ungdungtubi` không linked với repo — GITHUB_TOKEN bị 403 Forbidden khi push vào package cũ.)*
   - Buildx cache (type=gha) — build sau chỉ mất ~30s (chỉ rebuild các layer thay đổi)
   - `concurrency` group để tránh xung đột deploy (không cancel build đang chạy)
   - Permissions tối thiểu: `contents: read`, `packages: write`

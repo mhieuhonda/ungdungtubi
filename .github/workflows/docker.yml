@@ -7,13 +7,17 @@
 # Quy trình:
 #   1. Push code lên branch `main` (hoặc tạo tag `v*`)
 #   2. Workflow build multi-stage Docker image với Rust 1.97.1-slim-bookworm
-#   3. Push image lên GHCR: ghcr.io/mhieuhonda/ungdungtubi:{latest, sha, tag}
+#   3. Push image lên GHCR: ghcr.io/mhieuhonda/tubi-app:{latest, sha, tag}
 #   4. Gửi GET request tới Coolify API endpoint /start
 #   5. Coolify nhận yêu cầu → pull image mới nhất từ GHCR → redeploy container
 #
+# Image name: `ghcr.io/mhieuhonda/tubi-app` (đổi từ `ungdungtubi` sang `tubi-app`
+#   để tránh conflict với GHCR package cũ `ungdungtubi` đã tồn tại từ project khác,
+#   không linked với repo này nên GITHUB_TOKEN không có quyền push → 403 Forbidden).
+#
 # Secrets cần thiết (Settings → Secrets and variables → Actions):
 #   - COOLIFY_API_TOKEN    : API token của Coolify (tạo ở User Settings → API Tokens)
-#   - COOLIFY_APP_UUID     : UUID của application trên Coolify
+#   - COOLIFY_APP_UUID     : UUID của application trên Coolify (= xsrqp8xrcwwk57dvtcwt6393)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Build & Deploy
@@ -31,7 +35,9 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}   # -> mhieuhonda/ungdungtubi
+  # Image name cố định `mhieuhonda/tubi-app` (không dùng ${{ github.repository }}
+  # để tránh conflict với GHCR package cũ `ungdungtubi` không linked với repo).
+  IMAGE_NAME: mhieuhonda/tubi-app
   COOLIFY_API_URL: https://coolify.buppou.com
 
 concurrency:
@@ -101,7 +107,7 @@ jobs:
           {
             echo "### Docker Image pushed to GHCR 🪷"
             echo ""
-            echo "- Image: \`ghcr.io/mhieuhonda/ungdungtubi\`"
+            echo "- Image: \`ghcr.io/mhieuhonda/tubi-app\`"
             echo "- Tags:"
             echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
             echo "- Digest: \`${{ steps.push.outputs.digest }}\`"
@@ -165,7 +171,7 @@ jobs:
             echo "### Coolify Deploy Triggered 🚀"
             echo ""
             echo "Coolify will now:"
-            echo "1. Pull the latest image from \`ghcr.io/mhieuhonda/ungdungtubi:latest\`"
+            echo "1. Pull the latest image from \`ghcr.io/mhieuhonda/tubi-app:latest\`"
             echo "2. Stop the old container"
             echo "3. Start a new container with the new image"
             echo "4. Run health checks on https://tubi.louis.vangioitutien.com/api/health"

@@ -22,7 +22,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 | Auth | Google OAuth 2.0 (OpenID Connect — userinfo) — đăng nhập duy nhất |
 | Container | Docker (multi-stage build với Rust 1.97.1-slim-bookworm, image final ~30 MB) |
 | CI/CD | GitHub Actions (build → push GHCR) + Coolify API (auto pull image → deploy) |
-| Registry | GHCR (ghcr.io/mhieuhonda/ungdungtubi) — image public |
+| Registry | GHCR (ghcr.io/mhieuhonda/tubi-app) — image public |
 
 ## 4 Chuyên Mục Chính
 
@@ -142,7 +142,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Workflow `.github/workflows/docker.yml`**:
   - Trigger: push lên `main` hoặc tag `v*`
   - Build multi-stage Docker image với Rust 1.97.1-slim-bookworm (image final ~30 MB)
-  - Push lên GHCR (`ghcr.io/mhieuhonda/ungdungtubi`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`
+  - Push lên GHCR (`ghcr.io/mhieuhonda/tubi-app`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`
   - Buildx cache (type=gha) để tăng tốc build sau
   - Gọi Coolify API `/api/v1/applications/{uuid}/start` để trigger deploy
   - Coolify nhận yêu cầu → pull image `:latest` → redeploy container
@@ -206,7 +206,7 @@ ungdungtubi/
 │   ├── 006_group_chat_messages.sql
 │   └── 007_global_chat_messages.sql
 ├── .github/workflows/
-│   └── docker.yml            # [v0.9.4] Build & push GHCR + trigger Coolify API
+│   └── docker.yml            # [v0.9.4] Build & push GHCR (ghcr.io/mhieuhonda/tubi-app) + trigger Coolify API
 ├── HieuLouis/                # Tài liệu dự án
 ├── Cargo.toml                # v0.9.4, Rust 1.97, axum ws feature, release profile tối ưu
 ├── Cargo.lock                # Lock file (commit cho reproducible build)
@@ -273,7 +273,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 1. **Push code** lên branch `main` (hoặc tạo tag `v*`)
 2. **GitHub Actions** tự động:
    - Build Docker image với Rust 1.97.1 (multi-stage, image final ~30 MB)
-   - Push lên GHCR: `ghcr.io/mhieuhonda/ungdungtubi:{latest,sha-<short>,vX.Y.Z}`
+   - Push lên GHCR: `ghcr.io/mhieuhonda/tubi-app:{latest,sha-<short>,vX.Y.Z}`
    - Gọi Coolify API `/api/v1/applications/{uuid}/start` để trigger deploy
 3. **Coolify** tự động:
    - Pull image `:latest` từ GHCR
