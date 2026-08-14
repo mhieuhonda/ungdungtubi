@@ -56,12 +56,14 @@ FROM debian:bookworm-slim AS runtime
 # Cài runtime libraries:
 #   - libssl3, libpq5: runtime cho rustls + sqlx-postgres
 #   - ca-certificates: để reqwest gọi Google OAuth qua HTTPS
-#   - curl: cho healthcheck
+#   - curl + wget: cho healthcheck (Coolify có thể dùng cái nào có sẵn)
+#   - tini: PID 1 signal handler
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl3 \
         libpq5 \
         ca-certificates \
         curl \
+        wget \
         tini \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1001 tubi \
