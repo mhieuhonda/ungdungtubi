@@ -1,4 +1,4 @@
-//! Handlers cho chuyên mục Cộng Đồng (v0.6).
+//! Handlers cho chuyên mục Cộng Đồng (v0.6+).
 //!
 //! Bao gồm:
 //!   * GET  /cong-dong                       — Trang chính: lướt nhóm + lướt chủ đề
@@ -12,12 +12,18 @@
 //!   * GET  /cong-dong/chu-de/{id}           — Xem chủ đề + bình luận
 //!   * POST /cong-dong/chu-de/{id}/binh-luan — Bình luận (auth)
 
-use actix_web::{web, HttpRequest, Responder};
+use axum::{
+    extract::{Path, State},
+    response::{Html, IntoResponse, Redirect, Response},
+    Form,
+};
+use axum_extra::extract::CookieJar;
 use askama::Template;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::handlers::get_user_from_session;
 use crate::models::community::{
     CommentCreateForm, CommentWithAuthor, GroupCategory, GroupCreateForm, GroupMember,
@@ -107,11 +113,9 @@ async fn fetch_categories(pool: &PgPool) -> Vec<GroupCategory> {
 
 /// Sinh slug từ tên (loại bỏ dấu, thay khoảng trắng bằng dấu gạch).
 fn slugify(s: &str) -> String {
-    // Loại bỏ dấu tiếng Việt đơn giản — giữ lại chữ cái và số.
     let normalized: String = s
         .chars()
         .filter_map(|c| {
-            // Giữ chữ cái thường/hoa, số, và thay whitespace/dấu bằng '-'
             if c.is_alphanumeric() {
                 Some(c.to_ascii_lowercase())
             } else if c.is_whitespace() || c == '-' || c == '_' {
@@ -121,7 +125,6 @@ fn slugify(s: &str) -> String {
             }
         })
         .collect();
-    // Collapse multiple dashes
     let mut out = String::new();
     let mut prev_dash = false;
     for ch in normalized.chars() {
@@ -157,7 +160,6 @@ async fn ensure_unique_slug(pool: &PgPool, base_slug: &str) -> String {
         return base_slug.to_string();
     }
 
-    // Thêm hậu tố 6 ký tự hex từ UUID
     let suffix: String = Uuid::new_v4().simple().to_string().chars().take(6).collect();
     format!("{base_slug}-{suffix}")
 }
@@ -179,16 +181,9 @@ async fn get_membership(pool: &PgPool, group_id: Uuid, user_id: Uuid) -> Option<
 // --- Page Handlers ---
 
 /// GET /cong-dong — Trang chính Cộng Đồng.
-///
-/// Hiển thị danh sách nhóm + các chủ đề hot mới nhất.
-/// Đây là landing cho "Lướt Nhóm" / "Lướt Chủ Đề".
-pub async fn cong_dong_index(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn cong_dong_index(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
 
-    // Lấy 20 nhóm công khai mới nhất
     let groups = sqlx::query_as::<_, GroupWithCategory>(&format!(
         "SELECT {GROUP_LIST_COLUMNS}
          FROM groups g
@@ -197,11 +192,10 @@ pub async fn cong_dong_index(
          ORDER BY g.created_at DESC
          LIMIT 20"
     ))
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    // Lấy 10 chủ đề mới nhất từ các nhóm công khai (Lướt Chủ Đề)
     let hot_topics = sqlx::query_as::<_, TopicWithAuthor>(&format!(
         "SELECT {TOPIC_LIST_COLUMNS}
          FROM topics t
@@ -211,12 +205,12 @@ pub async fn cong_dong_index(
          ORDER BY t.is_pinned DESC, t.created_at DESC
          LIMIT 10"
     ))
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    let categories = fetch_categories(pool.get_ref()).await;
-    let _ = categories; // reserved for future filter UI
+    let categories = fetch_categories(&state.pool).await;
+    let _ = categories;
 
     let html = CommunityTemplate {
         user,
@@ -230,26 +224,17 @@ pub async fn cong_dong_index(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// GET /cong-dong/tao-nhom — Form tạo nhóm mới.
-pub async fn create_group_form(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+pub async fn create_group_form(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
 
-    let categories = fetch_categories(pool.get_ref()).await;
+    let categories = fetch_categories(&state.pool).await;
 
     let html = CreateGroupTemplate {
         user: Some(user),
@@ -263,30 +248,24 @@ pub async fn create_group_form(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// POST /cong-dong/tao-nhom — Tạo nhóm mới.
 pub async fn create_group(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    form: web::Form<GroupCreateForm>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<GroupCreateForm>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
 
     // Validate name
     let name = form.name.trim().to_string();
     if name.is_empty() || name.chars().count() > 100 {
-        let categories = fetch_categories(pool.get_ref()).await;
+        let categories = fetch_categories(&state.pool).await;
         let html = CreateGroupTemplate {
             user: Some(user),
             active_page: "community".into(),
@@ -298,17 +277,15 @@ pub async fn create_group(
             log::error!("Template render error (create_group err): {e}");
             format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
         });
-        return actix_web::HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html);
+        return Html(html).into_response();
     }
 
     // Validate visibility
     let visibility = form.visibility.trim().to_string();
     if !matches!(visibility.as_str(), "public" | "private" | "hidden") {
-        let categories = fetch_categories(pool.get_ref()).await;
+        let categories = fetch_categories(&state.pool).await;
         let html = CreateGroupTemplate {
-            user: Some(user.clone()),
+            user: Some(user),
             active_page: "community".into(),
             categories,
             error: Some("Visibility không hợp lệ.".into()),
@@ -318,9 +295,7 @@ pub async fn create_group(
             log::error!("Template render error (create_group vis): {e}");
             format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
         });
-        return actix_web::HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html);
+        return Html(html).into_response();
     }
 
     let description = form
@@ -333,14 +308,18 @@ pub async fn create_group(
     let require_approval = form.require_approval.is_some();
 
     let base_slug = slugify(&name);
-    let slug = ensure_unique_slug(pool.get_ref(), &base_slug).await;
+    let slug = ensure_unique_slug(&state.pool, &base_slug).await;
 
     // Tạo nhóm + thêm owner vào group_members với role='owner'
-    let mut tx = match pool.begin().await {
+    let mut tx = match state.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             log::error!("❌ Lỗi bắt đầu transaction tạo nhóm: {e}");
-            return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
         }
     };
 
@@ -363,11 +342,14 @@ pub async fn create_group(
         Err(e) => {
             log::error!("❌ Lỗi tạo nhóm: {e}");
             let _ = tx.rollback().await;
-            return actix_web::HttpResponse::InternalServerError().body("Lỗi tạo nhóm");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi tạo nhóm",
+            )
+                .into_response();
         }
     };
 
-    // Thêm owner vào group_members
     if let Err(e) = sqlx::query(
         "INSERT INTO group_members (group_id, user_id, role, status)
          VALUES ($1, $2, 'owner', 'active')",
@@ -379,29 +361,34 @@ pub async fn create_group(
     {
         log::error!("❌ Lỗi thêm owner vào group_members: {e}");
         let _ = tx.rollback().await;
-        return actix_web::HttpResponse::InternalServerError().body("Lỗi tạo nhóm");
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Lỗi tạo nhóm",
+        )
+            .into_response();
     }
 
     if let Err(e) = tx.commit().await {
         log::error!("❌ Lỗi commit tạo nhóm: {e}");
-        return actix_web::HttpResponse::InternalServerError().body("Lỗi tạo nhóm");
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Lỗi tạo nhóm",
+        )
+            .into_response();
     }
 
     log::info!("✅ Nhóm mới được tạo: {slug} bởi user {}", user.id);
 
-    actix_web::HttpResponse::Found()
-        .append_header(("Location", format!("/cong-dong/nhom/{slug}")))
-        .finish()
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
 }
 
 /// GET /cong-dong/nhom/{slug} — Trang nhóm + danh sách chủ đề.
 pub async fn view_group(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
-    let slug = path.into_inner();
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
 
     let group = match sqlx::query_as::<_, GroupWithCategory>(&format!(
         "SELECT {GROUP_LIST_COLUMNS}
@@ -410,20 +397,23 @@ pub async fn view_group(
          WHERE g.slug = $1 AND g.is_active = true"
     ))
     .bind(&slug)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     {
         Ok(Some(g)) => g,
         Ok(None) => {
-            return actix_web::HttpResponse::NotFound().body("Nhóm không tồn tại.");
+            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
         }
         Err(e) => {
             log::error!("❌ Lỗi truy vấn nhóm: {e}");
-            return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
         }
     };
 
-    // Lấy 20 chủ đề mới nhất (pinned first)
     let topics = sqlx::query_as::<_, TopicWithAuthor>(&format!(
         "SELECT {TOPIC_LIST_COLUMNS}
          FROM topics t
@@ -433,13 +423,12 @@ pub async fn view_group(
          LIMIT 20"
     ))
     .bind(group.id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
-    // Kiểm tra membership nếu user đăng nhập
     let membership = if let Some(ref u) = user {
-        get_membership(pool.get_ref(), group.id, u.id).await
+        get_membership(&state.pool, group.id, u.id).await
     } else {
         None
     };
@@ -457,43 +446,41 @@ pub async fn view_group(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// POST /cong-dong/nhom/{slug}/tham-gia — Tham gia nhóm.
 pub async fn join_group(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
-    let slug = path.into_inner();
 
     let group_id: Uuid = match sqlx::query_scalar(
         "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return actix_web::HttpResponse::NotFound().body("Nhóm không tồn tại."),
+        Ok(None) => {
+            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
+        }
         Err(e) => {
             log::error!("❌ Lỗi truy vấn nhóm: {e}");
-            return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
         }
     };
 
-    // INSERT ON CONFLICT DO NOTHING — tránh lỗi nếu đã tham gia
     let status = if sqlx::query(
         "INSERT INTO group_members (group_id, user_id, role, status)
          VALUES ($1, $2, 'member', 'active')
@@ -501,7 +488,7 @@ pub async fn join_group(
     )
     .bind(group_id)
     .bind(user.id)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     .map(|r| r.rows_affected())
     .unwrap_or(0)
@@ -514,102 +501,101 @@ pub async fn join_group(
 
     log::info!("👥 User {} tham gia nhóm {slug} — status={status}", user.id);
 
-    actix_web::HttpResponse::Found()
-        .append_header(("Location", format!("/cong-dong/nhom/{slug}")))
-        .finish()
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
 }
 
 /// POST /cong-dong/nhom/{slug}/roi-khoi — Rời nhóm.
 pub async fn leave_group(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
-    let slug = path.into_inner();
 
     let group_id: Uuid = match sqlx::query_scalar(
         "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return actix_web::HttpResponse::NotFound().body("Nhóm không tồn tại."),
-        Err(_) => return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống"),
+        Ok(None) => {
+            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
+        }
+        Err(_) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
+        }
     };
 
-    // Không cho owner rời nhóm (phải chuyển quyền trước)
     let role: Option<String> = sqlx::query_scalar(
         "SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2",
     )
     .bind(group_id)
     .bind(user.id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
     if role.as_deref() == Some("owner") {
-        return actix_web::HttpResponse::Found()
-            .append_header(("Location", format!("/cong-dong/nhom/{slug}?err=owner_cannot_leave")))
-            .finish();
+        return Redirect::to(&format!(
+            "/cong-dong/nhom/{slug}?err=owner_cannot_leave"
+        ))
+        .into_response();
     }
 
     let _ = sqlx::query("DELETE FROM group_members WHERE group_id = $1 AND user_id = $2")
         .bind(group_id)
         .bind(user.id)
-        .execute(pool.get_ref())
+        .execute(&state.pool)
         .await;
 
     log::info!("👋 User {} rời nhóm {slug}", user.id);
 
-    actix_web::HttpResponse::Found()
-        .append_header(("Location", format!("/cong-dong/nhom/{slug}")))
-        .finish()
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
 }
 
 /// GET /cong-dong/nhom/{slug}/tao-chu-de — Form tạo chủ đề.
 pub async fn create_topic_form(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
-    let slug = path.into_inner();
 
     let (group_id, group_name): (Uuid, String) = match sqlx::query_as::<_, (Uuid, String)>(
         "SELECT id, name FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     {
         Ok(Some(row)) => row,
-        Ok(None) => return actix_web::HttpResponse::NotFound().body("Nhóm không tồn tại."),
-        Err(_) => return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống"),
+        Ok(None) => {
+            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
+        }
+        Err(_) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
+        }
     };
 
-    // Phải là thành viên của nhóm (hoặc owner)
-    let membership = get_membership(pool.get_ref(), group_id, user.id).await;
+    let membership = get_membership(&state.pool, group_id, user.id).await;
     if membership.is_none() {
-        return actix_web::HttpResponse::Found()
-            .append_header(("Location", format!("/cong-dong/nhom/{slug}")))
-            .finish();
+        return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
     }
 
     let html = CreateTopicTemplate {
@@ -625,46 +611,44 @@ pub async fn create_topic_form(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// POST /cong-dong/nhom/{slug}/tao-chu-de — Tạo chủ đề mới.
 pub async fn create_topic(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-    form: web::Form<TopicCreateForm>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+    Form(form): Form<TopicCreateForm>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
-    let slug = path.into_inner();
 
     let group_id: Uuid = match sqlx::query_scalar(
         "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     {
         Ok(Some(id)) => id,
-        Ok(None) => return actix_web::HttpResponse::NotFound().body("Nhóm không tồn tại."),
-        Err(_) => return actix_web::HttpResponse::InternalServerError().body("Lỗi hệ thống"),
+        Ok(None) => {
+            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
+        }
+        Err(_) => {
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi hệ thống",
+            )
+                .into_response();
+        }
     };
 
-    // Phải là thành viên
-    let membership = get_membership(pool.get_ref(), group_id, user.id).await;
+    let membership = get_membership(&state.pool, group_id, user.id).await;
     if membership.is_none() {
-        return actix_web::HttpResponse::Found()
-            .append_header(("Location", format!("/cong-dong/nhom/{slug}")))
-            .finish();
+        return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
     }
 
     // Validate title + body
@@ -683,9 +667,7 @@ pub async fn create_topic(
             log::error!("Template render error (create_topic err): {e}");
             format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
         });
-        return actix_web::HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html);
+        return Html(html).into_response();
     }
     if body.is_empty() {
         let html = CreateTopicTemplate {
@@ -700,9 +682,7 @@ pub async fn create_topic(
             log::error!("Template render error (create_topic body): {e}");
             format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
         });
-        return actix_web::HttpResponse::Ok()
-            .content_type("text/html; charset=utf-8")
-            .body(html);
+        return Html(html).into_response();
     }
 
     let topic_id: Uuid = match sqlx::query_scalar(
@@ -714,49 +694,60 @@ pub async fn create_topic(
     .bind(user.id)
     .bind(&title)
     .bind(&body)
-    .fetch_one(pool.get_ref())
+    .fetch_one(&state.pool)
     .await
     {
         Ok(id) => id,
         Err(e) => {
             log::error!("❌ Lỗi tạo chủ đề: {e}");
-            return actix_web::HttpResponse::InternalServerError().body("Lỗi tạo chủ đề");
+            return (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Lỗi tạo chủ đề",
+            )
+                .into_response();
         }
     };
 
     log::info!("📝 Chủ đề mới: {topic_id} trong nhóm {slug}");
 
-    actix_web::HttpResponse::Found()
-        .append_header(("Location", format!("/cong-dong/chu-de/{topic_id}")))
-        .finish()
+    Redirect::to(&format!("/cong-dong/chu-de/{topic_id}")).into_response()
 }
 
 /// GET /cong-dong/chu-de/{id} — Trang chủ đề + bình luận.
 pub async fn view_topic(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
-    let id_str = path.into_inner();
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(id_str): Path<String>,
+) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     let topic_id = match Uuid::parse_str(&id_str) {
         Ok(id) => id,
-        Err(_) => return actix_web::HttpResponse::NotFound().body("Chủ đề không tồn tại."),
+        Err(_) => {
+            return (
+                axum::http::StatusCode::NOT_FOUND,
+                "Chủ đề không tồn tại.",
+            )
+                .into_response();
+        }
     };
 
-    // Lấy topic + group info
-    let (topic, group_slug, group_name) = match fetch_topic_with_group(pool.get_ref(), topic_id).await {
+    let (topic, group_slug, group_name) = match fetch_topic_with_group(&state.pool, topic_id).await {
         Some(x) => x,
-        None => return actix_web::HttpResponse::NotFound().body("Chủ đề không tồn tại."),
+        None => {
+            return (
+                axum::http::StatusCode::NOT_FOUND,
+                "Chủ đề không tồn tại.",
+            )
+                .into_response();
+        }
     };
 
-    // Tăng view_count (best-effort, không fail request)
+    // Tăng view_count (best-effort)
     let _ = sqlx::query("UPDATE topics SET view_count = view_count + 1 WHERE id = $1")
         .bind(topic_id)
-        .execute(pool.get_ref())
+        .execute(&state.pool)
         .await;
 
-    // Lấy bình luận (top-level + nested, sắp xếp theo created_at)
     let comments = sqlx::query_as::<_, CommentWithAuthor>(&format!(
         "SELECT {COMMENT_LIST_COLUMNS}
          FROM comments c
@@ -766,7 +757,7 @@ pub async fn view_topic(
          LIMIT 100"
     ))
     .bind(topic_id)
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -784,12 +775,10 @@ pub async fn view_topic(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
-/// Helper: lấy topic + group info bằng 2 query đơn giản (tránh ROW constructor phức tạp).
+/// Helper: lấy topic + group info.
 async fn fetch_topic_with_group(
     pool: &PgPool,
     topic_id: Uuid,
@@ -818,28 +807,33 @@ async fn fetch_topic_with_group(
 
 /// POST /cong-dong/chu-de/{id}/binh-luan — Đăng bình luận.
 pub async fn create_comment(
-    req: HttpRequest,
-    pool: web::Data<PgPool>,
-    path: web::Path<String>,
-    form: web::Form<CommentCreateForm>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(id_str): Path<String>,
+    Form(form): Form<CommentCreateForm>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
-    let id_str = path.into_inner();
     let topic_id = match Uuid::parse_str(&id_str) {
         Ok(id) => id,
-        Err(_) => return actix_web::HttpResponse::NotFound().body("Chủ đề không tồn tại."),
+        Err(_) => {
+            return (
+                axum::http::StatusCode::NOT_FOUND,
+                "Chủ đề không tồn tại.",
+            )
+                .into_response();
+        }
     };
 
     let body = form.body.trim().to_string();
     if body.is_empty() || body.chars().count() > 5000 {
-        return actix_web::HttpResponse::BadRequest().body("Bình luận không hợp lệ.");
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Bình luận không hợp lệ.",
+        )
+            .into_response();
     }
 
     let parent_id = form
@@ -848,20 +842,23 @@ pub async fn create_comment(
         .filter(|s| !s.is_empty())
         .and_then(|s| Uuid::parse_str(s).ok());
 
-    // Kiểm tra topic có tồn tại + không bị lock
     let locked: Option<bool> = sqlx::query_scalar(
         "SELECT is_locked FROM topics WHERE id = $1 AND is_active = true",
     )
     .bind(topic_id)
-    .fetch_optional(pool.get_ref())
+    .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
     if locked.is_none() {
-        return actix_web::HttpResponse::NotFound().body("Chủ đề không tồn tại.");
+        return (
+            axum::http::StatusCode::NOT_FOUND,
+            "Chủ đề không tồn tại.",
+        )
+            .into_response();
     }
     if locked == Some(true) {
-        return actix_web::HttpResponse::Forbidden().body("Chủ đề đã bị khoá.");
+        return (axum::http::StatusCode::FORBIDDEN, "Chủ đề đã bị khoá.").into_response();
     }
 
     if let Err(e) = sqlx::query(
@@ -872,23 +869,23 @@ pub async fn create_comment(
     .bind(user.id)
     .bind(parent_id)
     .bind(&body)
-    .execute(pool.get_ref())
+    .execute(&state.pool)
     .await
     {
         log::error!("❌ Lỗi đăng bình luận: {e}");
-        return actix_web::HttpResponse::InternalServerError().body("Lỗi đăng bình luận.");
+        return (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Lỗi đăng bình luận.",
+        )
+            .into_response();
     }
 
     log::info!("💬 Bình luận mới trên topic {topic_id} bởi user {}", user.id);
 
-    actix_web::HttpResponse::Found()
-        .append_header(("Location", format!("/cong-dong/chu-de/{topic_id}")))
-        .finish()
+    Redirect::to(&format!("/cong-dong/chu-de/{topic_id}")).into_response()
 }
 
 /// Helper: format thời gian tương đối (vd "5 phút trước").
-///
-/// Dùng trong templates thông qua askama filter.
 pub fn time_ago_display(dt: &DateTime<Utc>) -> String {
     let now = Utc::now();
     let dur = now.signed_duration_since(*dt);

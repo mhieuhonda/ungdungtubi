@@ -2,10 +2,16 @@ pub mod auth;
 pub mod community;
 pub mod uploads;
 
-use actix_web::{web, HttpRequest, Responder};
+use axum::{
+    extract::State,
+    response::{Html, IntoResponse, Redirect, Response},
+    Form,
+};
+use axum_extra::extract::CookieJar;
 use askama::Template;
 use sqlx::PgPool;
 
+use crate::AppState;
 use crate::models::user::{MemberRank, ProfileUpdate, User};
 
 /// Danh sách cột users đầy đủ (đồng bộ với model User).
@@ -17,8 +23,8 @@ pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, 
     u.avatar_upload_id";
 
 /// Helper: Extract authenticated user from session cookie.
-pub async fn get_user_from_session(pool: &PgPool, req: &HttpRequest) -> Option<User> {
-    let cookie = req.cookie("session_id")?;
+pub async fn get_user_from_session(pool: &PgPool, jar: &CookieJar) -> Option<User> {
+    let cookie = jar.get("session_id")?;
     let session_id = cookie.value();
 
     let sql = format!(
@@ -64,8 +70,8 @@ pub struct ProfileTemplate {
 
 // --- Page Handlers ---
 
-pub async fn home(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn home(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     let html = HomeTemplate {
         user,
         active_page: "home".into(),
@@ -73,20 +79,13 @@ pub async fn home(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl 
     .render()
     .unwrap_or_else(|e| {
         log::error!("Template render error (home): {e}");
-        format!(
-            "<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>"
-        )
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
-pub async fn login_page(
-    req: HttpRequest,
-    pool: actix_web::web::Data<PgPool>,
-) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn login_page(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     let html = LoginTemplate {
         user,
         active_page: "login".into(),
@@ -97,24 +96,19 @@ pub async fn login_page(
         log::error!("Template render error (login): {e}");
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// GET /ca-nhan — Trang hồ sơ cá nhân + form chỉnh sửa.
-pub async fn ca_nhan(
-    req: HttpRequest,
-    pool: actix_web::web::Data<PgPool>,
-) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn ca_nhan(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
 
-    // Lấy danh sách cấp bậc để hiển thị прогресс.
+    // Lấy danh sách cấp bậc để hiển thị tiến độ.
     let ranks = sqlx::query_as::<_, MemberRank>(
         "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
          FROM member_ranks ORDER BY sort_order ASC"
     )
-    .fetch_all(pool.get_ref())
+    .fetch_all(&state.pool)
     .await
     .unwrap_or_default();
 
@@ -131,9 +125,7 @@ pub async fn ca_nhan(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// POST /ca-nhan/cap-nhat — Cập nhật hồ sơ cá nhân.
@@ -142,24 +134,20 @@ pub async fn ca_nhan(
 /// display_name, phap_danh, phap_hieu, but_danh, gender, bio.
 /// Không cho phép chỉnh email, rank, số dư A/K, is_active.
 pub async fn cap_nhat_ho_so(
-    req: HttpRequest,
-    pool: actix_web::web::Data<PgPool>,
-    form: web::Form<ProfileUpdate>,
-) -> impl Responder {
-    let user = match get_user_from_session(pool.get_ref(), &req).await {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<ProfileUpdate>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
         Some(u) => u,
-        None => {
-            return actix_web::HttpResponse::Found()
-                .append_header(("Location", "/dang-nhap"))
-                .finish();
-        }
+        None => return Redirect::to("/dang-nhap").into_response(),
     };
 
     // Validate
     let display_name = form.display_name.trim().to_string();
     if display_name.is_empty() || display_name.chars().count() > 100 {
         return render_profile_error(
-            pool.get_ref(),
+            &state.pool,
             Some(user),
             "Tên hiển thị không được để trống và tối đa 100 ký tự.",
         )
@@ -169,7 +157,7 @@ pub async fn cap_nhat_ho_so(
     let gender = form.gender.trim().to_string();
     if !matches!(gender.as_str(), "male" | "female" | "other") {
         return render_profile_error(
-            pool.get_ref(),
+            &state.pool,
             Some(user),
             "Giới tính không hợp lệ.",
         )
@@ -205,7 +193,7 @@ pub async fn cap_nhat_ho_so(
         .bind(&gender)
         .bind(&bio)
         .bind(user.id)
-        .fetch_one(pool.get_ref())
+        .fetch_one(&state.pool)
         .await
     {
         Ok(updated_user) => {
@@ -214,7 +202,7 @@ pub async fn cap_nhat_ho_so(
                 "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
                  FROM member_ranks ORDER BY sort_order ASC"
             )
-            .fetch_all(pool.get_ref())
+            .fetch_all(&state.pool)
             .await
             .unwrap_or_default();
 
@@ -231,14 +219,12 @@ pub async fn cap_nhat_ho_so(
                 format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
             });
 
-            actix_web::HttpResponse::Ok()
-                .content_type("text/html; charset=utf-8")
-                .body(html)
+            Html(html).into_response()
         }
         Err(e) => {
             log::error!("❌ Lỗi cập nhật hồ sơ: {e}");
             render_profile_error(
-                pool.get_ref(),
+                &state.pool,
                 Some(user),
                 "Không thể cập nhật hồ sơ. Vui lòng thử lại.",
             )
@@ -252,7 +238,7 @@ async fn render_profile_error(
     pool: &PgPool,
     user: Option<User>,
     error: &str,
-) -> actix_web::HttpResponse {
+) -> Response {
     let ranks = sqlx::query_as::<_, MemberRank>(
         "SELECT code, name, description, min_k_balance, color, icon, sort_order, created_at
          FROM member_ranks ORDER BY sort_order ASC"
@@ -274,9 +260,7 @@ async fn render_profile_error(
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// Helper: Chuẩn hoá chuỗi tuỳ chọn (None nếu rỗng hoặc chỉ whitespace).
@@ -291,46 +275,44 @@ fn normalize_optional(s: &Option<String>) -> Option<String> {
 // Các trang dưới đây dùng chung một helper `placeholder_page` để giữ
 // giao diện nhất quán (header/footer từ layout, không phải HTML rời).
 
-pub async fn khong_gian(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn khong_gian(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 5")
 }
 
-pub async fn cong_dong(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    // [v0.6] Cộng Đồng đã có trang riêng — delegate cho community handler.
-    community::cong_dong_index(req, pool).await
+pub async fn cong_dong(State(state): State<AppState>, jar: CookieJar) -> Response {
+    // [v0.6+] Cộng Đồng đã có trang riêng — delegate cho community handler.
+    community::cong_dong_index(State(state), jar).await
 }
 
-pub async fn ban_be(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn ban_be(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "friends", "Bạn Bè", "👤", "Kết nối, nhắn tin, gửi thư — Kết bạn đạo hữu", "Giai đoạn 15")
 }
 
-pub async fn kinh_sach(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn kinh_sach(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "books", "Kinh Sách", "📚", "Thư viện kinh sách Phật giáo, Đạo giáo và triết học", "Giai đoạn 17")
 }
 
-pub async fn quy_tu_bi(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "", "Quỹ Từ Bi", "🪷", "Quỹ chung cộng đồng — quyên góp, phát quà, hỗ trợ mạnh thường quân", "Giai đoạn 10")
 }
 
-pub async fn thuong_thanh(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 10")
 }
 
-pub async fn bang_xep_hang(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
+pub async fn bang_xep_hang(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user, "", "Bảng Xếp Hạng", "🏆", "Thành tích niệm Phật, tài Phú K, niệm lực A, phiếu Từ Bi", "Giai đoạn 19")
 }
 
 /// API: Heartbeat — keeps session alive (called every 5 min by client JS).
-pub async fn heartbeat() -> impl Responder {
-    actix_web::HttpResponse::Ok().json(serde_json::json!({
-        "status": "ok"
-    }))
+pub async fn heartbeat() -> Response {
+    axum::Json(serde_json::json!({ "status": "ok" })).into_response()
 }
 
 // --- Helper ---
@@ -343,8 +325,7 @@ fn placeholder_page(
     icon: &str,
     desc: &str,
     phase: &str,
-) -> impl Responder {
-    // Build HTML inline — dùng template `placeholder.html`.
+) -> Response {
     let body = format!(
         r#"<section class="max-w-4xl mx-auto px-4 py-20 text-center">
     <span class="text-6xl">{icon}</span>
@@ -493,7 +474,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.6 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -526,15 +507,12 @@ fn placeholder_page(
         bottom_bb = bottom_nav_item("/ban-be", "Bạn Bè", "👤", "friends"),
         bottom_ks = bottom_nav_item("/kinh-sach", "Kinh Sách", "📚", "books"),
     );
-    actix_web::HttpResponse::Ok()
-        .content_type("text/html; charset=utf-8")
-        .body(html)
+    Html(html).into_response()
 }
 
 /// Helper: render HTML cho menu user ở header desktop.
 fn render_user_menu_html(user: &Option<User>) -> String {
     if let Some(u) = user {
-        // Ưu tiên avatar Google, nếu không có thì chữ cái đầu tên hiển thị.
         let avatar_html = if let Some(avatar) = &u.avatar_url {
             format!(
                 r#"<img src="{avatar}" alt="avatar" class="w-8 h-8 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">"#
@@ -545,7 +523,6 @@ fn render_user_menu_html(user: &Option<User>) -> String {
                 r#"<span class="w-8 h-8 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold" style="color:#1B5E20">{first_char}</span>"#
             )
         };
-        // Build bằng concat để tránh format! strict rules về dấu nháy đơn
         let mut html = String::new();
         html.push_str("<div class=\"flex items-center space-x-3\">");
         html.push_str(&avatar_html);
@@ -573,7 +550,7 @@ fn render_user_menu_html(user: &Option<User>) -> String {
 /// Helper: render HTML cho menu user ở mobile menu.
 fn render_mobile_user_menu_html(user: &Option<User>) -> String {
     if let Some(u) = user {
-        let _ = u; // same content for both logged-in states
+        let _ = u;
         r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
            <form action="/dang-xuat" method="POST" class="block">
                <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">Thoát</button>
@@ -584,3 +561,5 @@ fn render_mobile_user_menu_html(user: &Option<User>) -> String {
             .to_string()
     }
 }
+
+

@@ -77,7 +77,7 @@ ENV APP_ENV=production \
     UPLOAD_DIR=/app/static/uploads \
     UPLOAD_URL_PREFIX=/static/uploads \
     MAX_UPLOAD_BYTES=5242880 \
-    RUST_LOG=ungdungtubi=info,actix_web=info,sqlx=warn \
+    RUST_LOG=ungdungtubi=info,axum=info,tower_http=info,sqlx=warn \
     RUST_BACKTRACE=0
 
 USER tubi

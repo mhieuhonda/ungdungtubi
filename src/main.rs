@@ -1,6 +1,12 @@
-use actix_files as fs;
-use actix_web::{middleware, web, App, HttpServer};
+use axum::{
+    extract::State,
+    response::{IntoResponse, Json, Response},
+    routing::{get, post},
+    Router,
+};
+use std::sync::Arc;
 use sqlx::postgres::PgPoolOptions;
+use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
 
 mod config;
 mod db;
@@ -10,7 +16,14 @@ mod models;
 
 use config::Config;
 
-#[actix_web::main]
+/// Shared application state — replaces actix-web's `web::Data<T>`.
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub config: Arc<Config>,
+}
+
+#[tokio::main]
 async fn main() -> std::io::Result<()> {
     // Load .env
     dotenvy::dotenv().ok();
@@ -22,14 +35,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.6 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.7 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {}", bind_addr);
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {:?} (max {} bytes)", config.upload_dir, config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.6 — Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)");
+    log::info!("📦 Phiên bản: v0.7 — Migration Actix → Axum + giữ nguyên feature Cộng Đồng");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -72,9 +85,8 @@ async fn main() -> std::io::Result<()> {
 
     // Start background task: clean up expired sessions every hour
     let cleanup_pool = db_pool.clone();
-    actix_web::rt::spawn(async move {
-        let mut interval =
-            actix_web::rt::time::interval(std::time::Duration::from_secs(3600));
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
         loop {
             interval.tick().await;
             match db::cleanup_expired_sessions(&cleanup_pool).await {
@@ -94,80 +106,102 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {:?}: {e}", config.upload_dir);
     }
 
+    // Build shared state
+    let state = AppState {
+        pool: db_pool,
+        config: Arc::new(config.clone()),
+    };
+
+    // Build router
+    let static_dir = config.static_dir.clone();
+    let app = build_router(state, static_dir);
+
     // Start server
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
     log::info!("🚀 Server đang chạy tại http://{}", bind_addr);
     log::info!("🪷 Nguyện công đức vô lượng. Nam Mô A Di Đà Phật.");
 
-    let static_dir = config.static_dir.clone();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
-    HttpServer::new(move || {
-        App::new()
-            .app_data(web::Data::new(db_pool.clone()))
-            .app_data(web::Data::new(config.clone()))
-            // Middleware
-            .wrap(middleware::Logger::default())
-            .wrap(middleware::Compress::default())
-            // Static files (actix-files mặc định không list thư mục)
-            .service(fs::Files::new("/static", &static_dir))
-            // Routes — Trang chủ
-            .route("/", web::get().to(handlers::home))
-            // Routes — Auth (Google OAuth là phương thức đăng nhập duy nhất)
-            .route("/dang-nhap", web::get().to(handlers::login_page))
-            // /dang-nhap cũng nhận POST để tương thích với các form cũ (chuyển hướng sang Google)
-            .route("/dang-nhap", web::post().to(handlers::auth::google_login))
-            // POST-only logout để chống CSRF (bỏ GET /dang-xuat)
-            .route("/dang-xuat", web::post().to(handlers::auth::logout))
-            // Google OAuth endpoints
-            .route("/auth/google", web::get().to(handlers::auth::google_login))
-            .route(
-                "/auth/google/callback",
-                web::get().to(handlers::auth::google_callback),
-            )
-            // Routes — 4 Chuyên Mục Chính
-            .route("/khong-gian", web::get().to(handlers::khong_gian))
-            .route("/cong-dong", web::get().to(handlers::cong_dong))
-            .route("/ban-be", web::get().to(handlers::ban_be))
-            .route("/kinh-sach", web::get().to(handlers::kinh_sach))
-            // Routes — Cộng Đồng (v0.6)
-            .route("/cong-dong/tao-nhom", web::get().to(handlers::community::create_group_form))
-            .route("/cong-dong/tao-nhom", web::post().to(handlers::community::create_group))
-            .route("/cong-dong/nhom/{slug}", web::get().to(handlers::community::view_group))
-            .route("/cong-dong/nhom/{slug}/tham-gia", web::post().to(handlers::community::join_group))
-            .route("/cong-dong/nhom/{slug}/roi-khoi", web::post().to(handlers::community::leave_group))
-            .route("/cong-dong/nhom/{slug}/tao-chu-de", web::get().to(handlers::community::create_topic_form))
-            .route("/cong-dong/nhom/{slug}/tao-chu-de", web::post().to(handlers::community::create_topic))
-            .route("/cong-dong/chu-de/{id}", web::get().to(handlers::community::view_topic))
-            .route("/cong-dong/chu-de/{id}/binh-luan", web::post().to(handlers::community::create_comment))
-            // Routes — Hệ Thống
-            .route("/quy-tu-bi", web::get().to(handlers::quy_tu_bi))
-            .route("/thuong-thanh", web::get().to(handlers::thuong_thanh))
-            .route("/bang-xep-hang", web::get().to(handlers::bang_xep_hang))
-            // Routes — Hồ sơ cá nhân
-            .route("/ca-nhan", web::get().to(handlers::ca_nhan))
-            .route("/ca-nhan/cap-nhat", web::post().to(handlers::cap_nhat_ho_so))
-            // API
-            .route("/api/health", web::get().to(health_check))
-            .route("/api/heartbeat", web::post().to(handlers::heartbeat))
-            // API — Upload ảnh (v0.5)
-            .route("/api/upload-info", web::get().to(handlers::uploads::upload_info))
-            .route(
-                "/api/upload-image",
-                web::post().to(handlers::uploads::upload_image),
-            )
-    })
-    .bind(&bind_addr)?
-    .workers(4)
-    .shutdown_timeout(30) // graceful shutdown 30s
-    .run()
-    .await
+    log::info!("👋 Server đã dừng hẳn. Nguyện công đức vô lượng.");
+    Ok(())
 }
 
-async fn health_check(
-    pool: web::Data<sqlx::PgPool>,
-) -> actix_web::HttpResponse {
+/// Build the axum Router with all routes.
+fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
+    Router::new()
+        // Routes — Trang chủ
+        .route("/", get(handlers::home))
+        // Routes — Auth (Google OAuth là phương thức đăng nhập duy nhất)
+        .route("/dang-nhap", get(handlers::login_page).post(handlers::auth::google_login))
+        // POST-only logout để chống CSRF (bỏ GET /dang-xuat)
+        .route("/dang-xuat", post(handlers::auth::logout))
+        // Google OAuth endpoints
+        .route("/auth/google", get(handlers::auth::google_login))
+        .route("/auth/google/callback", get(handlers::auth::google_callback))
+        // Routes — 4 Chuyên Mục Chính
+        .route("/khong-gian", get(handlers::khong_gian))
+        .route("/cong-dong", get(handlers::cong_dong))
+        .route("/ban-be", get(handlers::ban_be))
+        .route("/kinh-sach", get(handlers::kinh_sach))
+        // Routes — Cộng Đồng (v0.6+)
+        .route(
+            "/cong-dong/tao-nhom",
+            get(handlers::community::create_group_form).post(handlers::community::create_group),
+        )
+        .route(
+            "/cong-dong/nhom/{slug}",
+            get(handlers::community::view_group),
+        )
+        .route(
+            "/cong-dong/nhom/{slug}/tham-gia",
+            post(handlers::community::join_group),
+        )
+        .route(
+            "/cong-dong/nhom/{slug}/roi-khoi",
+            post(handlers::community::leave_group),
+        )
+        .route(
+            "/cong-dong/nhom/{slug}/tao-chu-de",
+            get(handlers::community::create_topic_form).post(handlers::community::create_topic),
+        )
+        .route(
+            "/cong-dong/chu-de/{id}",
+            get(handlers::community::view_topic),
+        )
+        .route(
+            "/cong-dong/chu-de/{id}/binh-luan",
+            post(handlers::community::create_comment),
+        )
+        // Routes — Hệ Thống
+        .route("/quy-tu-bi", get(handlers::quy_tu_bi))
+        .route("/thuong-thanh", get(handlers::thuong_thanh))
+        .route("/bang-xep-hang", get(handlers::bang_xep_hang))
+        // Routes — Hồ sơ cá nhân
+        .route("/ca-nhan", get(handlers::ca_nhan))
+        .route("/ca-nhan/cap-nhat", post(handlers::cap_nhat_ho_so))
+        // API
+        .route("/api/health", get(health_check))
+        .route("/api/heartbeat", post(handlers::heartbeat))
+        // API — Upload ảnh (v0.5+)
+        .route("/api/upload-info", get(handlers::uploads::upload_info))
+        .route("/api/upload-image", post(handlers::uploads::upload_image))
+        // Static files (CSS/JS/uploads) — tower-http ServeDir
+        .nest_service("/static", ServeDir::new(static_dir))
+        // Shared state
+        .with_state(state)
+        // Middleware (order matters: outermost last)
+        .layer(CompressionLayer::new())
+        .layer(TraceLayer::new_for_http())
+}
+
+/// GET /api/health — Health check JSON + DB status.
+async fn health_check(State(state): State<AppState>) -> Response {
     // DB ping
     let db_ok: Result<String, _> = sqlx::query_scalar("SELECT version()")
-        .fetch_one(pool.get_ref())
+        .fetch_one(&state.pool)
         .await;
 
     let (db_status, db_version): (&str, String) = match db_ok {
@@ -175,13 +209,14 @@ async fn health_check(
         Err(_) => ("error", String::new()),
     };
 
-    actix_web::HttpResponse::Ok().json(serde_json::json!({
+    Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.6.0",
+        "version": "0.7.0",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 6,
-        "phase_name": "Cộng Đồng Foundation — Nhóm + Chủ Đề + Bình luận",
+        "phase": 7,
+        "phase_name": "Migration Actix → Axum (giữ nguyên feature Cộng Đồng)",
+        "framework": "axum 0.8 + tower-http",
         "status": "running",
         "database": {
             "status": db_status,
@@ -189,4 +224,32 @@ async fn health_check(
         },
         "message": "Nguyện công đức vô lượng. Nam Mô A Di Đà Phật."
     }))
+    .into_response()
+}
+
+/// Graceful shutdown signal handler — listens for Ctrl+C / SIGTERM.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    log::info!("🛑 Tín hiệu dừng nhận được — đang graceful shutdown (timeout 30s)...");
 }

@@ -14,7 +14,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 
 | Thành phần | Công nghệ |
 |-----------|-----------|
-| Backend | Rust 1.97.1 + Actix-web |
+| Backend | Rust 1.97.1 + Axum 0.8 |
 | Template | Askama 0.14 (type-safe HTML templates) |
 | Database | PostgreSQL 17 + SQLx (async, compile-time checked) |
 | Frontend | HTMX (server-driven UI) + Alpine.js (reactive) |
@@ -35,7 +35,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 ## Lộ Trình 25 Giai Đoạn Phát Triển
 
 ### Giai đoạn 1: Kiến tạo nền móng — Thiết lập dự án & hạ tầng cốt lõi ✅ (v0.1)
-- Khởi tạo project Rust (Actix-web + Askama + SQLx + PostgreSQL)
+- Khởi tạo project Rust (Axum + Askama + SQLx + PostgreSQL)
 - Cấu hình HTMX + Alpine.js + Tailwind CSS
 - Thiết kế database schema nền tảng (users, sessions)
 - Trang landing page / trang chủ
@@ -287,6 +287,7 @@ Workflow deploy tự động:
 - **v0.4** — Giai đoạn 4: Hồ sơ thành viên & Hệ thống cấp bậc
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
+- **v0.7** — Migration Actix-web → Axum 0.8 (giữ nguyên feature v0.6, Rust 1.97.1)
 
 ---
 

@@ -1,14 +1,15 @@
 [package]
 name = "ungdungtubi"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.97"
 
 [dependencies]
-# Web framework
-actix-web = "4"
-actix-files = "0.6"
-actix-multipart = "0.7"
+# Web framework ( migrated from actix-web 4 → axum 0.8 )
+axum = { version = "0.8", features = ["macros", "multipart"] }
+axum-extra = { version = "0.10", features = ["cookie", "cookie-signed"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["fs", "trace", "compression-gzip", "cors"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate"] }
@@ -43,14 +44,20 @@ rand = "0.8"
 # Hashing (checksum for uploaded files + audit)
 sha2 = "0.10"
 
-# Byte stream handling for multipart uploads
-bytes = "0.5"
+# Byte handling for multipart uploads
+bytes = "1"
 
 # Mime type sniffing for upload validation
 mime = "0.3"
 
-# Stream utilities for multipart upload
+# Async utilities
 futures-util = "0.3"
+
+# Tokio runtime
+tokio = { version = "1", features = ["full"] }
+
+# Time crate (used by cookie 0.18 for SignedDuration in max_age)
+time = "0.3"
 
 [profile.release]
 # Optimise for smaller Docker image and faster runtime

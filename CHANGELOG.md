@@ -6,6 +6,62 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.7.0] — 2026-08-14 — Migration Actix-web → Axum (giữ nguyên feature Cộng Đồng)
+
+### Thay đổi
+- **Migration toàn bộ backend từ Actix-web 4 sang Axum 0.8** — cùng họ tower-ecosystem, async-native trên tokio.
+  - `Cargo.toml`: thay `actix-web`, `actix-files`, `actix-multipart` bằng `axum 0.8` (features `macros`, `multipart`), `axum-extra 0.10` (features `cookie`, `cookie-signed`), `tower 0.5`, `tower-http 0.6` (features `fs`, `trace`, `compression-gzip`, `cors`).
+  - Thêm dependency tường minh `tokio = { version = "1", features = ["full"] }` (trước đó được actix-web kéo về).
+  - Tăng version `bytes` từ `0.5` (cũ, đi kèm actix) lên `1` (chuẩn tower/axum).
+- **`src/main.rs`** — viết lại bằng `axum::Router` + `axum::serve` + `tokio::net::TcpListener`:
+  - `AppState` struct (clone) thay cho `web::Data<T>` — chứa `PgPool` + `Arc<Config>`.
+  - Routes khai báo bằng `.route(path, get(handler).post(handler2))` thay cho `web::get().to(...)` / `web::post().to(...)`.
+  - Static files qua `tower_http::services::ServeDir::new(static_dir).nest_service("/static", ...)`.
+  - Logger qua `tower_http::trace::TraceLayer`, nén gzip qua `tower_http::compression::CompressionLayer`.
+  - `actix_web::rt::spawn` → `tokio::spawn`; `actix_web::rt::time::interval` → `tokio::time::interval`.
+  - Graceful shutdown bằng `axum::serve(listener, app).with_graceful_shutdown(...)` lắng nghe Ctrl+C + SIGTERM.
+  - `#[actix_web::main]` → `#[tokio::main]`.
+- **`src/errors/mod.rs`** — `ResponseError::error_response` → `axum::response::IntoResponse::into_response`; `HttpResponse` → `(StatusCode, Json(...))`.
+- **`src/handlers/mod.rs`** — convert tất cả handler:
+  - `web::Data<PgPool>` → `State<AppState>`; `HttpRequest` + `req.cookie("session_id")` → `CookieJar` + `jar.get("session_id")`.
+  - `impl Responder` → `Response` (dùng `Html(...).into_response()`, `Redirect::to(...).into_response()`, tuple `(StatusCode, &str).into_response()`).
+  - `web::Form<T>` → `axum::Form<T>`.
+- **`src/handlers/auth.rs`** — viết lại OAuth flow:
+  - Cookie build/parse dùng `axum_extra::cookie::{Cookie, SameSite}` (backend là crate `cookie` nhưng API gọi khác actix).
+  - Set/Clear cookies trong response bằng cách append header `SET_COOKIE` thủ công (vì `CookieJar` chỉ thêm cookie vào request outbound, không tự set response).
+  - Query string `?next=...` trích bằng `axum::extract::Query<LoginQuery>` thay vì `req.query_string().split('&')`.
+  - `web::Query<T>` → `axum::extract::Query<T>`.
+- **`src/handlers/community.rs`** — convert 10 endpoint Cộng Đồng (giữ nguyên logic nghiệp vụ, chỉ đổi framework API):
+  - `web::Path<String>` → `axum::extract::Path<String>`.
+  - `HttpResponse::Found().append_header(("Location", ...)).finish()` → `Redirect::to(&url).into_response()`.
+  - `HttpResponse::NotFound().body(...)` → `(StatusCode::NOT_FOUND, "...").into_response()`.
+- **`src/handlers/uploads.rs`** — convert multipart:
+  - `actix_multipart::Multipart` → `axum::extract::Multipart`.
+  - `field.next()` (actix) → `field.bytes().await` (axum đọc cả field một lần).
+  - `field.content_disposition()`, `field.content_type()` → `field.name()`, `field.file_name()`, `field.content_type()` (trực tiếp, không qua `ContentDisposition` struct).
+  - `bytes::BytesMut` → `bytes::Bytes` (qua Vec trung gian) cho simplify.
+- **`Dockerfile`** — cập nhật `RUST_LOG`: bỏ `actix_web=info`, thêm `axum=info,tower_http=info`.
+- **`.env.example`** — cập nhật `RUST_LOG` tương tự.
+- **`README.md`** — cập nhật bảng công nghệ: `Actix-web` → `Axum 0.8`; cập nhật Giai đoạn 1 mô tả.
+- **`Cargo.lock`** — regenerated sau `cargo build`.
+
+### Giữ nguyên
+- **Toàn bộ logic nghiệp vụ** — Google OAuth flow, session management, member ranks, Cộng Đồng (Nhóm + Chủ Đề + Bình luận), upload ảnh (multipart + SHA-256 + dedup), auto-migrations, graceful shutdown.
+- **Toàn bộ SQL queries** — không thay đổi schema, không thay đổi migration files.
+- **Toàn bộ Askama templates** — không thay đổi HTML/CSS/JS.
+- **Toàn bộ model structs** — `User`, `MemberRank`, `Group`, `Topic`, `Comment`, ... không đổi.
+- **Yêu cầu Rust 1.97.1** — `Cargo.toml` vẫn `rust-version = "1.97"`; `Dockerfile` vẫn `rust:1.97.1-slim-bookworm`.
+- **API surface** — tất cả endpoint (path + method) giữ nguyên hoàn toàn.
+
+### Lỗi đã sửa trong quá trình migration
+- Cookie build API khác nhau giữa actix (`Cookie::build((name, value))` đã OK từ cookie 0.16+) và axum-extra (dùng cùng crate `cookie` mới hơn) — chọn API builder tuple mới.
+- `Redirect` của axum không tự mang cookie headers — phải append `SET_COOKIE` thủ công vào `Response` sau khi `Redirect::to(...).into_response()`.
+- `axum::extract::Multipart::next_field` trả `Result<Option<Field>, _>` thay vì actix `Stream<Item=Result<Field, _>>` — đổi loop pattern.
+- `field.bytes()` đọc toàn bộ field một lần — không cần inner `while let Some(chunk) = field.next().await` như actix.
+- `tower_http::services::ServeDir` không có method `.show_files_listing()` mặc định — hành vi "không list thư mục" đã đúng với actix-files cũ, khớp với yêu cầu.
+
+---
+
 ## [0.6.0] — 2026-08-14 — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 
 ### Thêm

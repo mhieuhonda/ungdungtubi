@@ -1,8 +1,12 @@
-use actix_web::{web, HttpRequest, HttpResponse};
+use axum::{
+    extract::{Query, State},
+    response::{Html, IntoResponse, Redirect, Response},
+};
+use axum_extra::extract::CookieJar;
 use rand::Rng;
 use serde::Deserialize;
-use sqlx::PgPool;
 
+use crate::AppState;
 use crate::config::Config;
 use crate::models::user::{GoogleUserInfo, User};
 
@@ -18,15 +22,24 @@ const OAUTH_STATE_COOKIE: &str = "oauth_state";
 /// Tên cookie lưu đường dẫn quay lại sau khi đăng nhập.
 const OAUTH_RETURN_COOKIE: &str = "oauth_return";
 
-/// GET /dang-nhap — chuyển hướng người dùng sang Google OAuth.
+/// Query params cho GET /dang-nhap hoặc GET /auth/google (chỉ có `?next=...`).
+#[derive(Debug, Deserialize, Default)]
+pub struct LoginQuery {
+    pub next: Option<String>,
+}
+
+/// GET /dang-nhap hoặc POST /dang-nhap hoặc GET /auth/google —
+/// chuyển hướng người dùng sang Google OAuth.
 ///
 /// Tạo state ngẫu nhiên, lưu vào cookie (HttpOnly, SameSite=Lax),
 /// sau đó redirect tới https://accounts.google.com/o/oauth2/v2/auth
 /// với scope `openid email profile`.
 pub async fn google_login(
-    config: web::Data<Config>,
-    req: HttpRequest,
-) -> HttpResponse {
+    State(state): State<AppState>,
+    Query(query): Query<LoginQuery>,
+) -> Response {
+    let config = &state.config;
+
     // Nếu chưa cấu hình Google OAuth → báo lỗi thân thiện.
     if config.google_client_id.is_empty() || config.google_client_secret.is_empty() {
         return error_page(
@@ -38,15 +51,14 @@ pub async fn google_login(
     // Sinh state ngẫu nhiên 32 bytes (hex 64 chars).
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill(&mut bytes);
-    let state: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+    let state_value: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
 
-    // Lưu đường dẫn quay lại (nếu có query ?next=...) vào cookie ngắn hạn.
-    let next = req
-        .query_string()
-        .split('&')
-        .find_map(|kv| kv.strip_prefix("next="))
-        .and_then(|s| urlencoding::decode(s).ok().map(|s| s.into_owned()))
-        .filter(|s| s.starts_with('/') && !s.starts_with("//")) // chỉ cho phép path tương đối
+    // Lưu đường dẫn quay lại (nếu có query ?next=...) — chỉ cho phép path tương đối.
+    let next = query
+        .next
+        .as_deref()
+        .map(|s| urlencoding::decode(s).ok().map(|s| s.into_owned()).unwrap_or_default())
+        .filter(|s| s.starts_with('/') && !s.starts_with("//"))
         .unwrap_or_else(|| "/".to_string());
 
     let auth_url = format!(
@@ -60,28 +72,36 @@ pub async fn google_login(
          prompt=select_account",
         client_id = urlencoding::encode(&config.google_client_id),
         redirect_uri = urlencoding::encode(&config.google_redirect_uri),
-        state = state,
+        state = state_value,
     );
 
-    HttpResponse::Found()
-        .cookie(
-            actix_web::cookie::Cookie::build(OAUTH_STATE_COOKIE, &state)
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::minutes(10))
-                .http_only(true)
-                .same_site(actix_web::cookie::SameSite::Lax)
-                .finish(),
-        )
-        .cookie(
-            actix_web::cookie::Cookie::build(OAUTH_RETURN_COOKIE, &next)
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::minutes(10))
-                .http_only(true)
-                .same_site(actix_web::cookie::SameSite::Lax)
-                .finish(),
-        )
-        .append_header(("Location", auth_url))
-        .finish()
+    // Build cookies to set in response.
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+    let state_cookie = Cookie::build((OAUTH_STATE_COOKIE, state_value.clone()))
+        .path("/")
+        .max_age(Duration::seconds(600))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .build();
+    let return_cookie = Cookie::build((OAUTH_RETURN_COOKIE, next))
+        .path("/")
+        .max_age(Duration::seconds(600))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .build();
+
+    let jar = CookieJar::new().add(state_cookie).add(return_cookie);
+
+    // Combine CookieJar + Redirect into a Response manually so we can attach Set-Cookie headers.
+    let mut resp = Redirect::to(&auth_url).into_response();
+    let headers = resp.headers_mut();
+    for c in jar.iter() {
+        if let Ok(s) = c.encoded().to_string().try_into() {
+            headers.append(axum::http::header::SET_COOKIE, s);
+        }
+    }
+    resp
 }
 
 /// Query string Google gửi về /auth/google/callback.
@@ -102,11 +122,13 @@ pub struct GoogleCallbackQuery {
 ///    Nếu email đã tồn tại trong hệ thống (tài khoản cũ) thì link luôn.
 /// 5. Tạo session, set cookie, redirect về `next` (mặc định "/").
 pub async fn google_callback(
-    pool: web::Data<PgPool>,
-    config: web::Data<Config>,
-    query: web::Query<GoogleCallbackQuery>,
-    req: HttpRequest,
-) -> HttpResponse {
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Query(query): Query<GoogleCallbackQuery>,
+) -> Response {
+    let pool = &state.pool;
+    let config = &state.config;
+
     // Trường hợp người dùng từ chối cấp quyền.
     if let Some(err) = &query.error {
         return error_page(
@@ -121,11 +143,11 @@ pub async fn google_callback(
     };
 
     // Kiểm tra state từ cookie khớp query state (chống CSRF).
-    let cookie_state = req
-        .cookie(OAUTH_STATE_COOKIE)
+    let cookie_state = jar
+        .get(OAUTH_STATE_COOKIE)
         .map(|c| c.value().to_string());
-    let return_path = req
-        .cookie(OAUTH_RETURN_COOKIE)
+    let return_path = jar
+        .get(OAUTH_RETURN_COOKIE)
         .map(|c| c.value().to_string())
         .filter(|s| s.starts_with('/') && !s.starts_with("//"))
         .unwrap_or_else(|| "/".to_string());
@@ -143,7 +165,7 @@ pub async fn google_callback(
     }
 
     // Đổi code lấy access_token.
-    let token_res = exchange_code_for_token(&config, &code).await;
+    let token_res = exchange_code_for_token(config, &code).await;
     let access_token = match token_res {
         Ok(t) => t,
         Err(e) => {
@@ -168,7 +190,7 @@ pub async fn google_callback(
     };
 
     // Upsert user (theo google_sub, hoặc theo email nếu tài khoản cũ đã có sẵn).
-    let user = match upsert_google_user(pool.get_ref(), &user_info).await {
+    let user = match upsert_google_user(pool, &user_info).await {
         Ok(u) => u,
         Err(e) => {
             log::error!("❌ Lỗi upsert user Google: {e}");
@@ -194,7 +216,7 @@ pub async fn google_callback(
     )
     .bind(&session_id)
     .bind(user.id)
-    .execute(pool.get_ref())
+    .execute(pool)
     .await;
 
     if let Err(e) = insert_session {
@@ -203,52 +225,68 @@ pub async fn google_callback(
     }
 
     // Xoá cookie OAuth tạm + set session cookie.
-    HttpResponse::Found()
-        .cookie(
-            actix_web::cookie::Cookie::build(OAUTH_STATE_COOKIE, "")
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::ZERO)
-                .finish(),
-        )
-        .cookie(
-            actix_web::cookie::Cookie::build(OAUTH_RETURN_COOKIE, "")
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::ZERO)
-                .finish(),
-        )
-        .cookie(
-            actix_web::cookie::Cookie::build("session_id", &session_id)
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::days(7))
-                .http_only(true)
-                .same_site(actix_web::cookie::SameSite::Lax)
-                .secure(config.is_production)
-                .finish(),
-        )
-        .append_header(("Location", return_path.as_str()))
-        .finish()
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+
+    let cleared_state = Cookie::build((OAUTH_STATE_COOKIE, ""))
+        .path("/")
+        .max_age(Duration::ZERO)
+        .build();
+    let cleared_return = Cookie::build((OAUTH_RETURN_COOKIE, ""))
+        .path("/")
+        .max_age(Duration::ZERO)
+        .build();
+    let session_cookie = Cookie::build(("session_id", session_id.clone()))
+        .path("/")
+        .max_age(Duration::days(7))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .secure(config.is_production)
+        .build();
+
+    let new_jar = jar
+        .remove(cleared_state)
+        .remove(cleared_return)
+        .add(session_cookie);
+
+    let mut resp = Redirect::to(&return_path).into_response();
+    let headers = resp.headers_mut();
+    for c in new_jar.iter() {
+        if let Ok(s) = c.encoded().to_string().try_into() {
+            headers.append(axum::http::header::SET_COOKIE, s);
+        }
+    }
+    resp
 }
 
 /// POST /dang-xuat — xoá session khỏi DB và cookie phía client.
-pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest) -> HttpResponse {
-    if let Some(cookie) = req.cookie("session_id") {
+pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> Response {
+    if let Some(cookie) = jar.get("session_id") {
         let session_id = cookie.value();
         let _ = sqlx::query("DELETE FROM sessions WHERE id = $1")
             .bind(session_id)
-            .execute(pool.get_ref())
+            .execute(&state.pool)
             .await;
     }
 
-    HttpResponse::Found()
-        .cookie(
-            actix_web::cookie::Cookie::build("session_id", "")
-                .path("/")
-                .max_age(actix_web::cookie::time::Duration::ZERO)
-                .http_only(true)
-                .finish(),
-        )
-        .append_header(("Location", "/"))
-        .finish()
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+    let cleared = Cookie::build(("session_id", ""))
+        .path("/")
+        .max_age(Duration::ZERO)
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .build();
+    let new_jar = jar.remove(cleared);
+
+    let mut resp = Redirect::to("/").into_response();
+    let headers = resp.headers_mut();
+    for c in new_jar.iter() {
+        if let Ok(s) = c.encoded().to_string().try_into() {
+            headers.append(axum::http::header::SET_COOKIE, s);
+        }
+    }
+    resp
 }
 
 // ---------------------------------------------------------------------------
@@ -258,9 +296,6 @@ pub async fn logout(pool: web::Data<PgPool>, req: HttpRequest) -> HttpResponse {
 #[derive(Debug, Deserialize)]
 struct GoogleTokenResponse {
     access_token: String,
-    // expires_in: u64,
-    // token_type: String,
-    // id_token: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -356,7 +391,7 @@ async fn fetch_google_userinfo(access_token: &str) -> Result<GoogleUserInfo, Str
 /// - Nếu email trùng với tài khoản cũ đã đăng ký bằng email/password → link google_sub vào.
 /// - Nếu không → tạo user mới với rank "new", A=0, K=0.
 async fn upsert_google_user(
-    pool: &PgPool,
+    pool: &sqlx::PgPool,
     info: &GoogleUserInfo,
 ) -> Result<User, sqlx::Error> {
     let select_sql = format!("SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1");
@@ -410,7 +445,7 @@ async fn upsert_google_user(
 }
 
 /// Trang lỗi đơn giản (dùng khi OAuth thất bại).
-fn error_page(title: &str, msg: &str) -> HttpResponse {
+fn error_page(title: &str, msg: &str) -> Response {
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="vi"><head>
@@ -429,5 +464,5 @@ fn error_page(title: &str, msg: &str) -> HttpResponse {
 </div>
 </body></html>"#
     );
-    HttpResponse::Ok().content_type("text/html; charset=utf-8").body(html)
+    Html(html).into_response()
 }

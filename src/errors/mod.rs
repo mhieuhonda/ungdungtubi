@@ -1,9 +1,13 @@
 #![allow(dead_code)]
 
-use actix_web::{HttpResponse, ResponseError};
+use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
 use std::fmt;
 
-// AppError enum reserved for future phases (currently using HttpResponse directly)
+// AppError enum reserved for future phases (currently using Response directly)
 
 #[derive(Debug)]
 pub enum AppError {
@@ -28,28 +32,17 @@ impl fmt::Display for AppError {
     }
 }
 
-impl ResponseError for AppError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            AppError::Database(_) => HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-            AppError::NotFound(_) => HttpResponse::NotFound().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-            AppError::Unauthorized(_) => HttpResponse::Unauthorized().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-            AppError::BadRequest(_) => HttpResponse::BadRequest().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-            AppError::Forbidden(_) => HttpResponse::Forbidden().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-            AppError::Internal(_) => HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": self.to_string()
-            })),
-        }
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, msg) = match &self {
+            AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
+            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AppError::Forbidden(_) => (StatusCode::FORBIDDEN, self.to_string()),
+            AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
+        };
+        (status, Json(serde_json::json!({ "error": msg }))).into_response()
     }
 }
 
