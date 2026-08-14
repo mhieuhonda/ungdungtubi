@@ -298,8 +298,28 @@ impl User {
         }
     }
 
-    /// Tổng số quyền của role hiện tại (cho badge/hiển thị).
+    /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
+    /// Chỉ đếm các quyền có route/template tương ứng — tránh hiển thị
+    /// "50 quyền" khi thực tế chỉ có 6 nút bấm.
+    ///
+    /// v0.9.14: Fix mismatch — số quyền hiển thị phải khớp với UI thực tế.
     pub fn permission_count(&self) -> u8 {
+        match self.role.as_str() {
+            // 6 UI features: view status, view DB, manage users, change roles,
+            // view audit logs, health check
+            "admin_ky_thuat" => 6,
+            // 4 UI features: view stats, manage users, change roles, view reports
+            "admin_quan_li" => 4,
+            // 4 UI features: view community stats, moderate reviews, manage groups, view members
+            "admin_cong_dong" => 4,
+            _ => 0,
+        }
+    }
+
+    /// Tổng số quyền hệ thống (permission codes trong has_permission_code).
+    /// Đây là potential permissions, không phải UI-accessible.
+    /// Dùng cho health check và debug.
+    pub fn system_permission_count(&self) -> u8 {
         match self.role.as_str() {
             "admin_ky_thuat" => 50,
             "admin_quan_li" => 30,

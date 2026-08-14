@@ -55,12 +55,14 @@
           <div class="font-semibold text-gray-900 truncate">{{ req.other_display_name }}</div>
           <div class="text-xs text-gray-400">Muốn kết bạn với bạn</div>
         </div>
-        <form method="POST" action="/ban-be/chap-nhan/{{ req.id }}" class="inline">
+        <form method="POST" action="/ban-be/chap-nhan/{{ req.id }}" class="inline"
+              hx-post="/ban-be/chap-nhan/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
           <button type="submit" class="text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
             ✓ Chấp nhận
           </button>
         </form>
-        <form method="POST" action="/ban-be/tu-choi/{{ req.id }}" class="inline">
+        <form method="POST" action="/ban-be/tu-choi/{{ req.id }}" class="inline"
+              hx-post="/ban-be/tu-choi/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
           <button type="submit" class="text-red-500 hover:text-red-700 text-sm font-semibold px-3 py-2 rounded-lg transition hover:bg-red-50">
             ✕ Từ chối
           </button>

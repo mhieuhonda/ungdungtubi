@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.12 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.13 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.12 — Giai đoạn 16: Mobile UX + Admin Kỹ Thuật Redesign");
+    log::info!("📦 Phiên bản: v0.9.13 — Giai đoạn 17: Admin UI Compact + Bug Fixes + Audit Log");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -255,6 +255,12 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/quan-li", get(handlers::admin::admin_quan_li_dashboard))
         .route("/admin/thanh-vien", get(handlers::admin::admin_users_list))
         .route("/admin/thanh-vien/{user_id}/role", post(handlers::admin::admin_change_role))
+        .route("/admin/thanh-vien/{user_id}/ban", post(handlers::admin::admin_ban_user))
+        .route("/admin/thanh-vien/{user_id}/kich-hoat", post(handlers::admin::admin_activate_user))
+        .route("/admin/ky-thuat/nhat-ky", get(handlers::admin::admin_audit_log_page))
+        .route("/admin/cong-dong/cam-ngo", get(handlers::admin::admin_cam_ngo_list))
+        .route("/admin/cong-dong/cam-ngo/{review_id}/duyet", post(handlers::admin::admin_cam_ngo_duyet))
+        .route("/admin/cong-dong/cam-ngo/{review_id}/tu-choi", post(handlers::admin::admin_cam_ngo_tu_choi))
         // Group cover image change (v0.9.3)
         .route(
             "/cong-dong/nhom/{slug}/doi-anh",
@@ -316,11 +322,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.12",
+        "version": "0.9.13",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 16,
-        "phase_name": "Giai đoạn 16 — Mobile UX + Admin Kỹ Thuật Redesign",
+        "phase": 17,
+        "phase_name": "Giai đoạn 17 — Admin UI Compact + Audit Log + Bug Fixes",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -349,6 +355,9 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "admin-quan-li-dashboard",
             "admin-ky-thuat-mobile-ux-redesign",
             "admin-ky-thuat-users-redirect",
+            "audit-log-activity-log",
+            "admin-content-moderation-cam-ngo",
+            "admin-user-ban-activate",
             "mobile-chat-keyboard-fix",
             "mobile-viewport-interactive-widget",
             "khong-gian-personal-space",
@@ -368,7 +377,8 @@ async fn health_check(State(state): State<AppState>) -> Response {
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 50, "admin_quan_li": 30, "admin_cong_dong": 20, "member": 0},
+            "permission_counts": {"admin_ky_thuat": 6, "admin_quan_li": 4, "admin_cong_dong": 4, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 50, "admin_quan_li": 30, "admin_cong_dong": 20, "member": 0},
             "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",

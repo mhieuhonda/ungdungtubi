@@ -1,9 +1,9 @@
-//! Handlers cho trang Quản Trị (Giai đoạn 12 — v0.9.8).
+//! Handlers cho trang Quản Trị (Giai đoạn 12 — v0.9.14).
 //!
-//! Hệ thống vai trò (v0.9.8 — hierarchy mới):
-//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (CAO NHẤT — 50 quyền, toàn quyền hệ thống)
-//!   - `admin_quan_li`   — Admin Quản Lý (30 quyền — users + content + community)
-//!   - `admin_cong_dong` — Admin Cộng Đồng (20 quyền — content + community)
+//! Hệ thống vai trò (v0.9.14 — hierarchy mới):
+//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (CAO NHẤT — 6/50 quyền: UI/hệ thống)
+//!   - `admin_quan_li`   — Admin Quản Lý (4/30 quyền: UI/hệ thống)
+//!   - `admin_cong_dong` — Admin Cộng Đồng (4/20 quyền: UI/hệ thống)
 //!   - `member`          — Thành Viên (mặc định, 0 quyền admin)
 //!
 //! 3 giao diện admin riêng biệt:
@@ -14,10 +14,16 @@
 //! Routes:
 //!   - GET  /admin                       — Redirect đến dashboard tương ứng role
 //!   - GET  /admin/ky-thuat             — Dashboard Admin Kỹ Thuật (terminal style)
+//!   - GET  /admin/ky-thuat/nhat-ky     — Full audit log page (paginated)
 //!   - GET  /admin/cong-dong            — Dashboard Admin Cộng Đồng (mod style)
+//!   - GET  /admin/cong-dong/cam-ngo    — Content moderation (pending reviews)
+//!   - POST /admin/cong-dong/cam-ngo/{id}/duyet    — Approve review
+//!   - POST /admin/cong-dong/cam-ngo/{id}/tu-choi  — Reject review
 //!   - GET  /admin/quan-li              — Dashboard Admin Quản Lý (exec style)
 //!   - GET  /admin/thanh-vien           — List users + roles (shared)
 //!   - POST /admin/thanh-vien/{id}/role — Đổi role user (admin_ky_thuat + admin_quan_li)
+//!   - POST /admin/thanh-vien/{id}/ban  — Ban user (admin_ky_thuat only)
+//!   - POST /admin/thanh-vien/{id}/kich-hoat — Activate user (admin_ky_thuat only)
 
 use axum::{
     extract::{Path, State},
@@ -138,12 +144,23 @@ pub struct AdminStats {
 
 // Template structs (Askama).
 
+/// Audit log entry for admin actions
+#[derive(Debug, Clone)]
+pub struct AuditLog {
+    pub id: i64,
+    pub created_at: String,
+    pub action: String,
+    pub user_handle: String,
+    pub detail: String,
+}
+
 /// Admin Kỹ Thuật dashboard — terminal/coder style (KHÔNG extends layout.html)
 #[derive(Template)]
 #[template(path = "admin/ky-thuat/index.html")]
 pub struct AdminKyThuatTemplate {
     pub user: Option<User>,
     pub stats: AdminStats,
+    pub audit_logs: Vec<AuditLog>,
 }
 
 /// Admin Cộng Đồng dashboard — community mod style
@@ -216,10 +233,12 @@ pub async fn admin_ky_thuat_dashboard(State(state): State<AppState>, jar: Cookie
     }
 
     let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let audit_logs = fetch_audit_logs(&state.pool, 20).await;
 
     let html = AdminKyThuatTemplate {
         user: Some(user),
         stats,
+        audit_logs,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -410,6 +429,15 @@ pub async fn admin_change_role(
                 user_id,
                 new_role
             );
+            // Audit log
+            let detail = format!("{{\"target_user_id\": \"{}\", \"new_role\": \"{}\"}}", user_id, new_role);
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'change_role', 'permission', $2::jsonb)"
+            )
+            .bind(actor.id)
+            .bind(&detail)
+            .execute(&state.pool)
+            .await;
         }
         Err(e) => {
             log::error!("❌ Lỗi đổi role user: {e}");
@@ -538,14 +566,15 @@ fn render_forbidden(user: &User) -> Response {
   <div class="text-5xl mb-4">🚫</div>
   <h1 class="text-xl font-bold text-red-600 mb-2">403 — Không có quyền truy cập</h1>
   <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin.</p>
-  <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền)</p>
-  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (50) &gt; Admin Quản Lý (30) &gt; Admin Cộng Đồng (20) &gt; Thành Viên (0)</p>
+  <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền UI / {sys_perm_count} quyền hệ thống)</p>
+  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (6/50) &gt; Admin Quản Lý (4/30) &gt; Admin Cộng Đồng (4/20) &gt; Thành Viên (0)</p>
   <a href="/" class="inline-block text-white px-6 py-2 rounded-xl transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </div>
 </body></html>"#,
         role_icon = user.role_icon(),
         role_display = user.role_display(),
         perm_count = user.permission_count(),
+        sys_perm_count = user.system_permission_count(),
     );
     Html(html).into_response()
 }
@@ -590,4 +619,368 @@ async fn render_users_success(pool: &sqlx::PgPool, actor: &User, success: &str) 
     });
 
     Html(html).into_response()
+}
+
+/// Fetch audit log entries from the `audit_log` table.
+///
+/// Joins with `users` to resolve `actor_id → display_name/email`.
+/// If the table or columns don't exist yet, returns empty vec gracefully.
+async fn fetch_audit_logs(pool: &sqlx::PgPool, limit: i64) -> Vec<AuditLog> {
+    let rows = sqlx::query_as::<_, (i64, String, String, String, Option<String>, DateTime<Utc>)>(
+        "SELECT al.id, al.action, al.category,
+                COALESCE(u.display_name, u.email, 'system') AS user_handle,
+                al.details::text AS detail,
+                al.created_at
+         FROM audit_log al
+         LEFT JOIN users u ON u.id = al.actor_id
+         ORDER BY al.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch audit logs (table có thể chưa tồn tại): {e}");
+        vec![]
+    });
+
+    rows.into_iter()
+        .map(|(id, action, category, user_handle, detail, created_at)| {
+            // Combine category + action for display, format detail nicely
+            let display_action = format!("[{category}] {action}");
+            let display_detail = detail
+                .filter(|d| d != "{}")
+                .unwrap_or_default();
+            AuditLog {
+                id,
+                action: display_action,
+                user_handle,
+                detail: display_detail,
+                created_at: created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            }
+        })
+        .collect()
+}
+
+// ─── Audit Log Page ─────────────────────────────────────────────────────
+
+/// Audit log full-page template (paginated).
+#[derive(Template)]
+#[template(path = "admin/ky-thuat/audit-log.html")]
+pub struct AuditLogPageTemplate {
+    pub user: Option<User>,
+    pub audit_logs: Vec<AuditLog>,
+    pub page: i64,
+    pub has_more: bool,
+}
+
+/// GET /admin/ky-thuat/nhat-ky — Full audit log page (paginated).
+pub async fn admin_audit_log_page(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    if !user.is_admin_ky_thuat() {
+        return render_forbidden(&user);
+    }
+
+    // Fetch 51 to detect if there are more pages
+    let mut logs = fetch_audit_logs(&state.pool, 51).await;
+    let has_more = logs.len() > 50;
+    if has_more {
+        logs.truncate(50);
+    }
+
+    let html = AuditLogPageTemplate {
+        user: Some(user),
+        audit_logs: logs,
+        page: 1,
+        has_more,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (audit log page): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+// ─── Content Moderation (Admin Cộng Đồng) ──────────────────────────────
+
+/// Row for pending book review.
+#[derive(Debug, Clone, FromRow)]
+pub struct PendingReview {
+    pub id: Uuid,
+    pub book_title: String,
+    pub user_name: String,
+    pub body_preview: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Content moderation (cam ngo) page template.
+#[derive(Template)]
+#[template(path = "admin/cong-dong/cam-ngo.html")]
+pub struct CamNgoTemplate {
+    pub user: Option<User>,
+    pub pending_reviews: Vec<PendingReview>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+}
+
+/// GET /admin/cong-dong/cam-ngo — List pending book reviews.
+pub async fn admin_cam_ngo_list(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Admin Cộng Đồng and above can moderate
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    let pending_reviews = fetch_pending_reviews(&state.pool).await;
+
+    let html = CamNgoTemplate {
+        user: Some(user),
+        pending_reviews,
+        error: None,
+        success: None,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (cam-ngo list): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// POST /admin/cong-dong/cam-ngo/{review_id}/duyet — Approve a review.
+pub async fn admin_cam_ngo_duyet(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(review_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query("UPDATE book_reviews SET status = 'approved', updated_at = NOW() WHERE id = $1")
+        .bind(review_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return render_cam_ngo_result(&state.pool, &user, Some("Không tìm thấy cảm ngộ."), None).await;
+            }
+            // Audit log
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'approve_review', 'admin', '{}')"
+            )
+            .bind(user.id)
+            .execute(&state.pool)
+            .await;
+            log::info!("✅ Admin {} duyệt cảm ngộ {}", user.display_name, review_id);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi duyệt cảm ngộ: {e}");
+            return render_cam_ngo_result(&state.pool, &user, Some(&format!("Lỗi database: {e}")), None).await;
+        }
+    }
+
+    render_cam_ngo_result(&state.pool, &user, None, Some("Đã duyệt cảm ngộ.")).await
+}
+
+/// POST /admin/cong-dong/cam-ngo/{review_id}/tu-choi — Reject a review.
+pub async fn admin_cam_ngo_tu_choi(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(review_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query("UPDATE book_reviews SET status = 'rejected', updated_at = NOW() WHERE id = $1")
+        .bind(review_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return render_cam_ngo_result(&state.pool, &user, Some("Không tìm thấy cảm ngộ."), None).await;
+            }
+            // Audit log
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'reject_review', 'admin', '{}')"
+            )
+            .bind(user.id)
+            .execute(&state.pool)
+            .await;
+            log::info!("❌ Admin {} từ chối cảm ngộ {}", user.display_name, review_id);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi từ chối cảm ngộ: {e}");
+            return render_cam_ngo_result(&state.pool, &user, Some(&format!("Lỗi database: {e}")), None).await;
+        }
+    }
+
+    render_cam_ngo_result(&state.pool, &user, None, Some("Đã từ chối cảm ngộ.")).await
+}
+
+/// Fetch pending book reviews for moderation.
+async fn fetch_pending_reviews(pool: &sqlx::PgPool) -> Vec<PendingReview> {
+    sqlx::query_as::<_, PendingReview>(
+        "SELECT br.id,
+                COALESCE(b.title, 'Sách không tên') AS book_title,
+                COALESCE(u.display_name, u.email, 'Ẩn danh') AS user_name,
+                LEFT(br.body, 120) AS body_preview,
+                br.created_at
+         FROM book_reviews br
+         JOIN books b ON b.id = br.book_id
+         JOIN users u ON u.id = br.user_id
+         WHERE br.status = 'pending' AND br.is_active
+         ORDER BY br.created_at ASC",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch pending reviews: {e}");
+        vec![]
+    })
+}
+
+/// Render cam-ngo page with result message.
+async fn render_cam_ngo_result(
+    pool: &sqlx::PgPool,
+    actor: &User,
+    error: Option<&str>,
+    success: Option<&str>,
+) -> Response {
+    let pending_reviews = fetch_pending_reviews(pool).await;
+
+    let html = CamNgoTemplate {
+        user: Some(actor.clone()),
+        pending_reviews,
+        error: error.map(String::from),
+        success: success.map(String::from),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (cam-ngo result): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+// ─── User Ban / Activate (Admin Kỹ Thuật) ──────────────────────────────
+
+/// POST /admin/thanh-vien/{user_id}/ban — Ban user (set is_active = false).
+pub async fn admin_ban_user(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(user_id): Path<Uuid>,
+) -> Response {
+    let Some(actor) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    if !actor.is_admin_ky_thuat() {
+        return render_forbidden(&actor);
+    }
+
+    // Don't ban yourself
+    if actor.id == user_id {
+        return render_users_error(
+            &state.pool,
+            &actor,
+            "Bạn không thể khóa chính mình.",
+        )
+        .await;
+    }
+
+    match sqlx::query("UPDATE users SET is_active = false, updated_at = NOW() WHERE id = $1")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return render_users_error(&state.pool, &actor, "Không tìm thấy user.").await;
+            }
+            // Audit log
+            let detail = format!("{{\"target_user_id\": \"{}\"}}", user_id);
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'ban_user', 'admin', $2::jsonb)"
+            )
+            .bind(actor.id)
+            .bind(&detail)
+            .execute(&state.pool)
+            .await;
+            log::info!("🔒 Admin {} khóa user {}", actor.display_name, user_id);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi khóa user: {e}");
+            return render_users_error(&state.pool, &actor, &format!("Lỗi database: {e}")).await;
+        }
+    }
+
+    render_users_success(&state.pool, &actor, "Đã khóa tài khoản.").await
+}
+
+/// POST /admin/thanh-vien/{user_id}/kich-hoat — Activate user (set is_active = true).
+pub async fn admin_activate_user(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(user_id): Path<Uuid>,
+) -> Response {
+    let Some(actor) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    if !actor.is_admin_ky_thuat() {
+        return render_forbidden(&actor);
+    }
+
+    match sqlx::query("UPDATE users SET is_active = true, updated_at = NOW() WHERE id = $1")
+        .bind(user_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return render_users_error(&state.pool, &actor, "Không tìm thấy user.").await;
+            }
+            // Audit log
+            let detail = format!("{{\"target_user_id\": \"{}\"}}", user_id);
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'activate_user', 'admin', $2::jsonb)"
+            )
+            .bind(actor.id)
+            .bind(&detail)
+            .execute(&state.pool)
+            .await;
+            log::info!("✅ Admin {} kích hoạt user {}", actor.display_name, user_id);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi kích hoạt user: {e}");
+            return render_users_error(&state.pool, &actor, &format!("Lỗi database: {e}")).await;
+        }
+    }
+
+    render_users_success(&state.pool, &actor, "Đã kích hoạt tài khoản.").await
 }

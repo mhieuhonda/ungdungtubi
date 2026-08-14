@@ -171,12 +171,53 @@ pub async fn send_friend_request(
         None => return Redirect::to("/dang-nhap").into_response(),
     };
 
+    // Fetch target user info for rendering the <li> response
+    let target: Option<(String, Option<String>)> = sqlx::query_as(
+        "SELECT display_name, avatar_url FROM users WHERE id = $1",
+    )
+    .bind(target_user_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    let (display_name, avatar_url) = match target {
+        Some(d) => d,
+        None => {
+            return Html(
+                r#"<li class="px-6 py-4 flex items-center gap-4">
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm text-red-600">Không tìm thấy người dùng.</div>
+                    </div>
+                </li>"#,
+            )
+            .into_response();
+        }
+    };
+
+    // Helper: render avatar HTML
+    let avatar_html = match &avatar_url {
+        Some(url) => format!(
+            r#"<img src="{url}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">"#
+        ),
+        None => {
+            let initial = display_name.chars().next().unwrap_or('🪷');
+            format!(
+                r#"<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">{initial}</div>"#
+            )
+        }
+    };
+
     if target_user_id == user.id {
-        return Html(
-            r#"<div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
-                Không thể kết bạn với chính mình.
-            </div>"#,
-        )
+        return Html(format!(
+            r#"<li class="px-6 py-4 flex items-center gap-4">
+                {avatar_html}
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-gray-900 truncate">{display_name}</div>
+                    <div class="text-xs text-red-500">Không thể kết bạn với chính mình.</div>
+                </div>
+            </li>"#
+        ))
         .into_response();
     }
 
@@ -194,11 +235,19 @@ pub async fn send_friend_request(
     .flatten();
 
     if let Some((status,)) = existing {
+        let status_html = match status.as_str() {
+            "accepted" => r#"<div class="text-xs text-green-600">✓ Đã là bạn bè</div>"#.to_string(),
+            "pending" => r#"<div class="text-xs text-amber-600">⏳ Đã gửi lời mời — đang chờ phản hồi</div>"#.to_string(),
+            other => format!(r#"<div class="text-xs text-gray-400">Trạng thái: {other}</div>"#),
+        };
         return Html(format!(
-            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 p-3 rounded-lg text-sm">
-                Đã có quan hệ bạn bè (trạng thái: {status}). 
-                <a href="/ban-be" class="underline">← Quay lại Bạn Bè</a>
-            </div>"#
+            r#"<li class="px-6 py-4 flex items-center gap-4">
+                {avatar_html}
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-gray-900 truncate">{display_name}</div>
+                    {status_html}
+                </div>
+            </li>"#
         ))
         .into_response();
     }
@@ -235,12 +284,16 @@ pub async fn send_friend_request(
         log::info!("💬 Lời mời kết bạn: {} → {}", user.id, target_user_id);
     }
 
-    Html(
-        r#"<div class="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg text-sm">
-            ✓ Đã gửi lời mời kết bạn. Đang chờ phản hồi.
-            <a href="/ban-be" class="underline ml-2">← Quay lại</a>
-        </div>"#,
-    )
+    // Return HTMX response — full <li> replacement with updated status
+    Html(format!(
+        r#"<li class="px-6 py-4 flex items-center gap-4">
+            {avatar_html}
+            <div class="flex-1 min-w-0">
+                <div class="font-semibold text-gray-900 truncate">{display_name}</div>
+                <div class="text-xs text-amber-600">⏳ Đã gửi lời mời — đang chờ phản hồi</div>
+            </div>
+        </li>"#
+    ))
     .into_response()
 }
 
@@ -283,9 +336,45 @@ pub async fn accept_friend_request(
         .await;
 
         log::info!("✓ Kết bạn thành công: {} ↔ {}", requester_id, user.id);
+
+        // Fetch the other user's info for the HTMX response
+        let other: Option<(String, Option<String>)> = sqlx::query_as(
+            "SELECT display_name, avatar_url FROM users WHERE id = $1",
+        )
+        .bind(requester_id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+
+        if let Some((display_name, avatar_url)) = other {
+            let avatar_html = match &avatar_url {
+                Some(url) => format!(
+                    r#"<img src="{url}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">"#
+                ),
+                None => {
+                    let initial = display_name.chars().next().unwrap_or('🪷');
+                    format!(
+                        r#"<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">{initial}</div>"#
+                    )
+                }
+            };
+            // Return HTMX response — <li> replaced with "accepted" status
+            return Html(format!(
+                r#"<li class="px-6 py-4 flex items-center gap-4">
+                    {avatar_html}
+                    <div class="flex-1 min-w-0">
+                        <div class="font-semibold text-gray-900 truncate">{display_name}</div>
+                        <div class="text-xs text-green-600">✓ Đã là bạn bè</div>
+                    </div>
+                </li>"#
+            ))
+            .into_response();
+        }
     }
 
-    Redirect::to("/ban-be").into_response()
+    // Fallback: if something went wrong, return empty (removes the <li>)
+    Html(String::new()).into_response()
 }
 
 /// POST /ban-be/tu-choi/{friendship_id} — Từ chối lời mời kết bạn.
@@ -308,7 +397,8 @@ pub async fn decline_friend_request(
     .execute(&state.pool)
     .await;
 
-    Redirect::to("/ban-be").into_response()
+    // Return empty response — HTMX will remove the <li> from the DOM
+    Html(String::new()).into_response()
 }
 
 /// POST /ban-be/huy-ket-ban/{user_id} — Hủy kết bạn (xóa friendship).

@@ -61,7 +61,8 @@
           {% endif %}
         </div>
         {% if !r.is_friend && !r.pending_sent && !r.pending_received %}
-        <form method="POST" action="/ban-be/keu-ban/{{ r.id }}" class="inline">
+        <form method="POST" action="/ban-be/keu-ban/{{ r.id }}" class="inline"
+              hx-post="/ban-be/keu-ban/{{ r.id }}" hx-target="closest li" hx-swap="outerHTML">
           <button type="submit" class="text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
             + Kết bạn
           </button>

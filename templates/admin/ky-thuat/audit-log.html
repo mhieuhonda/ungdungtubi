@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📋 Nhật ký hoạt động — Admin Kỹ Thuật</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'code': {
+                            bg:    '#0f172a',
+                            panel: '#1e293b',
+                            card:  '#1e293b',
+                            border:'#334155',
+                            muted: '#64748b',
+                            text:  '#e2e8f0',
+                            soft:  '#94a3b8',
+                            accent:'#10b981',
+                            amber: '#f59e0b',
+                            blue:  '#3b82f6',
+                            purple:'#a855f7',
+                            red:   '#ef4444',
+                            cyan:  '#06b6d4',
+                        },
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', '"Fira Code"', 'ui-monospace', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+        .perm-row { transition: background .15s; }
+        .perm-row:hover { background: rgba(16,185,129,0.06); }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="bg-code-bg text-code-text min-h-screen text-sm">
+
+    <!-- Header -->
+    <header class="bg-code-panel border-b border-code-border sticky top-0 z-50">
+        <div class="flex items-center justify-between h-14 px-6">
+            <div class="flex items-center gap-3">
+                <a href="/admin/ky-thuat" class="text-code-soft hover:text-code-accent transition text-sm">← Dashboard</a>
+                <span class="text-code-muted">|</span>
+                <h1 class="font-semibold text-base text-code-text flex items-center gap-2">
+                    <span>📋</span> Nhật ký hoạt động
+                </h1>
+            </div>
+            {% if let Some(u) = user %}
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-code-muted mono">{{ u.role_display() }}</span>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Content -->
+    <main class="max-w-6xl mx-auto px-4 md:px-6 py-6 space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+            <p class="text-xs text-code-muted">
+                Trang {{ page }} · {{ audit_logs.len() }} mục gần nhất ·
+                <span class="mono text-code-soft">audit_log</span> table
+            </p>
+            {% if has_more %}
+            <span class="text-[10px] text-code-amber">Còn thêm — cuộn xuống để tải thêm (chưa impl)</span>
+            {% endif %}
+        </div>
+
+        <!-- Audit Log Table -->
+        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="bg-code-bg/60 text-code-muted">
+                        <tr class="border-b border-code-border">
+                            <th class="text-left px-4 py-2 font-semibold w-10">#</th>
+                            <th class="text-left px-4 py-2 font-semibold">Thời gian</th>
+                            <th class="text-left px-4 py-2 font-semibold">Hành động</th>
+                            <th class="text-left px-4 py-2 font-semibold">Người dùng</th>
+                            <th class="text-left px-4 py-2 font-semibold">Chi tiết</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-code-border/50">
+                        {% for log in audit_logs %}
+                        <tr class="perm-row">
+                            <td class="px-4 py-2 text-code-muted mono">{{ log.id }}</td>
+                            <td class="px-4 py-2 text-code-muted mono whitespace-nowrap">{{ log.created_at }}</td>
+                            <td class="px-4 py-2 text-code-soft">{{ log.action }}</td>
+                            <td class="px-4 py-2 text-code-soft mono">{{ log.user_handle }}</td>
+                            <td class="px-4 py-2 text-code-muted truncate max-w-[300px]">{{ log.detail }}</td>
+                        </tr>
+                        {% endfor %}
+                        {% if audit_logs.is_empty() %}
+                        <tr>
+                            <td colspan="5" class="px-4 py-8 text-center text-code-muted">
+                                Chưa có nhật ký hoạt động<br>
+                                <span class="text-[10px]">Các hành động admin (duyệt, khóa, đổi role) sẽ được ghi ở đây.</span>
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Back link -->
+        <div class="flex justify-between items-center">
+            <a href="/admin/ky-thuat" class="text-xs text-code-blue hover:underline">← Quay lại Dashboard</a>
+            <a href="/api/health" target="_blank" class="text-xs text-code-muted hover:text-code-soft mono">GET /api/health ↗</a>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

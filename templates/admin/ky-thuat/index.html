@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi</title>
-    <!-- v0.9.12: Redesign — coder dark theme, mobile-first, Vietnamese plain language -->
+    <!-- v0.9.13: Redesign — coder dark theme, mobile-first, Vietnamese plain language -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -97,14 +97,14 @@
                         Admin Kỹ Thuật
                     </h1>
                     <p class="text-[10px] md:text-[11px] text-code-muted truncate">
-                        Toàn quyền hệ thống · 50 quyền
+                        6/50 quyền · toàn hệ thống
                     </p>
                 </div>
             </div>
 
             <!-- Right: version + user + exit -->
             <div class="flex items-center gap-2 md:gap-4">
-                <span class="hidden sm:inline-flex chip">v0.9.12</span>
+                <span class="hidden sm:inline-flex chip">v0.9.13</span>
                 <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
                 {% if let Some(u) = user %}
                 <div class="hidden sm:flex items-center gap-2">
@@ -134,7 +134,7 @@
                 </a>
                 <a href="#he-thong" @click="sidebarOpen = false"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>🖥️</span> <span>Tình trạng hệ thống</span>
+                    <span>🖥️</span> <span>Tình trạng</span>
                 </a>
                 <a href="/admin/thanh-vien"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
@@ -143,19 +143,20 @@
                 </a>
                 <a href="#phan-quyen" @click="sidebarOpen = false"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>🔐</span> <span>Phân quyền chi tiết</span>
+                    <span>🔐</span> <span>Phân quyền</span>
                 </a>
                 <a href="#csdl" @click="sidebarOpen = false"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>🗄️</span> <span>Cơ sở dữ liệu</span>
+                    <span>🗄️</span> <span>CSDL</span>
                 </a>
-                <a href="#nhat-ky" @click="sidebarOpen = false"
+                <a href="/admin/ky-thuat/nhat-ky"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>📋</span> <span>Nhật ký hoạt động</span>
+                    <span>📋</span> <span>Nhật ký</span>
+                    <span class="ml-auto text-[10px] text-code-muted">→</span>
                 </a>
                 <a href="#hanh-dong" @click="sidebarOpen = false"
                    class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>⚡</span> <span>Hành động nhanh</span>
+                    <span>⚡</span> <span>Hành động</span>
                 </a>
             </nav>
 
@@ -249,11 +250,11 @@
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
                         <div class="text-code-muted mb-1">Phân quyền</div>
-                        <div class="text-base font-semibold text-code-text mono">50 / 50</div>
+                        <div class="text-base font-semibold text-code-text mono">6 / 50</div>
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
                         <div class="text-code-muted mb-1">Phiên bản</div>
-                        <div class="text-base font-semibold text-code-text mono">v0.9.12</div>
+                        <div class="text-base font-semibold text-code-text mono">v0.9.13</div>
                     </div>
                 </div>
             </section>
@@ -311,12 +312,12 @@
             <!-- ─── Phân quyền chi tiết ─── -->
             <section id="phan-quyen" class="space-y-3">
                 <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
-                    <span>🔐</span> Phân quyền chi tiết
-                    <span class="text-xs font-normal text-code-muted">— 50 quyền chia 5 nhóm</span>
+                    <span>🔐</span> Phân quyền
+                    <span class="text-xs font-normal text-code-muted">— 50 quyền hệ thống (6 có UI)</span>
                 </h2>
 
                 <p class="text-xs text-code-soft bg-code-panel/60 border border-code-border rounded-lg p-3">
-                    Bảng dưới đây liệt kê đầy đủ 50 quyền của hệ thống, chia theo 5 nhóm chức năng.
+                    Bảng dưới đây liệt kê đầy đủ 50 quyền hệ thống (6 có giao diện UI), chia theo 5 nhóm chức năng.
                     Ký hiệu <span class="text-code-accent font-semibold">✓</span> là có quyền,
                     <span class="text-code-red font-semibold">✗</span> là không.
                 </p>
@@ -493,13 +494,13 @@
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                     </tr>
                                     <tr class="bg-code-red/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý cấu hình & migration</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Cấu hình & migration</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                     </tr>
                                     <tr class="bg-code-red/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền hệ thống khác (log, hard-delete, restart…)</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác (log, hard-delete, restart…)</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
@@ -519,7 +520,7 @@
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                     </tr>
                                     <tr class="bg-code-blue/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền thành viên khác</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
@@ -539,7 +540,7 @@
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                     </tr>
                                     <tr class="bg-code-amber/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền nội dung khác</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
@@ -559,7 +560,7 @@
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                     </tr>
                                     <tr class="bg-code-cyan/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền cộng đồng khác</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
@@ -579,7 +580,7 @@
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                     </tr>
                                     <tr class="bg-code-purple/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền kinh sách khác</td>
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
                                         <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
                                         <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
@@ -636,14 +637,39 @@
                 <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
                     <span>📋</span> Nhật ký hoạt động
                 </h2>
-                <div class="bg-code-panel border border-code-border rounded-xl p-4">
-                    <p class="text-xs text-code-soft mb-3">
-                        Nhật ký chi tiết đang được phát triển. Tạm thời, bạn có thể xem tình trạng sức khoẻ hệ thống qua API:
-                    </p>
-                    <a href="/api/health" target="_blank"
-                       class="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-code-bg border border-code-border hover:border-code-accent text-code-blue transition mono">
-                        GET /api/health ↗
-                    </a>
+                <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead class="bg-code-bg/60 text-code-muted">
+                                <tr class="border-b border-code-border">
+                                    <th class="text-left px-4 py-2 font-semibold">Thời gian</th>
+                                    <th class="text-left px-4 py-2 font-semibold">Hành động</th>
+                                    <th class="text-left px-4 py-2 font-semibold">Người dùng</th>
+                                    <th class="text-left px-4 py-2 font-semibold">Chi tiết</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-code-border/50">
+                                {% for log in audit_logs %}
+                                <tr class="perm-row">
+                                    <td class="px-4 py-2 text-code-muted mono whitespace-nowrap">{{ log.created_at }}</td>
+                                    <td class="px-4 py-2 text-code-soft">{{ log.action }}</td>
+                                    <td class="px-4 py-2 text-code-soft mono">{{ log.user_handle }}</td>
+                                    <td class="px-4 py-2 text-code-muted truncate max-w-[200px]">{{ log.detail }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if audit_logs.is_empty() %}
+                                <tr>
+                                    <td colspan="4" class="px-4 py-6 text-center text-code-muted">Chưa có nhật ký hoạt động</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="px-4 py-2 border-t border-code-border text-[11px] text-code-muted">
+                        <a href="/admin/ky-thuat/nhat-ky" class="text-code-blue hover:underline">Xem tất cả →</a>
+                        <span class="mx-2">·</span>
+                        <a href="/api/health" target="_blank" class="text-code-blue hover:underline mono">GET /api/health ↗</a>
+                    </div>
                 </div>
             </section>
 
@@ -709,7 +735,7 @@
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.12 · Admin Kỹ Thuật · 50/50 quyền</span>
+                        <span>Ứng Dụng Từ Bi v0.9.14 · Admin Kỹ Thuật · 6/50 quyền (UI/hệ thống)</span>
                     </div>
                     <div class="mono">Rust 1.97.1 · Axum 0.8 · PostgreSQL 17</div>
                 </div>

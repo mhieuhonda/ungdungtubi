@@ -6,6 +6,27 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.13] — 2025-08-15 — Giai đoạn 17: Admin UI Compact + Bug Fixes + Audit Log
+
+### Sửa lỗi
+- Fix giao diện bảng quản trị admin: bớt chữ, sắp xếp gọn gàng, không tràn nút
+- Fix gửi kết bạn chuyển hướng trang trắng → dùng HTMX inline
+- Fix đồng bộ A/K: tự động chuyển 1000 A = 1 K khi niệm Phật
+- Xóa mọi liên quan đến game siêu độ trong codebase
+- Fix số quyền hiển thị cho chuẩn với giao diện thực tế
+
+### Thêm mới
+- Nhật ký hoạt động (audit log) cho Admin Kỹ Thuật
+- HTMX inline cho kết bạn, chấp nhận, từ chối
+- Auto-convert A→K khi niệm Phật
+- Content moderation UI (duyệt cảm ngộ)
+- User ban/activate endpoints
+
+### Giai đoạn
+Giai đoạn 17 — Admin UI Compact + Audit Log + Bug Fixes
+
+---
+
 ## [0.9.12] — 2026-08-15 — Giai đoạn 16: Mobile UX + Admin Kỹ Thuật Redesign + Security Hardening
 
 ### Thêm (Features — Giai đoạn 16)

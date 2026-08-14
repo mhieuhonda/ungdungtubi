@@ -101,7 +101,7 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
     .execute(&mut *tx)
     .await;
 
-    // Increment a_balance.
+    // Increment a_balance first.
     let new_a: i64 = match sqlx::query_scalar(
         "UPDATE users SET a_balance = a_balance + 1, updated_at = NOW()
          WHERE id = $1 RETURNING a_balance",
@@ -121,6 +121,43 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
         }
     };
 
+    // Auto-convert A → K: 1000 A = 1 K
+    let k_to_add = new_a / 1000;
+    let (final_a, final_k) = if k_to_add > 0 {
+        let remaining_a = new_a % 1000;
+        let updated_k: i64 = match sqlx::query_scalar(
+            "UPDATE users SET a_balance = $1, k_balance = k_balance + $2, updated_at = NOW()
+             WHERE id = $3 RETURNING k_balance",
+        )
+        .bind(remaining_a)
+        .bind(k_to_add)
+        .bind(user.id)
+        .fetch_one(&mut *tx)
+        .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("❌ niem_phat: A→K conversion fail: {e}");
+                let _ = tx.rollback().await;
+                return Html(
+                    r#"<span class="text-red-600 text-sm">Lỗi chuyển đổi A→K — vui lòng thử lại.</span>"#
+                )
+                .into_response();
+            }
+        };
+        (remaining_a, updated_k)
+    } else {
+        // No conversion needed — fetch current k_balance for display.
+        let current_k: i64 = sqlx::query_scalar(
+            "SELECT k_balance FROM users WHERE id = $1",
+        )
+        .bind(user.id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap_or(0);
+        (new_a, current_k)
+    };
+
     if let Err(e) = tx.commit().await {
         log::error!("❌ niem_phat: commit fail: {e}");
         return Html(
@@ -129,11 +166,19 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
         .into_response();
     }
 
-    // Return HTMX partial: updated counter + small celebration.
+    // Return HTMX partial: updated A counter + K display.
+    let k_convert_msg = if k_to_add > 0 {
+        format!(
+            r#"<div class="text-xs text-amber-600 font-semibold mt-1 animate-pulse">🎉 Chuyển đổi: {k_to_add}×1000 A → {k_to_add} K!</div>"#
+        )
+    } else {
+        String::new()
+    };
     let html = format!(
         r#"<div id="niem-counter" hx-target="this" hx-swap="outerHTML">
-            <div class="text-5xl md:text-6xl font-bold text-tubi-800 tabular-nums">{new_a}</div>
-            <div class="text-xs text-gray-500 mt-1">Niệm Lực A</div>
+            <div class="text-5xl md:text-6xl font-bold text-tubi-800 tabular-nums">{final_a}</div>
+            <div class="text-xs text-gray-500 mt-1">Niệm Lực A · <span class="text-amber-600 font-semibold">K: {final_k}</span></div>
+            {k_convert_msg}
         </div>"#
     );
     Html(html).into_response()
