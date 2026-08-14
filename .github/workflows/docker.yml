@@ -1,5 +1,5 @@
 # ────────────────────────────────────────────────────────────────────────────
-# GitHub Actions — Build & Deploy via Coolify
+# GitHub Actions — Deploy via Coolify API
 # Ứng Dụng Từ Bi (Rust 1.97.1)
 #
 # Strategy: Coolify tự build Docker image trên VPS từ source
@@ -8,6 +8,7 @@
 #
 # Coolify app UUID: xsrqp8xrcwwk57dvtcwt6393
 # Domain: tubi.louis.vangioitutien.com
+# Coolify URL: https://coolify.buppou.com
 # ────────────────────────────────────────────────────────────────────────────
 name: Deploy to Coolify
 
@@ -23,49 +24,25 @@ permissions:
 jobs:
   trigger-coolify-deploy:
     runs-on: ubuntu-latest
-    env:
-      COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
 
     steps:
       - name: 📥 Checkout source
         uses: actions/checkout@v4
 
-      - name: 🔍 Verify Rust compilation
-        run: |
-          echo "✅ Tag ${{ github.ref_name }} pushed — triggering Coolify deploy..."
-          echo "🪷 Coolify sẽ clone repo, build Docker image với Rust 1.97.1 trên VPS, và deploy."
-
-      - name: 🚀 Trigger Coolify Deploy (webhook)
-        if: env.COOLIFY_WEBHOOK_URL != ''
-        run: |
-          echo "📡 Gọi Coolify webhook để trigger deploy..."
-          RESPONSE=$(curl -sS -X POST "$COOLIFY_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -w "\n%{http_code}" \
-            --max-time 30 || echo "curl-failed")
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n -1)
-          echo "HTTP $HTTP_CODE"
-          echo "Response body: $BODY"
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-            echo "✅ Coolify webhook đã nhận. Coolify sẽ tự build + deploy."
-          else
-            echo "⚠️ Coolify webhook trả về HTTP $HTTP_CODE — cần kiểm tra webhook URL."
-            exit 1
-          fi
-
-      - name: 🚀 Trigger Coolify Deploy (API fallback)
-        if: env.COOLIFY_WEBHOOK_URL == ''
+      - name: 🚀 Trigger Coolify Deploy
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
+          echo "✅ Tag ${{ github.ref_name }} pushed — triggering Coolify deploy..."
+          echo "🪷 Coolify sẽ clone repo, build Docker image với Rust 1.97.1 trên VPS, và deploy."
+          echo ""
+
           if [ -z "$COOLIFY_API_TOKEN" ]; then
-            echo "⚠️ Neither COOLIFY_WEBHOOK_URL nor COOLIFY_API_TOKEN secret configured."
-            echo "   Please add one of these in: Settings → Secrets and variables → Actions"
-            echo "   - COOLIFY_WEBHOOK_URL: Coolify application webhook URL"
-            echo "   - COOLIFY_API_TOKEN: Coolify API token (with app restart permission)"
+            echo "⚠️ COOLIFY_API_TOKEN secret chưa được cấu hình."
+            echo "   Vào Settings → Secrets and variables → Actions → Add COOLIFY_API_TOKEN"
             exit 1
           fi
+
           echo "📡 Gọi Coolify API để trigger deploy..."
           RESPONSE=$(curl -sS -X GET \
             -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
@@ -73,13 +50,18 @@ jobs:
             "https://coolify.buppou.com/api/v1/applications/xsrqp8xrcwwk57dvtcwt6393/start" \
             -w "\n%{http_code}" \
             --max-time 30 || echo "curl-failed")
+
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | head -n -1)
+
           echo "HTTP $HTTP_CODE"
           echo "Response body: $BODY"
+
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-            echo "✅ Coolify API deploy trigger thành công."
+            echo "✅ Coolify API deploy trigger thành công!"
+            echo "🪷 Coolify sẽ tự clone repo, build image, và deploy lên tubi.louis.vangioitutien.com"
           else
             echo "⚠️ Coolify API trả về HTTP $HTTP_CODE"
+            echo "   Kiểm tra COOLIFY_API_TOKEN và app UUID."
             exit 1
           fi
