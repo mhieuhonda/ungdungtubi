@@ -4,6 +4,7 @@ pub mod chat;
 pub mod community;
 pub mod friends;
 pub mod kinh_sach;
+pub mod khong_gian;
 pub mod uploads;
 
 use axum::{
@@ -21,8 +22,9 @@ use crate::models::user::{MemberRank, ProfileUpdate, User};
 /// Danh sách cột users đầy đủ (đồng bộ với model User).
 /// Tránh drift khi SELECT * — luôn liệt kê rõ ràng các cột.
 /// v0.9.7: thêm `u.role` (Giai đoạn 11 — Hệ thống vai trò Admin).
+/// v0.9.9: thêm `u.i_balance` (Giai đoạn 13 — Không Gian: Nguyên lực I).
 pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
-    u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, \
+    u.a_balance, u.k_balance, u.i_balance, u.is_active, u.created_at, u.updated_at, \
     u.google_sub, u.avatar_url, u.email_verified, \
     u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
     u.avatar_upload_id, u.role";
@@ -277,11 +279,9 @@ fn normalize_optional(s: Option<&String>) -> Option<String> {
 //
 // Các trang dưới đây dùng chung một helper `placeholder_page` để giữ
 // giao diện nhất quán (header/footer từ layout, không phải HTML rời).
-
-pub async fn khong_gian(State(state): State<AppState>, jar: CookieJar) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "home", "Không Gian", "🌍", "Không gian cá nhân, cộng tu, niệm Phật", "Giai đoạn 5")
-}
+//
+// v0.9.9: Không Gian đã có trang riêng tại `/khong-gian` — xem `handlers::khong_gian`.
+// (Wrapper `khong_gian` đã được bỏ — main.rs gọi trực tiếp `handlers::khong_gian::khong_gian_index`.)
 
 pub async fn cong_dong(State(state): State<AppState>, jar: CookieJar) -> Response {
     // [v0.6+] Cộng Đồng đã có trang riêng — delegate cho community handler.
@@ -436,7 +436,7 @@ fn placeholder_page(
         </div>
         <div x-show="mobileMenu" x-cloak x-transition class="md:hidden bg-tubi-900 border-t border-tubi-700" style="background-color:#1B5E20">
             <div class="px-4 py-3 space-y-2">
-                <a href="/" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
+                <a href="/khong-gian" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
                 <a href="/cong-dong" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👥 Cộng Đồng</a>
                 <a href="/ban-be" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Bạn Bè</a>
                 <a href="/kinh-sach" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📚 Kinh Sách</a>
@@ -466,7 +466,7 @@ fn placeholder_page(
                 <div>
                     <h3 class="font-semibold text-white mb-3">Chuyên Mục</h3>
                     <ul class="space-y-2 text-sm">
-                        <li><a href="/" class="hover:text-white transition-colors">Không Gian</a></li>
+                        <li><a href="/khong-gian" class="hover:text-white transition-colors">Không Gian</a></li>
                         <li><a href="/cong-dong" class="hover:text-white transition-colors">Cộng Đồng</a></li>
                         <li><a href="/ban-be" class="hover:text-white transition-colors">Bạn Bè</a></li>
                         <li><a href="/kinh-sach" class="hover:text-white transition-colors">Kinh Sách</a></li>
@@ -511,11 +511,11 @@ fn placeholder_page(
         user_html = user_html,
         mobile_user_html = mobile_user_html,
         body = body,
-        nav_kg = nav_item("/", "Không Gian", "🌍", "home"),
+        nav_kg = nav_item("/khong-gian", "Không Gian", "🌍", "khong_gian"),
         nav_cd = nav_item("/cong-dong", "Cộng Đồng", "👥", "community"),
         nav_bb = nav_item("/ban-be", "Bạn Bè", "👤", "friends"),
         nav_ks = nav_item("/kinh-sach", "Kinh Sách", "📚", "books"),
-        bottom_kg = bottom_nav_item("/", "Không Gian", "🌍", "home"),
+        bottom_kg = bottom_nav_item("/khong-gian", "Không Gian", "🌍", "khong_gian"),
         bottom_cd = bottom_nav_item("/cong-dong", "Cộng Đồng", "👥", "community"),
         bottom_bb = bottom_nav_item("/ban-be", "Bạn Bè", "👤", "friends"),
         bottom_ks = bottom_nav_item("/kinh-sach", "Kinh Sách", "📚", "books"),

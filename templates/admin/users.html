@@ -11,7 +11,10 @@
             <h1 class="text-2xl md:text-3xl font-bold text-tubi-800">👥 Quản Lý Thành Viên</h1>
             <p class="text-sm text-gray-500 mt-1">Danh sách thành viên + vai trò trong hệ thống.</p>
         </div>
-        <a href="/admin" class="text-sm text-tubi-700 hover:text-tubi-900">← Về trang Quản Trị</a>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500">{{ users.len() }} thành viên</span>
+            <a href="/admin" class="text-sm text-tubi-700 hover:text-tubi-900">← Về trang Quản Trị</a>
+        </div>
     </div>
 
     <!-- Thông báo -->
@@ -27,111 +30,121 @@
     {% endif %}
 
     <!-- Permission notice -->
-    {% if !u.is_admin_quan_li() %}
+    {% if !u.is_admin_quan_li() && !u.is_admin_ky_thuat() %}
     <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm">
-        ℹ️ Bạn đang là <strong>{{ u.role_display() }}</strong>. Bạn có thể xem danh sách nhưng chỉ <strong>Admin Quản Lý</strong> mới đổi được vai trò user khác.
+        ℹ️ Bạn đang là <strong>{{ u.role_display() }}</strong>. Bạn có thể xem danh sách nhưng chỉ <strong>Admin Kỹ Thuật</strong> và <strong>Admin Quản Lý</strong> mới đổi được vai trò user khác.
     </div>
     {% endif %}
 
-    <!-- Users table -->
-    <div class="bg-white rounded-2xl shadow-md overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-gray-600">
-                    <tr>
-                        <th class="text-left px-4 py-3 font-semibold">Thành viên</th>
-                        <th class="text-left px-4 py-3 font-semibold">Email</th>
-                        <th class="text-left px-4 py-3 font-semibold">Vai trò hiện tại</th>
-                        <th class="text-left px-4 py-3 font-semibold">Cấp bậc</th>
-                        <th class="text-right px-4 py-3 font-semibold">A / K</th>
-                        <th class="text-left px-4 py-3 font-semibold">Trạng thái</th>
-                        <th class="text-left px-4 py-3 font-semibold">Ngày tham gia</th>
-                        {% if u.is_admin_quan_li() %}
-                        <th class="text-left px-4 py-3 font-semibold">Đổi vai trò</th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    {% for member in users %}
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3">
-                            <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-tubi-100 flex items-center justify-center text-tubi-700 font-bold text-xs">
-                                    {{ member.display_name.chars().next().unwrap_or('🪷') }}
-                                </div>
-                                <span class="font-medium text-gray-900">{{ member.display_name }}</span>
-                                {% if member.id == u.id %}
-                                <span class="text-[10px] bg-tubi-100 text-tubi-700 px-1.5 py-0.5 rounded font-semibold">bạn</span>
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 text-xs">{{ member.email }}</td>
-                        <td class="px-4 py-3">
-                            {% if member.role == "admin_quan_li" %}
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
-                                  style="background-color: #FF6F0022; color: #FF6F00">
-                                <span>👑</span><span>Admin Quản Lý</span>
-                            </span>
-                            {% else if member.role == "admin_cong_dong" %}
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
-                                  style="background-color: #1565C022; color: #1565C0">
-                                <span>🛡️</span><span>Admin Cộng Đồng</span>
-                            </span>
-                            {% else if member.role == "admin_ky_thuat" %}
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
-                                  style="background-color: #6A1B9A22; color: #6A1B9A">
-                                <span>⚙️</span><span>Admin Kỹ Thuật</span>
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
-                                  style="background-color: #2E7D3222; color: #2E7D32">
-                                <span>🪷</span><span>Thành Viên</span>
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-gray-600 text-xs">{{ member.rank }}</td>
-                        <td class="px-4 py-3 text-right text-xs">
-                            <div class="text-tubi-700 font-semibold">{{ member.a_balance }} A</div>
-                            <div class="text-amber-600 font-semibold">{{ member.k_balance }} K</div>
-                        </td>
-                        <td class="px-4 py-3">
-                            {% if member.is_active %}
-                            <span class="text-xs text-green-600">✅ Active</span>
-                            {% else %}
-                            <span class="text-xs text-red-600">⛔ Disabled</span>
-                            {% endif %}
-                            {% if !member.email_verified %}
-                            <span class="text-xs text-amber-600 ml-1">⚠️ unverified</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3 text-xs text-gray-500">
-                            {{ member.created_at.format("%d/%m/%Y") }}
-                        </td>
-                        {% if u.is_admin_quan_li() %}
-                        <td class="px-4 py-3">
-                            <form method="POST" action="/admin/thanh-vien/{{ member.id }}/role" class="flex items-center gap-1">
-                                <select name="role" class="text-xs border border-gray-200 rounded px-2 py-1 focus:ring-2 focus:ring-tubi-300 outline-none"
-                                        onchange="this.form.submit()">
-                                    <option value="member" {% if member.role == "member" %}selected{% endif %}>Thành Viên</option>
-                                    <option value="admin_ky_thuat" {% if member.role == "admin_ky_thuat" %}selected{% endif %}>Admin Kỹ Thuật</option>
-                                    <option value="admin_cong_dong" {% if member.role == "admin_cong_dong" %}selected{% endif %}>Admin Cộng Đồng</option>
-                                    <option value="admin_quan_li" {% if member.role == "admin_quan_li" %}selected{% endif %}>Admin Quản Lý</option>
-                                </select>
-                                <noscript>
-                                    <button type="submit" class="text-xs bg-tubi-600 text-white px-2 py-1 rounded">OK</button>
-                                </noscript>
+    <!-- ============================================================
+         v0.9.9 — Danh sách thành viên dạng CARD gọn (theo ảnh tham chiếu)
+         Mỗi card:
+           • Dòng đầu: Tên hiển thị (đậm, lớn) + Role badge (top-right)
+           • Dòng 2:   @handle  (muted, nhỏ)
+           • Dòng 3:   email đầy đủ (muted, nhỏ hơn)
+           • Dòng cuối: A/K metrics (trái) + trạng thái online + Actions (phải)
+         Không dùng <table> — dùng CSS grid để sắp xếp compact hơn.
+         ============================================================ -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {% for m in users %}
+        {% let (status_class, status_dot, status_text) = m.last_seen_text(now) %}
+        <article class="bg-white rounded-xl border border-gray-200 hover:border-tubi-300 hover:shadow-md transition-all duration-150 p-4 flex flex-col gap-2">
+            <!-- Row 1: Avatar + Tên (trái) + Role badge (phải) -->
+            <header class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <div class="w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-sm"
+                         style="background-color: {{ m.role_color_hint() }}22; color: {{ m.role_color_hint() }}">
+                        {{ m.display_name.chars().next().unwrap_or('🪷') }}
+                    </div>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-gray-900 text-base leading-tight truncate">{{ m.display_name }}</h3>
+                        <p class="text-xs text-gray-500 truncate">@{{ m.handle() }}</p>
+                    </div>
+                    {% if m.id == u.id %}
+                    <span class="shrink-0 text-[10px] bg-tubi-100 text-tubi-700 px-1.5 py-0.5 rounded font-semibold">bạn</span>
+                    {% endif %}
+                </div>
+                <!-- Role badge (top-right) -->
+                {{ m.role_badge_html()|safe }}
+            </header>
+
+            <!-- Row 2: email + secondary metadata -->
+            <div class="flex items-center gap-2 text-xs text-gray-500 pl-11">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l9 6 9-6M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span class="truncate">{{ m.email }}</span>
+                {% if !m.email_verified %}
+                <span class="shrink-0 text-amber-600" title="Email chưa xác thực">⚠️</span>
+                {% endif %}
+            </div>
+
+            <!-- Row 3 (footer): metrics trái | status phải | actions -->
+            <footer class="flex items-center justify-between gap-3 mt-1 pt-2 border-t border-gray-100">
+                <!-- Metrics: A / K (giống "100/100" trong ảnh) -->
+                <div class="flex items-center gap-3 text-xs">
+                    <span class="inline-flex items-center gap-1 text-tubi-700 font-semibold" title="Niệm Lực A">
+                        <span class="w-1.5 h-1.5 rounded-full bg-tubi-500"></span>{{ m.a_balance }} A
+                    </span>
+                    <span class="inline-flex items-center gap-1 text-amber-600 font-semibold" title="Tiền K">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>{{ m.k_balance }} K
+                    </span>
+                </div>
+
+                <!-- Status (giống "Online" / "6 ngày trước" trong ảnh) -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="inline-flex items-center gap-1 {{ status_class }}">
+                        <span class="w-2 h-2 rounded-full {{ status_dot }}"></span>{{ status_text }}
+                    </span>
+
+                    <!-- Actions dropdown (chỉ Admin Kỹ Thuật + Admin Quản Lý) -->
+                    {% if u.is_admin_ky_thuat() || u.is_admin_quan_li() %}
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.outside="open = false"
+                                class="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                                title="Đổi vai trò">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6h.01M12 12h.01M12 18h.01"/></svg>
+                        </button>
+                        <div x-show="open" x-cloak
+                             class="absolute right-0 top-full mt-1 z-10 w-44 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-sm">
+                            <div class="px-3 py-1 text-[10px] uppercase tracking-wide text-gray-400">Đổi vai trò</div>
+                            <form method="POST" action="/admin/thanh-vien/{{ m.id }}/role" class="not-prose">
+                                <input type="hidden" name="role" value="member">
+                                <button type="submit"
+                                        class="w-full text-left px-3 py-1.5 hover:bg-gray-50 {% if m.role == "member" %}bg-tubi-50 text-tubi-700 font-semibold{% else %}text-gray-700{% endif %}">
+                                    🪷 Thành Viên {% if m.role == "member" %}✓{% endif %}
+                                </button>
                             </form>
-                        </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                            <form method="POST" action="/admin/thanh-vien/{{ m.id }}/role" class="not-prose">
+                                <input type="hidden" name="role" value="admin_cong_dong">
+                                <button type="submit"
+                                        class="w-full text-left px-3 py-1.5 hover:bg-gray-50 {% if m.role == "admin_cong_dong" %}bg-blue-50 text-blue-700 font-semibold{% else %}text-gray-700{% endif %}">
+                                    🛡️ Admin Cộng Đồng {% if m.role == "admin_cong_dong" %}✓{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="/admin/thanh-vien/{{ m.id }}/role" class="not-prose">
+                                <input type="hidden" name="role" value="admin_quan_li">
+                                <button type="submit"
+                                        class="w-full text-left px-3 py-1.5 hover:bg-gray-50 {% if m.role == "admin_quan_li" %}bg-amber-50 text-amber-700 font-semibold{% else %}text-gray-700{% endif %}">
+                                    👑 Admin Quản Lý {% if m.role == "admin_quan_li" %}✓{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="/admin/thanh-vien/{{ m.id }}/role" class="not-prose">
+                                <input type="hidden" name="role" value="admin_ky_thuat">
+                                <button type="submit"
+                                        class="w-full text-left px-3 py-1.5 hover:bg-gray-50 {% if m.role == "admin_ky_thuat" %}bg-purple-50 text-purple-700 font-semibold{% else %}text-gray-700{% endif %}">
+                                    ⚙️ Admin Kỹ Thuật {% if m.role == "admin_ky_thuat" %}✓{% endif %}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </footer>
+        </article>
+        {% endfor %}
     </div>
 
-    <div class="mt-4 text-xs text-gray-500">
-        💡 <strong>Hierarchy (v0.9.8):</strong> Admin Kỹ Thuật (50 quyền — cao nhất) &gt; Admin Quản Lý (30 quyền) &gt; Admin Cộng Đồng (20 quyền) &gt; Thành Viên (0 quyền).
+    <div class="mt-6 text-xs text-gray-500">
+        💡 <strong>Hierarchy (v0.9.9):</strong> Admin Kỹ Thuật (50 quyền — cao nhất) &gt; Admin Quản Lý (30 quyền) &gt; Admin Cộng Đồng (20 quyền) &gt; Thành Viên (0 quyền).
         Admin Kỹ Thuật có toàn quyền hệ thống. Admin Quản Lý có quyền users + content + community.
     </div>
 </section>

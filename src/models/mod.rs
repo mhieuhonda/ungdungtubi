@@ -1,6 +1,7 @@
 pub mod community;
 pub mod friends;
 pub mod kinh_sach;
+pub mod khong_gian;
 pub mod user;
 
 #[allow(unused_imports)]

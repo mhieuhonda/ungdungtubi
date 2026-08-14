@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.8 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.9 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.8 — Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt");
+    log::info!("📦 Phiên bản: v0.9.9 — Giai đoạn 13: Không Gian Cá Nhân & Niệm Phật");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -152,10 +152,16 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/auth/google", get(handlers::auth::google_login))
         .route("/auth/google/callback", get(handlers::auth::google_callback))
         // Routes — 4 Chuyên Mục Chính
-        .route("/khong-gian", get(handlers::khong_gian))
+        .route("/khong-gian", get(handlers::khong_gian::khong_gian_index))
         .route("/cong-dong", get(handlers::cong_dong))
         .route("/ban-be", get(handlers::ban_be))
         .route("/kinh-sach", get(handlers::kinh_sach))
+        // Routes — Không Gian (v0.9.9 — Giai đoạn 13: Niệm Phật + Tượng Phật + Nhật ký)
+        .route("/api/niem-phat", post(handlers::khong_gian::niem_phat))
+        .route("/tuong-phat/cau-nguyen", post(handlers::khong_gian::tuong_phat_cau_nguyen))
+        .route("/tuong-phat/sam-hoi", post(handlers::khong_gian::tuong_phat_sam_hoi))
+        .route("/tuong-phat/hoi-huong", post(handlers::khong_gian::tuong_phat_hoi_huong))
+        .route("/api/khong-gian/stats", get(handlers::khong_gian::khong_gian_stats_api))
         // Routes — Kinh Sách (v0.9.6 — Giai đoạn 10)
         .route("/kinh-sach/tim-kiem", get(handlers::kinh_sach::kinh_sach_search))
         .route("/kinh-sach/thu-vien/{category_slug}", get(handlers::kinh_sach::kinh_sach_category))
@@ -286,11 +292,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.8",
+        "version": "0.9.9",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 12,
-        "phase_name": "Giai đoạn 12 — 50 quyền chi tiết + 3 giao diện admin riêng biệt",
+        "phase": 13,
+        "phase_name": "Giai đoạn 13 — Không Gian Cá Nhân & Niệm Phật",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -316,7 +322,12 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "granular-permissions-50",
             "admin-ky-thuat-dashboard",
             "admin-cong-dong-dashboard",
-            "admin-quan-li-dashboard"
+            "admin-quan-li-dashboard",
+            "khong-gian-personal-space",
+            "niem-phat-counter",
+            "tuong-phat-vows",
+            "practice-diary",
+            "i-balance-nguyen-luc"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],
@@ -330,6 +341,12 @@ async fn health_check(State(state): State<AppState>) -> Response {
         "database": {
             "status": db_status,
             "version": db_version,
+        },
+        "khong_gian": {
+            "status": "ok",
+            "features": ["niem-phat", "tuong-phat-vows", "practice-diary", "i-balance"],
+            "vow_types": ["prayer", "repentance", "dedication"],
+            "i_rewards": {"prayer": 1, "repentance": 2, "dedication": 3}
         },
         "kinh_sach": kinh_sach_stats,
         "admin": admin_stats,

@@ -29,6 +29,8 @@ pub struct User {
     pub rank: String,
     pub a_balance: i64,
     pub k_balance: i64,
+    /// Nguyên lực I — phần thưởng từ Tượng Phật (v0.9.9 — Giai đoạn 13).
+    pub i_balance: i64,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

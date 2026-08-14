@@ -6,6 +6,126 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.9] — 2026-08-14 — Giai đoạn 13: Không Gian Cá Nhân & Niệm Phật
+
+### Thêm (Features — Giai đoạn 13: Không Gian Cá Nhân)
+
+- **[FEAT-1] Chuyên mục Không Gian chính thức ra mắt** (`/khong-gian`)
+  - Là 1 trong 4 trụ cột chính của app (Không Gian · Cộng Đồng · Bạn Bè · Kinh Sách)
+  - Bỏ placeholder "Giai đoạn 5", thay bằng trang personal space đầy đủ
+  - Layout 3 cột: Tượng Phật (trái) · Niệm Phật counter (giữa) · Stats grid (phải)
+
+- **[FEAT-2] Niệm Phật Counter (HTMX realtime)**
+  - Nút 🪷 lớn (128x128px) ở giữa trang, mỗi lần nhấn = +1 Niệm Lực A
+  - `POST /api/niem-phat` — upsert `practice_logs` (1 row/user/day) + increment `a_balance` trong transaction
+  - HTMX swap counter mà không reload page
+  - Hiệu ứng pulse-lotus animation (CSS keyframes) khi nhấn — mở 🪷 phóng to + glow vàng
+  - Trả về HTML partial mới thay JSON — frontend không cần JS logic
+
+- **[FEAT-3] Tượng Phật (4 chức năng theo HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx mục I.6)**
+  - 🙏 **Cầu Nguyện** — `POST /tuong-phat/cau-nguyen` → +1 Nguyên lực I
+  - 🙇 **Sám Hối** — `POST /tuong-phat/sam-hoi` → +2 Nguyên lực I
+  - 🌸 **Hồi Hướng** — `POST /tuong-phat/hoi-huong` → +3 Nguyên lực I
+  - (Ủng Hộ chưa làm — cần tích hợp quảng cáo, sẽ thêm ở giai đoạn sau)
+  - UI: 3 button → Alpine.js toggle hiện form modal với textarea + checkbox "công khai"
+  - Form action binding động bằng Alpine.js (`:action` phụ thuộc `activeVow`)
+  - Validate: nội dung 10–2000 ký tự, `vow_type` phải khớp endpoint (chống inject)
+
+- **[FEAT-4] Nhật Ký Tu Học (7 ngày gần nhất)**
+  - Biểu đồ cột (bar chart CSS thuần) hiển thị số lần niệm mỗi ngày
+  - `DailyNiem::height_pct()` — tính chiều cao cột 5–100% dựa trên max_count
+  - Tính `streak` (số ngày liên tiếp có niệm) — `compute_streak()` lùi từ today
+  - Empty state: 🪷 + "Chưa có dữ liệu tu học. Bắt đầu niệm Phật để ghi nhận!"
+
+- **[FEAT-5] Bảng Kính Nguyện** — danh sách vow công khai gần nhất (20 cái)
+  - `fetch_public_vows()` — JOIN users, filter `is_public=true AND is_active=true`
+  - Card layout: badge loại vow (🙏/🙇/🌸) + tên tác giả + timestamp + content
+  - `PublicVow::icon()`, `label()`, `color()` — helper methods cho template
+
+- **[FEAT-6] Hệ thống điểm mở rộng**
+  - `a_balance` (Niệm Lực A) — có từ Giai đoạn 1
+  - `k_balance` (Tiền K) — có từ Giai đoạn 1
+  - **`i_balance` (Nguyên lực I) — MỚI v0.9.9** — phần thưởng từ Tượng Phật
+  - Stats grid hiển thị: niệm hôm nay / tổng niệm / K / I / streak / cấp bậc
+
+- **[FEAT-7] Migration 015**
+  - `ALTER TABLE users ADD COLUMN i_balance BIGINT NOT NULL DEFAULT 0`
+  - `CREATE TABLE practice_logs (id, user_id, log_date, niem_count, last_niem_at, ...) UNIQUE(user_id, log_date)`
+  - `CREATE TABLE buddha_vows (id, user_id, vow_type, content, is_public, created_at) CHECK vow_type IN (...)`
+  - 3 index (user_id, log_date DESC, is_public+created_at DESC)
+  - Trigger `practice_logs_updated_at` tự cập nhật `updated_at`
+  - Seed: tặng 10 I cho admin_ky_thuat để test UI
+
+- **[FEAT-8] 5 endpoint mới + 1 API JSON**
+  - `GET /khong-gian` — Trang personal space
+  - `POST /api/niem-phat` — HTMX niệm Phật counter
+  - `POST /tuong-phat/cau-nguyen` — Tạo vow Cầu Nguyện
+  - `POST /tuong-phat/sam-hoi` — Tạo vow Sám Hối
+  - `POST /tuong-phat/hoi-huong` — Tạo vow Hồi Hướng
+  - `GET /api/khong-gian/stats` — JSON stats cho dashboard
+
+- **[FEAT-9] Health check `/api/health` mở rộng**
+  - Version: `0.9.8` → `0.9.9`, phase: `12` → `13`
+  - Thêm `khong_gian` object: status, features, vow_types, i_rewards
+  - Thêm 4 features vào mảng: `khong-gian-personal-space`, `niem-phat-counter`, `tuong-phat-vows`, `practice-diary`, `i-balance-nguyen-luc`
+
+### Sửa (Bug Fixes)
+
+- **[BUG-1] CRITICAL: Login "lỗi ghi nhận người dùng" fix triệt để**
+  - Root cause: `auth.rs::upsert_google_user` `INSERT ... RETURNING` fail khi struct/column mismatch → bắn lỗi về client → user không login được
+  - Fix 1: Thêm SELECT fallback sau khi INSERT fail — nếu row đã được insert (RETURNING fail vì decode), SELECT lại theo `google_sub` để lấy User
+  - Fix 2: Truncate `display_name` về 100 ký tự (Google profile name có thể dài hơn `VARCHAR(100)` → PostgreSQL error "value too long")
+  - Fix 3: Log chi tiết lỗi theo loại (`ColumnNotFound` / `Database(code,msg)` / `Decode`) kèm `sub`, `email`, `name_len` để debug nhanh
+  - Fix 4: Error message hiển thị loại lỗi cho user (thay vì generic "Lỗi khi ghi nhận người dùng")
+  - Lưu ý: bản deploy live vẫn đang chạy v0.9.7 (có bug USER_COLUMNS thiếu `role`), v0.9.9 deploy lên sẽ fix toàn bộ
+
+- **[BUG-2] Admin user list — chuyển từ table sang card-based compact layout (theo ảnh tham chiếu)**
+  - Trước: `<table>` 8 cột → quá rộng, khó đọc, actions select inline lộn xộn
+  - Sau: CSS grid 2 cột, mỗi card có:
+    - Header: avatar + tên (bold, lớn) + role badge (top-right, pill màu)
+    - Body: @handle (localpart email) + email đầy đủ (muted, nhỏ)
+    - Footer: A/K metrics (trái) + online status + actions dropdown ⋮ (phải)
+  - `last_session_at` từ subquery `(SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id)`
+  - `last_seen_text()` — helper method trả về (css_class, dot_color, text):
+    - "Đang hoạt động" (green dot pulse) — < 5 phút
+    - "X phút trước" (gray dot) — < 1 giờ
+    - "X giờ trước" — < 1 ngày
+    - "X ngày trước" — > 1 ngày
+    - "chưa đăng nhập" — NULL session
+    - "Bị khóa" (red dot) — `is_active=false`
+  - Actions dropdown (Alpine.js `x-data="{ open: false }"`) — 4 form POST submit role change
+  - Helper methods trên AdminUserRow: `role_color_hint()`, `handle()`, `role_badge_html()`, `last_seen_text()`
+
+### Đổi (Refactors)
+
+- **[REF-1] `User` model + `USER_COLUMNS` thêm `i_balance`**
+  - `src/models/user.rs`: thêm `pub i_balance: i64` field
+  - `src/handlers/auth.rs::USER_COLUMNS`: thêm `i_balance` vào SELECT/RETURNING
+  - `src/handlers/mod.rs::USER_COLUMNS`: thêm `u.i_balance`
+
+- **[REF-2] Bỏ wrapper `handlers::khong_gian()` không dùng**
+  - `main.rs` gọi trực tiếp `handlers::khong_gian::khong_gian_index`
+  - Wrapper delegate trong `handlers/mod.rs` bị dead-code → xóa
+
+- **[REF-3] Nav "Không Gian" trỏ tới `/khong-gian` thay vì `/`**
+  - `templates/layout.html` (3 chỗ: desktop nav, mobile menu, footer)
+  - `src/handlers/mod.rs::placeholder_page` (4 chỗ: nav_kg, bottom_kg, mobile, footer)
+  - `active_page` check: `"home"` → `"khong_gian"`
+
+- **[REF-4] Module structure**
+  - `src/models/khong_gian.rs` — PracticeLog, BuddhaVow, PublicVow, VowType, BuddhaVowForm, KhongGianStats, DailyNiem
+  - `src/handlers/khong_gian.rs` — khong_gian_index, niem_phat, tuong_phat_*, khong_gian_stats_api, fetch_*, compute_streak
+  - `templates/khong-gian/index.html` — trang personal space (Hero + Nhật ký + Bảng Kính Nguyện)
+
+### Cập Nhật Tài Liệu
+
+- `Cargo.toml` — version `0.9.8` → `0.9.9`
+- `src/main.rs` — log khởi động v0.9.9, phase 13, health check JSON
+- `README.md` — thêm entry Giai đoạn 13
+- `CHANGELOG.md` — entry này
+
+---
+
 ## [0.9.8] — 2026-08-14 — Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt
 
 ### Thêm (Features)

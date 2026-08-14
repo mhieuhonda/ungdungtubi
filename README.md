@@ -165,6 +165,39 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Bug fixes**: Fix live chat tổng luôn báo "đang kết nối..." (bỏ check `document.cookie.includes('session_id')` vì cookie HttpOnly không đọc được qua `document.cookie`); thêm server-side logging cho WS errors; fix version strings v0.9.3 → v0.9.5
 - **Mục tiêu:** Thành viên có thể kết bạn, nhắn tin realtime 1-1, gửi thư dài, nhận thông báo — bù lỗ hổng social của v0.9.4
 
+### Giai đoạn 13: Không Gian Cá Nhân & Niệm Phật ✅ (v0.9.9)
+- **Chuyên mục Không Gian chính thức ra mắt** — không còn placeholder, là 1 trong 4 trụ cột chính của app
+- **Niệm Phật Counter** (HTMX realtime):
+  - Nút 🪷 lớn ở giữa trang, mỗi lần nhấn = +1 Niệm Lực A
+  - `POST /api/niem-phat` — upsert `practice_logs` (1 row/user/day) + increment `a_balance` trong transaction
+  - Hiệu ứng pulse lotus + scale animation khi nhấn
+- **Tượng Phật** (4 chức năng theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục I.6):
+  - 🙏 **Cầu Nguyện** — `POST /tuong-phat/cau-nguyen` → +1 Nguyên lực I
+  - 🙇 **Sám Hối** — `POST /tuong-phat/sam-hoi` → +2 Nguyên lực I
+  - 🌸 **Hồi Hướng** — `POST /tuong-phat/hoi-huong` → +3 Nguyên lực I
+  - (Ủng Hộ chưa làm — cần tích hợp quảng cáo, sẽ thêm ở giai đoạn sau)
+  - Form vow: nội dung 10–2000 ký tự, có checkbox "hiển thị công khai trên bảng Kính Nguyện"
+- **Nhật Ký Tu Học** (7 ngày gần nhất):
+  - Biểu đồ cột (bar chart) hiển thị số lần niệm mỗi ngày
+  - Tính `streak` (số ngày liên tiếp có niệm)
+- **Bảng Kính Nguyện** — danh sách vow công khai gần nhất (20 cái), hiển thị tác giả + loại vow + nội dung
+- **Hệ thống điểm mở rộng**:
+  - `a_balance` (Niệm Lực A) — có từ Giai đoạn 1
+  - `k_balance` (Tiền K) — có từ Giai đoạn 1
+  - **`i_balance` (Nguyên lực I) — MỚI v0.9.9** — phần thưởng từ Tượng Phật
+- **Migration 015**: thêm cột `i_balance` vào `users` + bảng `practice_logs` + bảng `buddha_vows` + triggers + index
+- **5 endpoint** mới cho Không Gian + 1 API JSON stats
+- **Bug fix CRITICAL (login "lỗi ghi nhận người dùng")**:
+  - `auth.rs` `upsert_google_user` thêm `SELECT` fallback sau khi `INSERT ... RETURNING` fail (tránh block login khi struct/column mismatch)
+  - Truncate `display_name` về 100 ký tự (Google profile name có thể dài hơn `VARCHAR(100)`)
+  - Log chi tiết lỗi theo loại (`ColumnNotFound` / `Database` / `Decode`) để debug triệt để
+- **Admin user list redesign (theo ảnh tham chiếu)**:
+  - Bỏ table layout, chuyển sang card-based compact grid (2 cột trên desktop)
+  - Mỗi card: tên (bold) + role badge (top-right), @handle, email, footer với A/K metrics + online status ("Đang hoạt động" / "X phút trước" / "Bị khóa")
+  - Actions dropdown (⋮) thay vì select inline — UI gọn hơn
+  - `last_session_at` từ subquery `MAX(sessions.created_at)` để hiển thị hoạt động gần nhất
+- **Mục tiêu:** Không Gian cá nhân hoạt động — niệm Phật tích lũy A, phát nguyện trước Tượng Phật tích lũy I, theo dõi nhật ký tu học hàng ngày
+
 ### Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt ✅ (v0.9.8)
 - **Hệ thống 50 quyền chi tiết (Granular Permissions)** — 5 nhóm x 10 quyền:
   - `system` (10) — hệ thống, server, DB, config, logs, metrics, backup, debug

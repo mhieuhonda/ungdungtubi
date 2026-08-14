@@ -1,0 +1,231 @@
+{% extends "layout.html" %}
+
+{% block title %}🌍 Không Gian — Ứng Dụng Từ Bi{% endblock %}
+
+{% block head %}
+<style>
+  .niem-btn {
+    background: radial-gradient(circle at 30% 30%, #66BB6A, #2E7D32);
+    box-shadow: 0 12px 30px rgba(46, 125, 50, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+    transition: transform 0.08s ease-out, box-shadow 0.2s;
+  }
+  .niem-btn:active {
+    transform: scale(0.94);
+    box-shadow: 0 4px 12px rgba(46, 125, 50, 0.4), inset 0 2px 0 rgba(0, 0, 0, 0.2);
+  }
+  .niem-btn.pressed {
+    animation: pulse-lotus 0.4s ease-out;
+  }
+  @keyframes pulse-lotus {
+    0%   { transform: scale(1); box-shadow: 0 12px 30px rgba(46, 125, 50, 0.35); }
+    50%  { transform: scale(1.05); box-shadow: 0 0 50px rgba(255, 179, 0, 0.6); }
+    100% { transform: scale(1); box-shadow: 0 12px 30px rgba(46, 125, 50, 0.35); }
+  }
+  .buddha-statue {
+    background: linear-gradient(135deg, #FFB300 0%, #FF6F00 100%);
+    box-shadow: 0 0 60px rgba(255, 179, 0, 0.3), inset 0 -8px 0 rgba(0, 0, 0, 0.1);
+  }
+  .vow-card:hover {
+    transform: translateY(-2px);
+  }
+  .stat-card {
+    transition: all 0.2s ease;
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  }
+  .bar-chart-bar {
+    transition: height 0.3s ease-out;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if let Some(u) = user %}
+<section class="max-w-7xl mx-auto px-4 py-6 md:py-10" x-data="{ activeVow: null }">
+
+    <!-- ─── Hero: Tượng Phật + Niệm Phật counter + Stats ─────────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+
+        <!-- LEFT: Tượng Phật -->
+        <div class="lg:col-span-1 flex flex-col items-center bg-gradient-to-b from-amber-50 to-white rounded-2xl border border-amber-200 p-6 shadow-sm">
+            <div class="buddha-statue w-32 h-32 rounded-full flex items-center justify-center text-6xl mb-4">
+                🪷
+            </div>
+            <h2 class="text-xl font-bold text-amber-800">Tượng Phật</h2>
+            <p class="text-xs text-amber-700/70 text-center mt-1 mb-4">
+                Phát nguyện · Sám hối · Hồi hướng<br>để tích lũy Nguyên lực I
+            </p>
+            <div class="grid grid-cols-3 gap-2 w-full">
+                <button @click="activeVow = 'prayer'"
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                    🙏 Cầu Nguyện
+                </button>
+                <button @click="activeVow = 'repentance'"
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                    🙇 Sám Hối
+                </button>
+                <button @click="activeVow = 'dedication'"
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                    🌸 Hồi Hướng
+                </button>
+            </div>
+
+            <!-- Vow form modal (Alpine.js toggle) -->
+            <div x-show="activeVow" x-cloak x-transition
+                 class="mt-4 w-full bg-white border border-amber-200 rounded-xl p-4 shadow-md">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="font-bold text-amber-800 text-sm" x-text="
+                        activeVow === 'prayer' ? '🙏 Cầu Nguyện' :
+                        activeVow === 'repentance' ? '🙇 Sám Hối' : '🌸 Hồi Hướng'"></h3>
+                    <button @click="activeVow = null" class="text-gray-400 hover:text-gray-600 text-sm">✕</button>
+                </div>
+                <p class="text-xs text-gray-500 mb-3" x-text="
+                    activeVow === 'prayer' ? 'Viết lời cầu nguyện thành tâm. Nhận +1 I.' :
+                    activeVow === 'repentance' ? 'Viết nội dung sám hối. Nhận +2 I.' : 'Viết lời hồi hướng công đức. Nhận +3 I.'"></p>
+
+                <!-- HTMX form: action phụ thuộc activeVow -->
+                <form :action="activeVow === 'prayer' ? '/tuong-phat/cau-nguyen' :
+                              activeVow === 'repentance' ? '/tuong-phat/sam-hoi' : '/tuong-phat/hoi-huong'"
+                      method="POST"
+                      hx-post="" hx-swap="outerHTML" hx-target="#vow-result"
+                      class="space-y-2">
+                    <input type="hidden" name="vow_type" :value="activeVow">
+                    <textarea name="content" required minlength="10" maxlength="2000" rows="4"
+                              placeholder="Viết lời của bạn (10–2000 ký tự)…"
+                              class="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
+                    <label class="flex items-center gap-2 text-xs text-gray-600">
+                        <input type="checkbox" name="is_public" value="on" checked class="rounded">
+                        Hiển thị công khai trên bảng Kính Nguyện
+                    </label>
+                    <button type="submit"
+                            class="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                        Phát nguyện
+                    </button>
+                </form>
+                <div id="vow-result" class="mt-2"></div>
+            </div>
+        </div>
+
+        <!-- CENTER: Niệm Phật counter + button -->
+        <div class="lg:col-span-1 flex flex-col items-center justify-center bg-gradient-to-b from-tubi-50 to-white rounded-2xl border border-tubi-200 p-6 shadow-sm">
+            <h2 class="text-lg font-bold text-tubi-800 mb-2">🪷 Niệm Phật</h2>
+            <p class="text-xs text-gray-500 mb-4 text-center">Nhấn nút để niệm "Nam Mô A Di Đà Phật".<br>Mỗi lần niệm = +1 Niệm Lực A.</p>
+
+            <!-- Counter (HTMX target) -->
+            <div id="niem-counter" class="text-center mb-4">
+                <div class="text-5xl md:text-6xl font-bold text-tubi-800 tabular-nums">{{ u.a_balance }}</div>
+                <div class="text-xs text-gray-500 mt-1">Niệm Lực A</div>
+            </div>
+
+            <!-- Niệm button (HTMX) -->
+            <button hx-post="/api/niem-phat"
+                    hx-target="#niem-counter"
+                    hx-swap="outerHTML"
+                    onclick="this.classList.add('pressed'); setTimeout(() => this.classList.remove('pressed'), 400);"
+                    class="niem-btn w-32 h-32 rounded-full text-white text-5xl font-bold active:scale-95 select-none">
+                🪷
+            </button>
+            <p class="text-xs text-gray-400 mt-3">Hôm nay đã niệm: <strong class="text-tubi-700">{{ stats.today_niem }}</strong> lần</p>
+        </div>
+
+        <!-- RIGHT: Stats grid -->
+        <div class="lg:col-span-1 grid grid-cols-2 gap-3 content-start">
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <div class="text-3xl font-bold text-tubi-700">{{ stats.today_niem }}</div>
+                <div class="text-xs text-gray-500 mt-1">Niệm hôm nay</div>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <div class="text-3xl font-bold text-tubi-800">{{ stats.total_niem }}</div>
+                <div class="text-xs text-gray-500 mt-1">Tổng niệm (A)</div>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <div class="text-3xl font-bold text-amber-600">{{ u.k_balance }}</div>
+                <div class="text-xs text-gray-500 mt-1">Tiền K</div>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+                <div class="text-3xl font-bold text-purple-600">{{ u.i_balance }}</div>
+                <div class="text-xs text-gray-500 mt-1">Nguyên lực I</div>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+                <div class="text-3xl font-bold text-orange-500">🔥 {{ stats.streak_days }}</div>
+                <div class="text-xs text-gray-500 mt-1">Ngày tu liên tiếp</div>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+                <div class="text-xl font-bold text-amber-700">{{ u.rank_icon() }} {{ u.rank_display() }}</div>
+                <div class="text-xs text-gray-500 mt-1">Cấp bậc hiện tại</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Nhật ký tu học (7 ngày gần nhất) ──────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-8">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">📅 Nhật Ký Tu Học (7 ngày)</h2>
+        {% if daily_niem.is_empty() %}
+        <div class="text-center py-8 text-gray-400">
+            <span class="text-4xl">🪷</span>
+            <p class="mt-2 text-sm">Chưa có dữ liệu tu học. Bắt đầu niệm Phật để ghi nhận!</p>
+        </div>
+        {% else %}
+        <div class="flex items-end justify-between gap-2 h-32 mb-2">
+            {% for d in daily_niem %}
+            <div class="flex-1 flex flex-col items-center gap-1">
+                <div class="text-xs text-gray-600 font-semibold">{{ d.niem_count }}</div>
+                <div class="bar-chart-bar w-full bg-gradient-to-t from-tubi-600 to-tubi-400 rounded-t-md"
+                     style="height: {{ d.height_pct(daily_max_niem) }}%"></div>
+                <div class="text-[10px] text-gray-500">{{ d.log_date.format("%d/%m") }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ─── Bảng Kính Nguyện (vows công khai) ─────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-1">📿 Bảng Kính Nguyện</h2>
+        <p class="text-xs text-gray-500 mb-4">Những lời cầu nguyện, sám hối, hồi hướng công khai từ cộng đồng.</p>
+
+        {% if public_vows.is_empty() %}
+        <div class="text-center py-8 text-gray-400">
+            <span class="text-4xl">🙏</span>
+            <p class="mt-2 text-sm">Chưa có lời nguyện nào. Hãy là người đầu tiên phát nguyện!</p>
+        </div>
+        {% else %}
+        <div class="space-y-3">
+            {% for v in public_vows %}
+            <article class="vow-card bg-gray-50 hover:bg-gray-100 rounded-xl p-4 border border-gray-100 transition">
+                <header class="flex items-center justify-between gap-3 mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                              style="background-color: {{ v.color() }}22; color: {{ v.color() }}">
+                            <span>{{ v.icon() }}</span><span>{{ v.label() }}</span>
+                        </span>
+                        <span class="text-xs text-gray-600 font-medium">{{ v.author_name }}</span>
+                    </div>
+                    <span class="text-[10px] text-gray-400">{{ v.created_at.format("%d/%m/%Y %H:%M") }}</span>
+                </header>
+                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ v.content }}</p>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Footer note -->
+    <div class="mt-6 text-xs text-gray-400 text-center">
+        🪷 Không Gian Cá Nhân — Giai đoạn 13 (v0.9.9) · Niệm Phật · Tượng Phật · Nhật Ký Tu Học<br>
+        <span class="text-[10px]">Cập nhật: {{ now.format("%H:%M:%S %d/%m/%Y") }}</span>
+    </div>
+</section>
+{% else %}
+<section class="max-w-md mx-auto px-4 py-20 text-center">
+    <span class="text-6xl">🪷</span>
+    <h1 class="text-2xl font-bold text-tubi-800 mt-4 mb-2" style="color:#2E7D32">Vui lòng đăng nhập</h1>
+    <p class="text-sm text-gray-500 mb-6">Đăng nhập để vào Không Gian cá nhân — niệm Phật và tu học.</p>
+    <a href="/auth/google?next=/khong-gian" class="inline-block bg-lotus hover:bg-golden text-tubi-900 px-6 py-3 rounded-xl font-semibold transition shadow-md">
+        🪷 Đăng Nhập Bằng Google
+    </a>
+</section>
+{% endif %}
+{% endblock %}

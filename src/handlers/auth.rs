@@ -12,8 +12,9 @@ use crate::models::user::{GoogleUserInfo, User};
 
 /// Danh sách cột users đầy đủ (đồng bộ với `handlers::USER_COLUMNS` và model User).
 /// v0.9.8: thêm `role` (fix bug CRITICAL — Google OAuth login bị hỏng vì thiếu cột role).
+/// v0.9.9: thêm `i_balance` (Nguyên lực I — Giai đoạn 13: Không Gian).
 const USER_COLUMNS: &str = "id, email, display_name, password_hash, rank, \
-    a_balance, k_balance, is_active, created_at, updated_at, \
+    a_balance, k_balance, i_balance, is_active, created_at, updated_at, \
     google_sub, avatar_url, email_verified, \
     phap_danh, phap_hieu, but_danh, gender, bio, \
     avatar_upload_id, role";
@@ -198,10 +199,31 @@ pub async fn google_callback(
     let user = match upsert_google_user(pool, &user_info).await {
         Ok(u) => u,
         Err(e) => {
-            log::error!("❌ Lỗi upsert user Google: {e}");
+            // v0.9.9: Log chi tiết để debug triệt để lỗi "ghi nhận người dùng".
+            // Phân loại lỗi: ColumnNotFound (thiếu cột trên DB → migration chưa chạy)
+            // vs Database (constraint violation) vs Decode (FromRow fail).
+            let error_type = match &e {
+                sqlx::Error::ColumnNotFound(col) => {
+                    format!("ColumnNotFound (cột `{col}` chưa có trên DB — migration chưa chạy?)")
+                }
+                sqlx::Error::Database(db_err) => {
+                    format!("Database ({}): {}", db_err.code().unwrap_or_default(), db_err.message())
+                }
+                sqlx::Error::Decode(_) => "Decode (FromRow fail — struct/column mismatch)".to_string(),
+                _ => "Other".to_string(),
+            };
+            log::error!(
+                "❌ Lỗi upsert user Google [type={error_type}]: {e};
+                 sub={}, email={}, name_len={}",
+                user_info.sub,
+                user_info.email,
+                user_info.name.len()
+            );
             return error_page(
                 "Không tạo được tài khoản",
-                "Lỗi khi ghi nhận người dùng. Vui lòng thử lại sau.",
+                &format!(
+                    "Lỗi khi ghi nhận người dùng ({error_type}). Đã ghi log chi tiết — vui lòng liên hệ quản trị viên hoặc thử lại sau."
+                ),
             );
         }
     };
@@ -408,6 +430,10 @@ async fn fetch_google_userinfo(access_token: &str) -> Result<GoogleUserInfo, Str
 /// Tìm user theo `google_sub`. Nếu chưa có:
 /// - Nếu email trùng với tài khoản cũ đã đăng ký bằng email/password → link `google_sub` vào.
 /// - Nếu không → tạo user mới với rank "new", A=0, K=0.
+///
+/// v0.9.9: Thêm fallback an toàn — nếu RETURNING fail (vd. struct/column mismatch),
+/// thử SELECT lại theo google_sub để lấy User thay vì bắn lỗi về client.
+/// Truncate `display_name` về 100 ký tự (Google profile name có thể dài hơn VARCHAR(100)).
 async fn upsert_google_user(
     pool: &sqlx::PgPool,
     info: &GoogleUserInfo,
@@ -446,20 +472,42 @@ async fn upsert_google_user(
     }
 
     // 3. Tạo user mới.
+    //    Truncate display_name để tránh PostgreSQL error "value too long for type character varying(100)".
+    let truncated_name: String = if info.name.chars().count() > 100 {
+        info.name.chars().take(100).collect()
+    } else {
+        info.name.clone()
+    };
     let insert_sql = format!(
         "INSERT INTO users (email, display_name, password_hash, rank, a_balance, k_balance, is_active, google_sub, avatar_url, email_verified, gender)
          VALUES ($1, $2, NULL, 'new', 0, 0, true, $3, $4, $5, 'other')
          RETURNING {USER_COLUMNS}"
     );
-    let u = sqlx::query_as::<_, User>(&insert_sql)
+    let insert_result = sqlx::query_as::<_, User>(&insert_sql)
         .bind(&info.email)
-        .bind(&info.name)
+        .bind(&truncated_name)
         .bind(&info.sub)
         .bind(&info.picture)
         .bind(info.email_verified)
         .fetch_one(pool)
-        .await?;
-    Ok(u)
+        .await;
+
+    // 4. Fallback: nếu INSERT thành công nhưng RETURNING/FromRow fail (vd. column mismatch),
+    //    thử SELECT lại theo google_sub để lấy User. Tránh bắn lỗi về client.
+    if let Err(ref e) = insert_result {
+        log::warn!("⚠️ INSERT new Google user fail, thử SELECT fallback: {e}");
+        // Có thể INSERT đã thành công nhưng RETURNING fail → thử SELECT lại.
+        if let Some(u) = sqlx::query_as::<_, User>(&select_sql)
+            .bind(&info.sub)
+            .fetch_optional(pool)
+            .await?
+        {
+            log::info!("✅ SELECT fallback thành công sau khi RETURNING fail");
+            return Ok(u);
+        }
+    }
+
+    insert_result
 }
 
 /// Trang lỗi đơn giản (dùng khi OAuth thất bại).

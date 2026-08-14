@@ -36,6 +36,11 @@ use crate::handlers::get_user_from_session;
 use crate::models::user::User;
 
 /// Row data cho danh sách thành viên trong trang /admin/thanh-vien.
+///
+/// v0.9.9: thêm `last_session_at` (lấy từ MAX(sessions.created_at)) để hiển thị
+/// "hoạt động gần nhất" thay vì "Ngày tham gia" — giống phong cách hiển thị trong ảnh
+/// (online dot hoặc "6 ngày trước").
+#[allow(dead_code)] // một số field dành cho future UI, giữ lại để tránh drift với DB schema.
 #[derive(Debug, Clone, FromRow)]
 pub struct AdminUserRow {
     pub id: Uuid,
@@ -48,6 +53,71 @@ pub struct AdminUserRow {
     pub created_at: DateTime<Utc>,
     pub k_balance: i64,
     pub a_balance: i64,
+    /// Thời gian đăng nhập gần nhất (lấy từ sessions). NULL nếu chưa từng đăng nhập.
+    pub last_session_at: Option<DateTime<Utc>>,
+}
+
+impl AdminUserRow {
+    /// Màu đại diện cho vai trò (dùng cho avatar background + role badge).
+    pub fn role_color_hint(&self) -> &'static str {
+        match self.role.as_str() {
+            "admin_quan_li" => "#FF6F00",
+            "admin_cong_dong" => "#1565C0",
+            "admin_ky_thuat" => "#6A1B9A",
+            _ => "#2E7D32",
+        }
+    }
+
+    /// Handle dùng cho dòng `@username` — ưu tiên phần localpart của email.
+    pub fn handle(&self) -> String {
+        self.email.split('@').next().unwrap_or("").to_string()
+    }
+
+    /// HTML cho role badge (top-right của card).
+    pub fn role_badge_html(&self) -> String {
+        let (icon, label) = match self.role.as_str() {
+            "admin_quan_li" => ("👑", "Admin Quản Lý"),
+            "admin_cong_dong" => ("🛡️", "Admin Cộng Đồng"),
+            "admin_ky_thuat" => ("⚙️", "Admin Kỹ Thuật"),
+            _ => ("🪷", "Thành Viên"),
+        };
+        let color = self.role_color_hint();
+        format!(
+            r#"<span class="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold" style="background-color: {color}22; color: {color}"><span>{icon}</span><span>{label}</span></span>"#
+        )
+    }
+
+    /// Text trạng thái "online/hoạt động gần đây" cho footer của card.
+    /// Trả về (css_class, dot_color, text).
+    /// v0.9.9: nhận `&DateTime<Utc>` vì Askama truyền field bằng reference.
+    pub fn last_seen_text(&self, now: &DateTime<Utc>) -> (String, String, String) {
+        if !self.is_active {
+            return (
+                "text-red-600".into(),
+                "bg-red-500".into(),
+                "Bị khóa".into(),
+            );
+        }
+        match self.last_session_at {
+            None => (
+                "text-gray-400".into(),
+                "bg-gray-300".into(),
+                "chưa đăng nhập".into(),
+            ),
+            Some(last) => {
+                let mins_ago = (now.timestamp() - last.timestamp()) / 60;
+                if mins_ago < 5 {
+                    ("text-green-600".into(), "bg-green-500".into(), "Đang hoạt động".into())
+                } else if mins_ago < 60 {
+                    ("text-gray-500".into(), "bg-gray-300".into(), format!("{mins_ago} phút trước"))
+                } else if mins_ago < 1440 {
+                    ("text-gray-500".into(), "bg-gray-300".into(), format!("{} giờ trước", mins_ago / 60))
+                } else {
+                    ("text-gray-500".into(), "bg-gray-300".into(), format!("{} ngày trước", mins_ago / 1440))
+                }
+            }
+        }
+    }
 }
 
 /// Stats cho dashboard /admin (chung cho cả 3 kiểu).
@@ -64,7 +134,7 @@ pub struct AdminStats {
     pub pending_reviews: i64,
 }
 
-/// Template structs (Askama).
+// Template structs (Askama).
 
 /// Admin Kỹ Thuật dashboard — terminal/coder style (KHÔNG extends layout.html)
 #[derive(Template)]
@@ -99,6 +169,8 @@ pub struct AdminUsersTemplate {
     pub active_page: String,
     pub error: Option<String>,
     pub success: Option<String>,
+    /// v0.9.9: thời điểm render — dùng để tính "X phút trước" cho last_seen.
+    pub now: DateTime<Utc>,
 }
 
 /// Form đổi role user.
@@ -234,6 +306,7 @@ pub async fn admin_users_list(State(state): State<AppState>, jar: CookieJar) -> 
         active_page: "admin".into(),
         error: None,
         success: None,
+        now: Utc::now(),
     }
     .render()
     .unwrap_or_else(|e| {
@@ -406,19 +479,23 @@ async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Erro
 }
 
 /// Fetch users list — hierarchy mới (v0.9.8): admin_ky_thuat cao nhất.
+///
+/// v0.9.9: LEFT JOIN sessions để lấy `last_session_at` (MAX(created_at)) — dùng
+/// cho hiển thị "hoạt động gần nhất" trên card.
 async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
     sqlx::query_as::<_, AdminUserRow>(
-        "SELECT id, email, display_name, role, rank, is_active, email_verified, created_at,
-                k_balance, a_balance
-         FROM users
+        "SELECT u.id, u.email, u.display_name, u.role, u.rank, u.is_active,
+                u.email_verified, u.created_at, u.k_balance, u.a_balance,
+                (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id) AS last_session_at
+         FROM users u
          ORDER BY
-            CASE role
+            CASE u.role
                 WHEN 'admin_ky_thuat'  THEN 1
                 WHEN 'admin_quan_li'   THEN 2
                 WHEN 'admin_cong_dong' THEN 3
                 ELSE 4
             END,
-            created_at DESC",
+            u.created_at DESC",
     )
     .fetch_all(pool)
     .await
@@ -465,6 +542,7 @@ async fn render_users_error(pool: &sqlx::PgPool, actor: &User, error: &str) -> R
         active_page: "admin".into(),
         error: Some(error.into()),
         success: None,
+        now: Utc::now(),
     }
     .render()
     .unwrap_or_else(|e| {
@@ -485,6 +563,7 @@ async fn render_users_success(pool: &sqlx::PgPool, actor: &User, success: &str) 
         active_page: "admin".into(),
         error: None,
         success: Some(success.into()),
+        now: Utc::now(),
     }
     .render()
     .unwrap_or_else(|e| {
