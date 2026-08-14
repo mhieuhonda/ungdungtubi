@@ -20,5 +20,5 @@
 #   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.5 — commit 8f8aa8e
-FROM ghcr.io/mhieuhonda/tubi-app:sha-8f8aa8e
+# v0.9.5 — commit 43e89e7 (fix duplicate /ban-be route)
+FROM ghcr.io/mhieuhonda/tubi-app:sha-43e89e7
