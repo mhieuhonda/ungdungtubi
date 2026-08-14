@@ -21,7 +21,7 @@
     <div class="bg-white rounded-2xl p-6 md:p-8 shadow-lg mb-6">
         <div class="flex flex-col md:flex-row items-center md:items-start gap-6">
             <!-- Avatar -->
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 relative group">
                 {% if let Some(avatar) = u.avatar_url %}
                 <img src="{{ avatar }}" alt="avatar"
                      class="w-28 h-28 rounded-full border-4 shadow-md object-cover"
@@ -33,6 +33,17 @@
                     {{ u.display_name.chars().next().unwrap_or('🪷') }}
                 </div>
                 {% endif %}
+                <!-- Avatar upload overlay -->
+                <form method="POST" action="/ca-nhan/doi-anh-dai-dien"
+                      enctype="multipart/form-data" class="absolute inset-0">
+                  <label class="absolute inset-0 flex items-center justify-center rounded-full cursor-pointer
+                                opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 text-white text-sm">
+                    📷 Đổi ảnh
+                    <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                           class="hidden"
+                           onchange="this.closest('form').submit()">
+                  </label>
+                </form>
             </div>
 
             <!-- Info -->

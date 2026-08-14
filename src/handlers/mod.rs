@@ -391,7 +391,10 @@ fn placeholder_page(
     </script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="apple-touch-icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/css/app.css">
+    <style>[x-cloak] {{ display: none !important; }}</style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col" x-data="{{ mobileMenu: false }}">
     <header class="bg-tubi-800 text-white shadow-lg sticky top-0 z-50" style="background-color:#2E7D32">
@@ -415,14 +418,14 @@ fn placeholder_page(
                 <div class="hidden md:flex items-center space-x-3">
                     {user_html}
                 </div>
-                <button @click="mobileMenu = !mobileMenu" class="md:hidden text-tubi-100 hover:text-white p-2">
+                <button @click.stop="mobileMenu = !mobileMenu" class="md:hidden text-tubi-100 hover:text-white p-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
                     </svg>
                 </button>
             </div>
         </div>
-        <div x-show="mobileMenu" x-transition class="md:hidden bg-tubi-900 border-t border-tubi-700" style="background-color:#1B5E20">
+        <div x-show="mobileMenu" x-cloak x-transition class="md:hidden bg-tubi-900 border-t border-tubi-700" style="background-color:#1B5E20">
             <div class="px-4 py-3 space-y-2">
                 <a href="/" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
                 <a href="/cong-dong" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👥 Cộng Đồng</a>
@@ -474,7 +477,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.3 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -492,6 +495,7 @@ fn placeholder_page(
         </div>
     </nav>
     <script src="/static/js/app.js"></script>
+    <!-- Global Chat Bubble — v0.9.3 (chỉ hiện khi đã đăng nhập) -->
 </body>
 </html>"#,
         title = title,

@@ -38,7 +38,17 @@
   </nav>
 
   <!-- Group Header -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8 mb-6">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+    <!-- Cover image -->
+    {% if let Some(cover_url) = cover_image_url %}
+    <div class="w-full h-40 md:h-56 bg-gray-200 relative overflow-hidden">
+      <img src="{{ cover_url }}" alt="Ảnh bìa nhóm" class="w-full h-full object-cover">
+    </div>
+    {% else %}
+    <div class="w-full h-24 md:h-32" style="background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 50%, #A5D6A7 100%)"></div>
+    {% endif %}
+
+    <div class="p-6 md:p-8">
     <div class="flex items-start gap-4 mb-4">
       <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style="background-color:#E8F5E9">
         {{ group.category_icon_or_lotus() }}
@@ -70,6 +80,19 @@
           <span class="inline-flex items-center gap-2 text-sm text-tubi-700 font-medium" style="color:#2E7D32">
             ✓ Đã tham gia · {{ m.role_icon() }} {{ m.role_display() }}
           </span>
+          {% if m.role == "owner" or m.role == "admin" %}
+          <!-- Change cover image (owner/admin only) -->
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/doi-anh"
+                enctype="multipart/form-data" class="inline"
+                x-data="{ fileName: '' }">
+            <label class="cursor-pointer inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-tubi-700 transition" style="color:#388E3C">
+              📷 Đổi ảnh bìa
+              <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                     class="hidden"
+                     onchange="this.closest('form').submit()">
+            </label>
+          </form>
+          {% endif %}
           {% if m.role != "owner" %}
           <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/roi-khoi" 
                 onsubmit="return confirm('Bạn có chắc muốn rời nhóm?');" class="inline">
@@ -98,6 +121,7 @@
         🪷 Đăng nhập để tham gia
       </a>
       {% endif %}
+    </div>
     </div>
   </div>
 

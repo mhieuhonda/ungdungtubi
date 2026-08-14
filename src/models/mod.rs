@@ -6,6 +6,7 @@ pub use user::{MemberRank, ProfileUpdate, User};
 
 #[allow(unused_imports)]
 pub use community::{
-    Comment, CommentCreateForm, CommentWithAuthor, Group, GroupCategory, GroupCreateForm,
-    GroupMember, GroupWithCategory, Topic, TopicCreateForm, TopicWithAuthor,
+    Comment, CommentCreateForm, CommentWithAuthor, GlobalChatMessage, GlobalChatMessageWithAuthor,
+    Group, GroupCategory, GroupCreateForm, GroupMember, GroupWithCategory,
+    Topic, TopicCreateForm, TopicWithAuthor,
 };

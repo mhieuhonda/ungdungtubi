@@ -246,6 +246,7 @@ function liveChat(opts) {
             }
 
             try {
+                // v0.9.3: server expects plain text, not JSON
                 this.socket.send(body);
                 this.draft = '';
                 this.error = '';
@@ -280,3 +281,273 @@ function liveChat(opts) {
 
 // Expose globally for Alpine.js x-data
 window.liveChat = liveChat;
+
+// ====================================================================
+// Global Chat (Chat Chung) Alpine.js component — v0.9.3
+// Platform-wide chat accessible from any page via draggable bubble
+//
+// Cách dùng (trong layout):
+//   <div x-data="globalChat()" x-init="init()">
+// ====================================================================
+
+function globalChat() {
+    return {
+        // --- State ---
+        messages: [],
+        draft: '',
+        connected: false,
+        error: '',
+        socket: null,
+        reconnectAttempts: 0,
+        maxReconnectAttempts: 5,
+        reconnectTimer: null,
+        isOpen: false,
+        unreadCount: 0,
+        initialized: false,
+
+        // --- Lifecycle ---
+        init() {
+            // Chỉ khởi tạo nếu đã đăng nhập
+            if (!document.cookie.includes('session_id')) return;
+            this.initialized = true;
+            // Tải history ban đầu
+            this.loadHistory();
+            this.connect();
+        },
+
+        // --- Load history ---
+        async loadHistory() {
+            try {
+                const resp = await fetch('/api/chat-chung/history?limit=50', { credentials: 'same-origin' });
+                if (resp.ok) {
+                    const msgs = await resp.json();
+                    // Server trả newest first, reverse để oldest first
+                    this.messages = msgs.reverse();
+                }
+            } catch (_) {}
+        },
+
+        // --- WebSocket ---
+        connect() {
+            if (this.socket) {
+                try { this.socket.close(); } catch (_) {}
+                this.socket = null;
+            }
+
+            const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            const url = `${proto}//${host}/ws/chat-chung`;
+
+            try {
+                this.socket = new WebSocket(url);
+            } catch (e) {
+                this.error = 'Trình duyệt không hỗ trợ WebSocket';
+                return;
+            }
+
+            this.socket.onopen = () => {
+                this.connected = true;
+                this.error = '';
+                this.reconnectAttempts = 0;
+            };
+
+            this.socket.onmessage = (event) => {
+                this.handleIncoming(event.data);
+            };
+
+            this.socket.onclose = (event) => {
+                this.connected = false;
+                if (event.code === 1008) {
+                    this.error = event.reason || 'Không có quyền chat';
+                    return;
+                }
+                this.scheduleReconnect();
+            };
+
+            this.socket.onerror = () => {
+                this.connected = false;
+                this.error = 'Lỗi kết nối';
+            };
+        },
+
+        scheduleReconnect() {
+            if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                this.error = `Không thể kết nối sau ${this.maxReconnectAttempts} lần thử.`;
+                return;
+            }
+            this.reconnectAttempts += 1;
+            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => this.connect(), delay);
+        },
+
+        // --- Incoming message handler ---
+        handleIncoming(raw) {
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (_) { return; }
+
+            if (data.type === 'error' && typeof data.message === 'string') {
+                this.error = data.message;
+                setTimeout(() => { this.error = ''; }, 3000);
+                return;
+            }
+
+            if (data.id && data.body && data.author_display_name) {
+                if (this.messages.some(m => m.id === data.id)) return;
+                this.messages.push(data);
+                // Tăng unread nếu popup đang đóng
+                if (!this.isOpen) {
+                    this.unreadCount++;
+                }
+                this.$nextTick(() => this.scrollToBottom());
+            }
+        },
+
+        // --- Send message ---
+        send() {
+            const body = this.draft.trim();
+            if (!body) return;
+            if (!this.connected || !this.socket) {
+                this.error = 'Chưa kết nối — vui lòng đợi';
+                return;
+            }
+            if (body.length > 500) {
+                this.error = 'Tin nhắn quá dài (tối đa 500 ký tự)';
+                return;
+            }
+
+            try {
+                this.socket.send(body);
+                this.draft = '';
+                this.error = '';
+            } catch (e) {
+                this.error = 'Không gửi được tin nhắn';
+            }
+        },
+
+        // --- Toggle popup ---
+        toggleChat() {
+            this.isOpen = !this.isOpen;
+            if (this.isOpen) {
+                this.unreadCount = 0;
+                this.$nextTick(() => this.scrollToBottom());
+            }
+        },
+
+        // --- Helpers ---
+        scrollToBottom() {
+            const el = this.$refs.globalMessages;
+            if (el) {
+                el.scrollTop = el.scrollHeight;
+            }
+        },
+
+        formatTime(isoStr) {
+            try {
+                const dt = new Date(isoStr);
+                return new Intl.DateTimeFormat('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    day: '2-digit',
+                    month: '2-digit',
+                }).format(dt);
+            } catch (_) {
+                return '';
+            }
+        },
+    };
+}
+
+window.globalChat = globalChat;
+
+// ====================================================================
+// Chat Bubble (draggable) Alpine.js component — v0.9.3
+// Draggable circular bubble that opens global chat popup
+// ====================================================================
+
+function chatBubble() {
+    return {
+        // --- Position ---
+        x: 0,
+        y: 0,
+        startX: 0,
+        startY: 0,
+        offsetX: 0,
+        offsetY: 0,
+        dragging: false,
+        moved: false,
+
+        init() {
+            // Default position: bottom-right, above mobile nav
+            const isMobile = window.innerWidth < 768;
+            this.x = window.innerWidth - 64;
+            this.y = isMobile ? window.innerHeight - 88 : window.innerHeight - 80;
+            this.offsetX = this.x;
+            this.offsetY = this.y;
+        },
+
+        // --- Mouse events ---
+        onMouseDown(event) {
+            this.dragging = true;
+            this.moved = false;
+            this.startX = event.clientX - this.offsetX;
+            this.startY = event.clientY - this.offsetY;
+            event.preventDefault();
+        },
+
+        onMouseMove(event) {
+            if (!this.dragging) return;
+            this.moved = true;
+            this.x = event.clientX - this.startX;
+            this.y = event.clientY - this.startY;
+            this.offsetX = this.x;
+            this.offsetY = this.y;
+        },
+
+        onMouseUp() {
+            this.dragging = false;
+        },
+
+        // --- Touch events ---
+        onTouchStart(event) {
+            const touch = event.touches[0];
+            this.dragging = true;
+            this.moved = false;
+            this.startX = touch.clientX - this.offsetX;
+            this.startY = touch.clientY - this.offsetY;
+        },
+
+        onTouchMove(event) {
+            if (!this.dragging) return;
+            this.moved = true;
+            const touch = event.touches[0];
+            this.x = touch.clientX - this.startX;
+            this.y = touch.clientY - this.startY;
+            this.offsetX = this.x;
+            this.offsetY = this.y;
+            event.preventDefault();
+        },
+
+        onTouchEnd() {
+            this.dragging = false;
+        },
+
+        // --- Click handler (only if not dragged) ---
+        onClick() {
+            if (!this.moved) {
+                // Dispatch custom event to toggle global chat
+                this.$dispatch('toggle-global-chat');
+            }
+            this.moved = false;
+        },
+
+        // --- Style binding ---
+        get bubbleStyle() {
+            return `left: ${this.x}px; top: ${this.y}px;`;
+        },
+    };
+}
+
+window.chatBubble = chatBubble;

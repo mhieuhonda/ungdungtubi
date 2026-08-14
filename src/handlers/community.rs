@@ -13,7 +13,7 @@
 //!   * POST /cong-dong/chu-de/{id}/binh-luan — Bình luận (auth)
 
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     response::{Html, IntoResponse, Redirect, Response},
     Form,
 };
@@ -69,6 +69,9 @@ pub struct GroupTemplate {
     /// 20 tin nhắn chat gần nhất — JSON-serialised cho Alpine.js init.
     /// [v0.9.2] Live Chat WebSocket
     pub chat_messages_json: String,
+    /// URL ảnh bìa nhóm (nếu có).
+    /// [v0.9.3] Cover image upload
+    pub cover_image_url: Option<String>,
 }
 
 #[derive(Template)]
@@ -416,6 +419,17 @@ pub async fn view_group(
     let chat_messages = crate::handlers::chat::recent_messages(&state.pool, group.id).await;
     let chat_messages_json = serde_json::to_string(&chat_messages).unwrap_or_else(|_| "[]".into());
 
+    // [v0.9.3] Lấy URL ảnh bìa nhóm (cover_upload_id → images → stored_filename)
+    let cover_image_url: Option<String> = sqlx::query_scalar::<_, String>(
+        "SELECT i.stored_filename FROM images i JOIN groups g ON g.cover_upload_id = i.id WHERE g.id = $1",
+    )
+    .bind(group.id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten()
+    .map(|filename| format!("{}/{filename}", state.config.upload_url_prefix));
+
     let html = GroupTemplate {
         user,
         active_page: "community".into(),
@@ -423,6 +437,7 @@ pub async fn view_group(
         topics,
         membership,
         chat_messages_json,
+        cover_image_url,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -874,4 +889,113 @@ pub fn time_ago_display(dt: &DateTime<Utc>) -> String {
         return format!("{} tháng trước", dur.num_days() / 30);
     }
     format!("{} năm trước", dur.num_days() / 365)
+}
+
+/// POST /cong-dong/nhom/{slug}/doi-anh — Đổi ảnh bìa nhóm.
+///
+/// Chỉ owner hoặc admin mới được đổi ảnh bìa.
+/// Accepts multipart form with `file` field.
+pub async fn change_group_cover(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(slug): Path<String>,
+    mut multipart: Multipart,
+) -> Response {
+    // 1. Auth
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // 2. Resolve group
+    let group_id: Uuid = match sqlx::query_scalar(
+        "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
+    )
+    .bind(&slug)
+    .fetch_optional(&state.pool)
+    .await
+    {
+        Ok(Some(id)) => id,
+        Ok(None) => return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response(),
+        Err(e) => {
+            log::error!("❌ Lỗi truy vấn nhóm: {e}");
+            return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Lỗi hệ thống.").into_response();
+        }
+    };
+
+    // 3. Permission check — owner or admin
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2 AND status = 'active'",
+    )
+    .bind(group_id)
+    .bind(user.id)
+    .fetch_optional(&state.pool)
+    .await
+    .unwrap_or(None);
+
+    let is_allowed = role.as_deref() == Some("owner") || role.as_deref() == Some("admin");
+    if !is_allowed {
+        return (axum::http::StatusCode::FORBIDDEN, "Bạn không có quyền đổi ảnh bìa.").into_response();
+    }
+
+    // 4. Read file from multipart
+    let (file_bytes, _original_name, detected_mime) =
+        match crate::handlers::uploads::read_multipart_file(&mut multipart, state.config.max_upload_bytes).await {
+            Ok(result) => result,
+            Err(resp) => return resp,
+        };
+
+    if file_bytes.is_empty() {
+        return (axum::http::StatusCode::BAD_REQUEST, "Không nhận được dữ liệu ảnh.").into_response();
+    }
+
+    // 5. Validate MIME
+    let mime = detected_mime.as_deref().map_or_else(String::new, |m| crate::handlers::uploads::parse_mime(m).unwrap_or_default());
+    let Some(ext) = crate::handlers::uploads::mime_to_ext(&mime) else {
+        return (axum::http::StatusCode::UNSUPPORTED_MEDIA_TYPE, "Định dạng ảnh không được hỗ trợ.").into_response();
+    };
+
+    // 6. Save file via upload helpers
+    let file_id = Uuid::new_v4();
+    let stored_filename = format!("{file_id}.{ext}");
+    let sha256_str = crate::handlers::uploads::compute_sha256(&file_bytes);
+
+    // Ensure upload_dir exists
+    if let Err(e) = std::fs::create_dir_all(&state.config.upload_dir) {
+        log::error!("❌ Không tạo được upload_dir: {e}");
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Lỗi server.").into_response();
+    }
+
+    let (width, height) = crate::handlers::uploads::parse_image_dimensions(&file_bytes, &mime);
+
+    let Ok(image_id) = crate::handlers::uploads::insert_image_metadata(
+        &state.pool, file_id, user.id, None, &stored_filename,
+        &mime, &file_bytes, &sha256_str, width, height, ext,
+    ).await else {
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Không ghi được metadata ảnh.").into_response();
+    };
+
+    // Write file
+    let file_path = state.config.upload_dir.join(&stored_filename);
+    if let Err(e) = std::fs::write(&file_path, &file_bytes) {
+        log::error!("❌ Lỗi ghi file ảnh: {e}");
+        let _ = sqlx::query("DELETE FROM images WHERE id = $1").bind(image_id).execute(&state.pool).await;
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Không lưu được file ảnh.").into_response();
+    }
+
+    // 7. Update group's cover_upload_id
+    let cover_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
+    if let Err(e) = sqlx::query(
+        "UPDATE groups SET cover_upload_id = $1, updated_at = NOW() WHERE id = $2",
+    )
+    .bind(image_id)
+    .bind(group_id)
+    .execute(&state.pool)
+    .await
+    {
+        log::error!("❌ Lỗi cập nhật cover_upload_id: {e}");
+        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Lỗi cập nhật ảnh bìa.").into_response();
+    }
+
+    log::info!("🖼️ User {} updated cover image for group {slug}: {cover_url}", user.id);
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
 }

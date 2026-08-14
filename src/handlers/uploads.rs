@@ -13,7 +13,7 @@ use axum::{
     body::Bytes,
     extract::{Multipart, State},
     http::StatusCode,
-    response::{IntoResponse, Json, Response},
+    response::{IntoResponse, Json, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
 use sha2::{Digest, Sha256};
@@ -31,7 +31,7 @@ const ALLOWED_MIME: &[(&str, &str)] = &[
 ];
 
 /// Tìm MIME type trong Content-Type header.
-fn parse_mime(content_type: &str) -> Option<String> {
+pub fn parse_mime(content_type: &str) -> Option<String> {
     let mime = content_type.split(';').next()?.trim().to_lowercase();
     if mime.is_empty() {
         None
@@ -41,7 +41,7 @@ fn parse_mime(content_type: &str) -> Option<String> {
 }
 
 /// Kiểm tra MIME type có được phép không, trả về phần mở rộng.
-fn mime_to_ext(mime: &str) -> Option<&'static str> {
+pub fn mime_to_ext(mime: &str) -> Option<&'static str> {
     ALLOWED_MIME
         .iter()
         .find(|(m, _)| *m == mime)
@@ -171,8 +171,84 @@ pub async fn upload_image(
     .into_response()
 }
 
+/// POST /ca-nhan/doi-anh-dai-dien — Đổi ảnh đại diện cá nhân.
+///
+/// Accepts multipart form with `file` field.
+/// Cập nhật `avatar_upload_id` và `avatar_url` trong bảng users.
+pub async fn change_avatar(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    mut multipart: Multipart,
+) -> Response {
+    // 1. Auth
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // 2. Ensure upload_dir exists
+    if let Err(e) = std::fs::create_dir_all(&state.config.upload_dir) {
+        log::error!("❌ Không tạo được upload_dir: {e}");
+        return Redirect::to("/ca-nhan").into_response();
+    }
+
+    // 3. Read file from multipart
+    let (file_bytes, _original_name, detected_mime) =
+        match read_multipart_file(&mut multipart, state.config.max_upload_bytes).await {
+            Ok(result) => result,
+            Err(_) => return Redirect::to("/ca-nhan").into_response(),
+        };
+
+    if file_bytes.is_empty() {
+        return Redirect::to("/ca-nhan").into_response();
+    }
+
+    // 4. Validate MIME
+    let mime = detected_mime.as_deref().map_or_else(String::new, |m| parse_mime(m).unwrap_or_default());
+    let Some(ext) = mime_to_ext(&mime) else {
+        return Redirect::to("/ca-nhan").into_response();
+    };
+
+    // 5. Save file
+    let file_id = Uuid::new_v4();
+    let stored_filename = format!("{file_id}.{ext}");
+    let sha256_str = compute_sha256(&file_bytes);
+    let (width, height) = parse_image_dimensions(&file_bytes, &mime);
+
+    let Ok(image_id) = insert_image_metadata(
+        &state.pool, file_id, user.id, None, &stored_filename,
+        &mime, &file_bytes, &sha256_str, width, height, ext,
+    ).await else {
+        return Redirect::to("/ca-nhan").into_response();
+    };
+
+    let file_path = state.config.upload_dir.join(&stored_filename);
+    if let Err(e) = std::fs::write(&file_path, &file_bytes) {
+        log::error!("❌ Lỗi ghi file avatar: {e}");
+        let _ = sqlx::query("DELETE FROM images WHERE id = $1").bind(image_id).execute(&state.pool).await;
+        return Redirect::to("/ca-nhan").into_response();
+    }
+
+    // 6. Update user's avatar_upload_id and avatar_url
+    let avatar_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
+    if let Err(e) = sqlx::query(
+        "UPDATE users SET avatar_upload_id = $1, avatar_url = $2, updated_at = NOW() WHERE id = $3",
+    )
+    .bind(image_id)
+    .bind(&avatar_url)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        log::error!("❌ Lỗi cập nhật avatar: {e}");
+        return Redirect::to("/ca-nhan").into_response();
+    }
+
+    log::info!("🖼️ User {} updated avatar: {avatar_url}", user.id);
+    Redirect::to("/ca-nhan").into_response()
+}
+
 /// Compute SHA-256 hex string from bytes.
-fn compute_sha256(file_bytes: &Bytes) -> String {
+pub fn compute_sha256(file_bytes: &Bytes) -> String {
     let mut hasher = Sha256::new();
     hasher.update(file_bytes);
     hex_encode(&hasher.finalize())
@@ -207,7 +283,7 @@ async fn check_duplicate_image(
 /// Read multipart fields and extract the `file` field.
 ///
 /// Returns `(file_bytes, original_name, detected_mime)` or an error response.
-async fn read_multipart_file(
+pub async fn read_multipart_file(
     multipart: &mut Multipart,
     max_upload_bytes: usize,
 ) -> Result<(Bytes, Option<String>, Option<String>), Response> {
@@ -280,7 +356,7 @@ async fn read_multipart_file(
 
 /// Insert image metadata into the database.
 #[allow(clippy::too_many_arguments)]
-async fn insert_image_metadata(
+pub async fn insert_image_metadata(
     pool: &sqlx::PgPool,
     file_id: Uuid,
     uploader_id: Uuid,
@@ -325,7 +401,7 @@ fn hex_encode(bytes: &[u8]) -> String {
 }
 
 /// Đọc width/height từ header ảnh.
-fn parse_image_dimensions(bytes: &[u8], mime: &str) -> (Option<i32>, Option<i32>) {
+pub fn parse_image_dimensions(bytes: &[u8], mime: &str) -> (Option<i32>, Option<i32>) {
     match mime {
         "image/png" => parse_png_dimensions(bytes),
         "image/jpeg" => parse_jpeg_dimensions(bytes),

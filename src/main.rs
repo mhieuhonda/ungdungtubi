@@ -15,16 +15,17 @@ mod handlers;
 mod models;
 
 use config::Config;
-use handlers::chat::ChatHub;
+use handlers::chat::{ChatHub, GlobalChatHub};
 
 /// Shared application state — replaces actix-web's `web::Data<T>`.
 ///
-/// v0.9.2: thêm `chat_hub` để quản lý broadcast channels cho Live Chat.
+/// v0.9.3: thêm `global_chat_hub` cho Chat Chung toàn platform.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
     pub chat_hub: ChatHub,
+    pub global_chat_hub: GlobalChatHub,
 }
 
 #[tokio::main]
@@ -39,14 +40,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.2 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.3 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.2 — Giai đoạn 7: Live Chat WebSocket trong Nhóm + Cộng Đồng Foundation");
+    log::info!("📦 Phiên bản: v0.9.3 — Giai đoạn 7+: Live Chat WebSocket + Chat Chung toàn platform + Avatar/Cover upload");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -110,11 +111,12 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
-    // Build shared state (v0.9.2: + chat_hub cho Live Chat WebSocket)
+    // Build shared state (v0.9.3: + chat_hub + global_chat_hub)
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
         chat_hub: ChatHub::default(),
+        global_chat_hub: GlobalChatHub::default(),
     };
 
     // Build router
@@ -189,6 +191,15 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/api/cong-dong/nhom/{slug}/chat-history",
             get(handlers::chat::chat_history),
         )
+        // Routes — Chat Chung toàn platform (v0.9.3)
+        .route(
+            "/ws/chat-chung",
+            get(handlers::chat::global_chat_ws_upgrade),
+        )
+        .route(
+            "/api/chat-chung/history",
+            get(handlers::chat::global_chat_history),
+        )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         .route("/thuong-thanh", get(handlers::thuong_thanh))
@@ -196,6 +207,12 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Hồ sơ cá nhân
         .route("/ca-nhan", get(handlers::ca_nhan))
         .route("/ca-nhan/cap-nhat", post(handlers::cap_nhat_ho_so))
+        .route("/ca-nhan/doi-anh-dai-dien", post(handlers::uploads::change_avatar))
+        // Group cover image change (v0.9.3)
+        .route(
+            "/cong-dong/nhom/{slug}/doi-anh",
+            post(handlers::community::change_group_cover),
+        )
         // API
         .route("/api/health", get(health_check))
         .route("/api/heartbeat", post(handlers::heartbeat))
@@ -222,11 +239,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.2",
+        "version": "0.9.3",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
         "phase": 7,
-        "phase_name": "Giai đoạn 7 — Live Chat WebSocket trong Nhóm",
+        "phase_name": "Giai đoạn 7+ — Live Chat + Chat Chung toàn platform",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -234,7 +251,10 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "profile-ranks",
             "image-upload",
             "community-groups-topics-comments",
-            "live-chat-websocket"
+            "live-chat-websocket",
+            "global-chat-websocket",
+            "avatar-upload",
+            "group-cover-upload"
         ],
         "database": {
             "status": db_status,

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Lotus flower favicon for Ứng Dụng Từ Bi -->
+  <defs>
+    <linearGradient id="petalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFB300;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFA000;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="centerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2E7D32;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1B5E20;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="30" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1"/>
+  <!-- Outer petals -->
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(0,32,32)"/>
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(60,32,32)"/>
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(120,32,32)"/>
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(180,32,32)"/>
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(240,32,32)"/>
+  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(300,32,32)"/>
+  <!-- Inner petals -->
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(30,32,32)"/>
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(90,32,32)"/>
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(150,32,32)"/>
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(210,32,32)"/>
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(270,32,32)"/>
+  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(330,32,32)"/>
+  <!-- Center -->
+  <circle cx="32" cy="32" r="5" fill="url(#centerGrad)"/>
+</svg>

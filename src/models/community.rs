@@ -285,6 +285,30 @@ impl CommentWithAuthor {
     }
 }
 
+/// Một tin nhắn Chat Chung toàn nền tảng (v0.9.3).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GlobalChatMessage {
+    pub id: Uuid,
+    pub author_id: Uuid,
+    pub body: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// GlobalChatMessage kèm thông tin author — dùng cho render + broadcast.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GlobalChatMessageWithAuthor {
+    pub id: Uuid,
+    pub author_id: Uuid,
+    pub body: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    // Từ users
+    pub author_display_name: String,
+    pub author_avatar_url: Option<String>,
+    pub author_rank: String,
+}
+
 impl GroupMember {
     /// Hiển thị vai trò tiếng Việt.
     pub fn role_display(&self) -> &str {
