@@ -24,7 +24,7 @@ use axum_extra::extract::CookieJar;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
 use sqlx::PgPool;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -260,26 +260,45 @@ async fn handle_chat_socket(
         group_id
     );
 
-    // Clone sender TRƯỚC khi move vào send_task — dùng để gửi error trực tiếp cho client
-    let mut err_sender = sender.clone();
+    // Channel gửi error messages từ recv loop → send_task
+    // (Không thể clone SplitSink, nên dùng mpsc channel thay thế)
+    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<String>();
 
-    // send_task: forward broadcast → client
+    // send_task: forward broadcast → client + gửi error messages
     let send_task = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(payload) => {
-                    if sender
-                        .send(axum::extract::ws::Message::Text(payload.into()))
-                        .await
-                        .is_err()
-                    {
-                        break;
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Ok(payload) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Text(payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(broadcast::error::RecvError::Lagged(_)) => {
+                            // Client chậm — bỏ qua tin nhắn cũ, tiếp tục
+                            continue;
+                        }
                     }
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    // Client chậm — bỏ qua tin nhắn cũ, tiếp tục
-                    continue;
+                err = err_rx.recv() => {
+                    match err {
+                        Some(err_payload) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Text(err_payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
                 }
             }
         }
@@ -306,7 +325,7 @@ async fn handle_chat_socket(
                     "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_CHAT_BODY_CHARS} ký tự).")
                 })
                 .to_string();
-                let _ = err_sender.send(axum::extract::ws::Message::Text(err_payload.into())).await;
+                let _ = err_tx.send(err_payload);
                 continue;
             }
 
@@ -487,24 +506,42 @@ async fn handle_global_chat_socket(
 
     log::info!("💬 Global WS connected: user={}", user.id);
 
-    // Clone sender TRƯỚC khi move vào send_task — dùng để gửi error trực tiếp cho client
-    let mut err_sender = sender.clone();
+    // Channel gửi error messages từ recv loop → send_task
+    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<String>();
 
-    // send_task: forward broadcast → client
+    // send_task: forward broadcast → client + gửi error messages
     let send_task = tokio::spawn(async move {
         loop {
-            match rx.recv().await {
-                Ok(payload) => {
-                    if sender
-                        .send(axum::extract::ws::Message::Text(payload.into()))
-                        .await
-                        .is_err()
-                    {
-                        break;
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Ok(payload) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Text(payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     }
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                err = err_rx.recv() => {
+                    match err {
+                        Some(err_payload) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Text(err_payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        None => break,
+                    }
+                }
             }
         }
     });
@@ -528,7 +565,7 @@ async fn handle_global_chat_socket(
                     "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_CHAT_BODY_CHARS} ký tự).")
                 })
                 .to_string();
-                let _ = err_sender.send(axum::extract::ws::Message::Text(err_payload.into())).await;
+                let _ = err_tx.send(err_payload);
                 continue;
             }
 
