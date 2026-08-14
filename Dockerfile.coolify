@@ -20,5 +20,5 @@
 #   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.6 — commit f693d4d (fix migration pg_trgm extension order)
-FROM ghcr.io/mhieuhonda/tubi-app:sha-f693d4d
+# v0.9.6 — commit 56560dd (fix Docker image: thêm wget cho Coolify healthcheck)
+FROM ghcr.io/mhieuhonda/tubi-app:sha-56560dd
