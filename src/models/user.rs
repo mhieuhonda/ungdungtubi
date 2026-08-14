@@ -196,7 +196,10 @@ impl User {
     ///   - admin_ky_thuat  → 2
     ///   - admin_cong_dong → 3
     ///   - admin_quan_li   → 4
-    pub const fn role_level(&self) -> u8 {
+    ///
+    /// (Không thể là `const fn` vì Rust 1.97 chưa ổn định `PartialEq` cho `&str`
+    /// trong const context — xem issue rust-lang/rust#143874.)
+    pub fn role_level(&self) -> u8 {
         match self.role.as_str() {
             "admin_ky_thuat" => 2,
             "admin_cong_dong" => 3,
@@ -206,34 +209,34 @@ impl User {
     }
 
     /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý).
-    pub const fn is_admin(&self) -> bool {
+    pub fn is_admin(&self) -> bool {
         self.role_level() >= 2
     }
 
     /// True nếu user chính xác là Admin Kỹ Thuật.
-    pub const fn is_admin_ky_thuat(&self) -> bool {
+    pub fn is_admin_ky_thuat(&self) -> bool {
         matches!(self.role.as_str(), "admin_ky_thuat")
     }
 
     /// True nếu user chính xác là Admin Cộng Đồng.
-    pub const fn is_admin_cong_dong(&self) -> bool {
+    pub fn is_admin_cong_dong(&self) -> bool {
         matches!(self.role.as_str(), "admin_cong_dong")
     }
 
     /// True nếu user chính xác là Admin Quản Lý (super admin — quyền cao nhất).
-    pub const fn is_admin_quan_li(&self) -> bool {
+    pub fn is_admin_quan_li(&self) -> bool {
         matches!(self.role.as_str(), "admin_quan_li")
     }
 
     /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật trở lên).
     /// Dùng cho route /admin, quản lý users, hệ thống.
-    pub const fn can_manage_technical(&self) -> bool {
+    pub fn can_manage_technical(&self) -> bool {
         self.role_level() >= 2
     }
 
     /// True nếu user có quyền cộng đồng (Admin Cộng Đồng trở lên).
     /// Dùng cho duyệt cảm ngộ, ghim/khoá chủ đề, mod comment.
-    pub const fn can_manage_community(&self) -> bool {
+    pub fn can_manage_community(&self) -> bool {
         self.role_level() >= 3
     }
 }
