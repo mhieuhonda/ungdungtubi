@@ -41,7 +41,10 @@
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/css/app.css">
-    
+
+    <!-- Alpine.js x-cloak: ẩn element trước khi Alpine init để tránh FOUC -->
+    <style>[x-cloak] { display: none !important; }</style>
+
     {% block head %}{% endblock %}
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen flex flex-col" 
@@ -128,8 +131,8 @@
             </div>
         </div>
         
-        <!-- Mobile Menu -->
-        <div x-show="mobileMenu" x-transition
+        <!-- Mobile Menu (x-cloak để tránh flicker trước khi Alpine init) -->
+        <div x-show="mobileMenu" x-cloak x-transition
              class="md:hidden bg-tubi-900 border-t border-tubi-700">
             <div class="px-4 py-3 space-y-2">
                 <a href="/" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
@@ -153,37 +156,38 @@
     </header>
     
     <!-- Main Content -->
-    <main class="flex-1">
+    <!-- pb-16 md:pb-0 + safe-area: tránh bị bottom nav che trên mobile -->
+    <main class="flex-1 main-with-bottom-nav">
         {% block content %}{% endblock %}
     </main>
     
-    <!-- Bottom Navigation (Mobile) -->
+    <!-- Bottom Navigation (Mobile) — grid-cols-5 để logo hoa sen căn giữa chính xác -->
     <nav class="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
-        <div class="flex items-center justify-around h-16">
-            <a href="/" class="flex flex-col items-center justify-center space-y-0.5 
+        <div class="grid grid-cols-5 items-end h-16">
+            <a href="/" class="flex flex-col items-center justify-center pb-1.5
                {% if active_page == "home" %}text-tubi-700{% else %}text-gray-400{% endif %}">
-                <span class="text-xl">🌍</span>
-                <span class="text-xs">Không Gian</span>
+                <span class="text-xl leading-none">🌍</span>
+                <span class="text-[10px] leading-none mt-1">Không Gian</span>
             </a>
-            <a href="/cong-dong" class="flex flex-col items-center justify-center space-y-0.5
+            <a href="/cong-dong" class="flex flex-col items-center justify-center pb-1.5
                {% if active_page == "community" %}text-tubi-700{% else %}text-gray-400{% endif %}">
-                <span class="text-xl">👥</span>
-                <span class="text-xs">Cộng Đồng</span>
+                <span class="text-xl leading-none">👥</span>
+                <span class="text-[10px] leading-none mt-1">Cộng Đồng</span>
             </a>
-            <a href="/" class="flex flex-col items-center justify-center -mt-4">
-                <div class="w-12 h-12 bg-tubi-800 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                    <span class="text-2xl">🪷</span>
+            <a href="/" class="flex justify-center items-end pb-1.5" aria-label="Trang chủ">
+                <div class="w-12 h-12 -mt-4 bg-tubi-800 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                    <span class="text-2xl leading-none">🪷</span>
                 </div>
             </a>
-            <a href="/ban-be" class="flex flex-col items-center justify-center space-y-0.5
+            <a href="/ban-be" class="flex flex-col items-center justify-center pb-1.5
                {% if active_page == "friends" %}text-tubi-700{% else %}text-gray-400{% endif %}">
-                <span class="text-xl">👤</span>
-                <span class="text-xs">Bạn Bè</span>
+                <span class="text-xl leading-none">👤</span>
+                <span class="text-[10px] leading-none mt-1">Bạn Bè</span>
             </a>
-            <a href="/kinh-sach" class="flex flex-col items-center justify-center space-y-0.5
+            <a href="/kinh-sach" class="flex flex-col items-center justify-center pb-1.5
                {% if active_page == "books" %}text-tubi-700{% else %}text-gray-400{% endif %}">
-                <span class="text-xl">📚</span>
-                <span class="text-xs">Kinh Sách</span>
+                <span class="text-xl leading-none">📚</span>
+                <span class="text-[10px] leading-none mt-1">Kinh Sách</span>
             </a>
         </div>
     </nav>

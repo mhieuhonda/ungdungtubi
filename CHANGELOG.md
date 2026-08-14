@@ -6,18 +6,39 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
-## [0.9.1] — 2026-08-14 — Fix GitHub Actions CI/CD + Deploy thủ công qua Coolify
+## [0.9.1] — 2026-08-14 — Giai đoạn 1 finalization: Fix UI mobile + Bỏ GitHub Actions + Deploy thủ công qua Coolify
 
-### Sửa
+### Sửa lỗi UI trên mobile
+- **Fix logo hoa sen chưa căn giữa chuẩn trên bottom nav mobile**: Đổi layout từ `flex justify-around` sang `grid grid-cols-5 items-end` — 5 cột bằng nhau, mỗi mục chiếm đúng 1/5 chiều rộng, logo hoa sen nằm chính giữa cột thứ 3. Trước đó dùng `flex justify-around` khiến logo bị lệch do các mục có chiều rộng khác nhau (4 mục có text label, 1 mục chỉ icon).
+- **Fix bottom nav che content trên mobile (đặc biệt ở trang Cộng Đồng)**: Thêm class CSS `.main-with-bottom-nav` áp dụng `padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px))` cho `<main>` trên mobile (md trở xuống). Desktop không bị ảnh hưởng (padding: 0). Có thêm safe-area-inset-bottom cho iPhone notch / home indicator.
+- **Fix hamburger menu flicker trên trang chủ**: Thêm `x-cloak` attribute vào mobile menu div trong `layout.html` và 5 element dùng `x-show="show"` trong `home.html` (lotus animation, h1 title, 2 paragraphs, button container). Thêm CSS rule `[x-cloak] { display: none !important; }` trong `<head>` của layout. Trước Alpine.js init, element có `x-cloak` bị ẩn → không còn flash "hiện rồi biến mất".
+
+### Bỏ GitHub Actions — chuyển sang deploy thủ công qua Coolify
+- **Xóa hoàn toàn `.github/workflows/docker.yml`** (và thư mục `.github/workflows/`).
+- **Lý do**: Workflow cũ gặp nhiều vấn đề — permission_denied khi push GHCR, webhook trả 302 redirect, double trigger. Deploy trực tiếp qua Coolify API đơn giản hơn và không cần GHCR.
+- **Coolify app đã cấu hình sẵn** inline Dockerfile (clone repo + build với Rust 1.97.1 trên sub VPS 10.187.247.3). App UUID: `xsrqp8xrcwwk57dvtcwt6393`, domain: `tubi.louis.vangioitutien.com`, status: `running:healthy`.
+- **Quy trình deploy mới**:
+  1. Push code lên branch `main`
+  2. Trigger Coolify deploy qua Web UI hoặc `GET /api/v1/applications/{uuid}/start` với Bearer token
+  3. Coolify pull source → build Docker image Rust 1.97.1 → redeploy → Traefik + Let's Encrypt SSL
+
+### Cập nhật
+- **README.md**: Thay thế section "Production (qua Coolify + GitHub Actions)" bằng "Production (Deploy thủ công qua Coolify trên sub VPS)" với hướng dẫn chi tiết 2 cách trigger deploy (Web UI + API). Cập nhật bảng công nghệ: bỏ dòng CI/CD, thêm dòng Deploy. Cập nhật cấu trúc dự án: bỏ `.github/workflows/`, ghi chú Dockerfile chỉ dùng cho local/dev.
+- **CSS `app.css`**: Thêm class `.main-with-bottom-nav` với `padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px))` và media query md+ bỏ padding.
+- **`templates/layout.html`**: Thêm `<style>[x-cloak] { display: none !important; }</style>` trong `<head>`, thêm `x-cloak` vào mobile menu div, đổi bottom nav từ flex sang grid-cols-5, thêm class `.main-with-bottom-nav` cho `<main>`.
+- **`templates/home.html`**: Thêm `x-cloak` vào 5 element dùng `x-show="show"` trong hero section.
+
+---
+
+## [0.9.1-pre] — 2026-08-14 — Fix GitHub Actions CI/CD (đã bị thay thế bởi bản v0.9.1 final phía trên)
+
+### Sửa (đã bị revert)
 - **Fix GitHub Actions CI/CD**: Workflow cũ bị lỗi `permission_denied: write_package` khi push Docker image lên GHCR
   - Thêm top-level `permissions` (contents:read, packages:write) cho GITHUB_TOKEN
   - Bỏ trigger `push branches:main` — chỉ giữ tag trigger để tránh double run
   - Sửa secrets syntax trong `trigger-coolify` job (dùng `env.` thay vì `secrets.` trong if condition)
   - Thêm `provenance: false` cho docker/build-push-action
 - **Chuyển sang Coolify-native deploy strategy**: Thay vì build image trên GitHub Actions → push GHCR → Coolify pull, giờ Coolify tự build trên VPS từ source
-  - Đơn giản hơn, không bị GHCR permission issues
-  - Coolify clone repo → build Docker image với Rust 1.97.1 trên VPS → deploy
-  - Workflow chỉ cần trigger Coolify deploy (webhook hoặc API)
 - **Thêm COOLIFY_API_TOKEN secret** cho Coolify API fallback trong workflow
 - **Cập nhật RUST_LOG** trên Coolify: `actix_web=info` → `axum=info,tower_http=info` (Axum 0.8 migration)
 - **Deploy thủ công** lên `tubi.louis.vangioitutien.com` thành công qua Coolify API

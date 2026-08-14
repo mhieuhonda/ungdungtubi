@@ -87,6 +87,18 @@
     }
 }
 
+/* Main content padding trên mobile để tránh bị bottom nav (h-16 = 4rem) che.
+   Có thêm safe-area-inset-bottom cho iPhone notch / home indicator.
+   Desktop (md+) không cần padding. */
+.main-with-bottom-nav {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+    .main-with-bottom-nav {
+        padding-bottom: 0;
+    }
+}
+
 /* Card hover effects */
 .card-hover {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

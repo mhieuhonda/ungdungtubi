@@ -20,8 +20,8 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 | Frontend | HTMX (server-driven UI) + Alpine.js (reactive) |
 | Styling | Tailwind CSS |
 | Auth | Google OAuth 2.0 (OpenID Connect — userinfo) — đăng nhập duy nhất |
-| Container | Docker (multi-stage build, ~30 MB image) |
-| CI/CD | GitHub Actions → GHCR → Coolify webhook → auto deploy |
+| Container | Docker (multi-stage build với Rust 1.97.1-slim-bookworm, image final ~30 MB) |
+| Deploy | Coolify (build thủ công từ GitHub repo trên sub VPS, không dùng GitHub Actions) |
 
 ## 4 Chuyên Mục Chính
 
@@ -128,7 +128,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 6 / v0.6)
+## Cấu Trúc Dự Án (Giai đoạn 9 / v0.9.1)
 
 ```
 ungdungtubi/
@@ -170,13 +170,12 @@ ungdungtubi/
 │   ├── 003_member_profile_ranks.sql
 │   ├── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
 │   └── 005_community_groups_topics_comments.sql  # [v0.6] groups + group_members + topics + comments + triggers
-├── .github/workflows/
-│   └── docker.yml            # [v0.5] Build + push + trigger Coolify
+├── .github/workflows/   # (ĐÃ XÓA từ v0.9.1 — deploy thủ công qua Coolify)
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.6.0, Rust 1.97, release profile tối ưu
-├── Dockerfile                # [v0.5] Multi-stage Rust 1.97.1, ~30 MB
-├── docker-compose.yml        # [v0.5] Dev environment (Postgres 17 + app)
-├── .env.example              # Template cấu hình môi trường v0.5
+├── Cargo.toml                # v0.9.1, Rust 1.97, release profile tối ưu
+├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB (dùng cho local/dev; production dùng inline Dockerfile trên Coolify)
+├── docker-compose.yml        # Dev environment (Postgres 17 + app)
+├── .env.example              # Template cấu hình môi trường v0.9
 └── README.md
 ```
 
@@ -229,22 +228,41 @@ cargo run
 # Server: http://localhost:8080
 ```
 
-### Production (qua Coolify + GitHub Actions)
+### Production (Deploy thủ công qua Coolify trên sub VPS)
 
-Workflow deploy tự động:
+Từ v0.9.1, dự án bỏ hoàn toàn GitHub Actions và chuyển sang deploy thủ công qua Coolify.
+Coolify app đã được cấu hình sẵn với inline Dockerfile (clone repo + build với Rust 1.97.1 trên sub VPS 10.187.247.3).
 
-1. **Push tag** `vX.Y.Z` lên GitHub → GitHub Actions trigger
-2. GitHub Actions build Docker image với Rust 1.97.1
-3. Push image lên `ghcr.io/mhieuhonda/ungdungtubi:vX.Y.Z` (cùng `:latest`)
-4. GitHub Actions gọi Coolify webhook
-5. Coolify pull image mới + redeploy lên `tubi.louis.vangioitutien.com`
+**Quy trình deploy thủ công:**
 
-**Cấu hình cần thiết trên Coolify:**
-- Tạo service PostgreSQL 17 trên sub VPS 10.187.247.3
-- Tạo app từ Docker image `ghcr.io/mhieuhonda/ungdungtubi:latest`
-- Set env vars (xem `.env.example`)
-- Bind volume `/app/static/uploads` để giữ ảnh user
-- Cấu hình domain `tubi.louis.vangioitutien.com`
+1. **Push code** lên branch `main` của repo `mhieuhonda/ungdungtubi`
+2. **Trigger Coolify deploy** qua một trong hai cách:
+   - **Cách 1 — Coolify Web UI:** Vào `https://coolify.buppou.com` → chọn app `ungdung-tu-bi` (UUID `xsrqp8xrcwwk57dvtcwt6393`) → bấm nút **Deploy**
+   - **Cách 2 — Coolify API:**
+     ```bash
+     curl -X GET \
+       -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+       -H "Content-Type: application/json" \
+       https://coolify.buppou.com/api/v1/applications/xsrqp8xrcwwk57dvtcwt6393/start
+     ```
+3. Coolify tự:
+   - Pull source mới nhất từ branch `main`
+   - Build Docker image với Rust 1.97.1 trên sub VPS (multi-stage build, image final ~30 MB)
+   - Redeploy container lên domain `tubi.louis.vangioitutien.com`
+   - Cấp phát SSL tự động qua Traefik + Let's Encrypt
+4. Kiểm tra trạng thái: `https://tubi.louis.vangioitutien.com/api/health`
+
+**Cấu hình đã có trên Coolify:**
+- Sub VPS: `10.187.247.3` (Ubuntu 24.04, 6 CPU, 8 GB RAM) — server `vangioi-vps`
+- PostgreSQL 17 chạy riêng trên sub VPS (DATABASE_URL set trong env của app)
+- Domain: `https://tubi.louis.vangioitutien.com` (Traefik reverse proxy + Let's Encrypt)
+- Healthcheck: `GET /api/health` (port 8080, scheme http, retries 5, start-period 60s)
+- Volume bind: `/app/static/uploads` để giữ ảnh user upload giữa các lần deploy
+- Auto-migrations: chạy khi khởi động (`RUN_MIGRATIONS=true`, `APP_ENV=production`)
+- Sentinel: bật (giám sát VPS, push metrics mỗi 60s, giữ history 7 ngày)
+
+**Bỏ GitHub Actions từ v0.9.1:** Workflow cũ `.github/workflows/docker.yml` đã bị xóa.
+Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, không gặp permission issues như `write_package`.
 
 ## Routes (v0.6)
 
@@ -288,6 +306,7 @@ Workflow deploy tự động:
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 - **v0.9** — Giai đoạn 9: Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 ổn định
+- **v0.9.1** — Giai đoạn 1 finalization: Fix UI mobile (bottom nav + x-cloak), bỏ GitHub Actions, deploy thủ công qua Coolify
 
 ---
 

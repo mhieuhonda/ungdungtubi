@@ -14,7 +14,7 @@
     <div class="relative max-w-7xl mx-auto px-4 py-20 md:py-32 text-center"
          x-data="{ show: false }" x-init="setTimeout(() => show = true, 100)">
         <!-- Lotus Animation -->
-        <div class="mb-8 x-transition" x-show="show"
+        <div class="mb-8 x-transition" x-show="show" x-cloak
              x-transition:enter="transition ease-out duration-700"
              x-transition:enter-start="opacity-0 transform scale-50"
              x-transition:enter-end="opacity-100 transform scale-100">
@@ -25,7 +25,7 @@
         </div>
         
         <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 x-transition"
-            x-show="show"
+            x-show="show" x-cloak
             x-transition:enter="transition ease-out duration-700 delay-200"
             x-transition:enter-start="opacity-0 transform translate-y-8"
             x-transition:enter-end="opacity-100 transform translate-y-0">
@@ -33,7 +33,7 @@
         </h1>
         
         <p class="text-lg md:text-xl text-tubi-200 mb-2 x-transition"
-           x-show="show"
+           x-show="show" x-cloak
            x-transition:enter="transition ease-out duration-700 delay-400"
            x-transition:enter-start="opacity-0"
            x-transition:enter-end="opacity-100">
@@ -41,7 +41,7 @@
         </p>
         
         <p class="text-tubi-300 mb-8 italic x-transition"
-           x-show="show"
+           x-show="show" x-cloak
            x-transition:enter="transition ease-out duration-700 delay-500"
            x-transition:enter-start="opacity-0"
            x-transition:enter-end="opacity-100">
@@ -49,7 +49,7 @@
         </p>
         
         <div class="flex flex-col sm:flex-row gap-4 justify-center x-transition"
-             x-show="show"
+             x-show="show" x-cloak
              x-transition:enter="transition ease-out duration-700 delay-700"
              x-transition:enter-start="opacity-0 transform translate-y-4"
              x-transition:enter-end="opacity-100 transform translate-y-0">
