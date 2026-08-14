@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod bang_xep_hang;
 pub mod chat;
 pub mod community;
 pub mod friends;
@@ -8,7 +9,7 @@ pub mod khong_gian;
 pub mod uploads;
 
 use axum::{
-    extract::State,
+    extract::{Query, State},
     response::{Html, IntoResponse, Redirect, Response},
     Form,
 };
@@ -30,6 +31,11 @@ pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, 
     u.avatar_upload_id, u.role";
 
 /// Helper: Extract authenticated user from session cookie.
+///
+/// v0.9.10: Thêm fallback — nếu SELECT với USER_COLUMNS thất bại
+/// (vd. column i_balance chưa tồn tại trên DB), thử SELECT với minimal columns
+/// rồi populate defaults. Điều này đảm bảo login không bao giờ bị block
+/// chỉ vì schema drift.
 pub async fn get_user_from_session(pool: &PgPool, jar: &CookieJar) -> Option<User> {
     let cookie = jar.get("session_id")?;
     let session_id = cookie.value();
@@ -40,12 +46,88 @@ pub async fn get_user_from_session(pool: &PgPool, jar: &CookieJar) -> Option<Use
          JOIN sessions s ON s.user_id = u.id
          WHERE s.id = $1 AND s.expires_at > NOW() AND u.is_active = true"
     );
-    sqlx::query_as::<_, User>(&sql)
+
+    // Thử SELECT với đầy đủ cột trước.
+    if let Some(user) = sqlx::query_as::<_, User>(&sql)
         .bind(session_id)
         .fetch_optional(pool)
         .await
         .ok()
         .flatten()
+    {
+        return Some(user);
+    }
+
+    // Fallback: SELECT với minimal columns (không i_balance, không role)
+    // rồi populate defaults — đề phòng migration chưa chạy.
+    let minimal_sql = "SELECT u.id, u.email, u.display_name, u.password_hash, u.rank, \
+        u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, \
+        u.google_sub, u.avatar_url, u.email_verified, \
+        u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
+        u.avatar_upload_id \
+        FROM users u \
+        JOIN sessions s ON s.user_id = u.id \
+        WHERE s.id = $1 AND s.expires_at > NOW() AND u.is_active = true";
+
+    sqlx::query_as::<_, UserSessionMinimal>(minimal_sql)
+        .bind(session_id)
+        .fetch_optional(pool)
+        .await
+        .ok()
+        .flatten()
+        .map(|m| m.into_full_user())
+}
+
+/// Minimal user struct cho session fallback — thiếu i_balance + role.
+#[derive(Debug, sqlx::FromRow)]
+struct UserSessionMinimal {
+    id: uuid::Uuid,
+    email: String,
+    display_name: String,
+    password_hash: Option<String>,
+    rank: String,
+    a_balance: i64,
+    k_balance: i64,
+    is_active: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    google_sub: Option<String>,
+    avatar_url: Option<String>,
+    email_verified: bool,
+    phap_danh: Option<String>,
+    phap_hieu: Option<String>,
+    but_danh: Option<String>,
+    gender: String,
+    bio: Option<String>,
+    avatar_upload_id: Option<uuid::Uuid>,
+}
+
+impl UserSessionMinimal {
+    fn into_full_user(self) -> User {
+        User {
+            id: self.id,
+            email: self.email,
+            display_name: self.display_name,
+            password_hash: self.password_hash,
+            rank: self.rank,
+            a_balance: self.a_balance,
+            k_balance: self.k_balance,
+            i_balance: 0,
+            is_active: self.is_active,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            google_sub: self.google_sub,
+            avatar_url: self.avatar_url,
+            email_verified: self.email_verified,
+            phap_danh: self.phap_danh,
+            phap_hieu: self.phap_hieu,
+            but_danh: self.but_danh,
+            gender: self.gender,
+            bio: self.bio,
+            avatar_upload_id: self.avatar_upload_id,
+            role: "member".to_string(),
+        }
+    }
 }
 
 // --- Template Structs ---
@@ -313,9 +395,12 @@ pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Resp
     placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 10")
 }
 
+#[allow(dead_code)]
 pub async fn bang_xep_hang(State(state): State<AppState>, jar: CookieJar) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "", "Bảng Xếp Hạng", "🏆", "Thành tích niệm Phật, tài Phú K, niệm lực A, phiếu Từ Bi", "Giai đoạn 19")
+    // [v0.9.10] Giai đoạn 14 — delegate cho bang_xep_hang handler
+    // Use default tab "a" when accessed from nav
+    let query = bang_xep_hang::TabQuery { tab: None };
+    bang_xep_hang::bang_xep_hang_index(State(state), jar, Query(query)).await
 }
 
 /// API: Heartbeat — keeps session alive (called every 5 min by client JS).
@@ -486,7 +571,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.8 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.10 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

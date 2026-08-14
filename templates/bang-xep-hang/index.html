@@ -1,0 +1,116 @@
+{% extends "layout.html" %}
+
+{% block title %}Bảng Xếp Hạng — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <span class="text-5xl">🏆</span>
+        <h1 class="text-3xl font-bold text-tubi-800 mt-2 mb-1" style="color:#1B5E20">Bảng Xếp Hạng</h1>
+        <p class="text-gray-500 text-sm">Thành tích tu học của cộng đồng Từ Bi</p>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div class="bg-white rounded-xl p-3 border border-gray-100 text-center shadow-sm">
+            <div class="text-xl font-bold text-tubi-700" style="color:#2E7D32">{{ summary.total_users }}</div>
+            <div class="text-xs text-gray-500">Thành viên</div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-gray-100 text-center shadow-sm">
+            <div class="text-xl font-bold text-amber-600">⚡ {{ summary.total_a }}</div>
+            <div class="text-xs text-gray-500">Tổng Niệm Lực A</div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-gray-100 text-center shadow-sm">
+            <div class="text-xl font-bold text-purple-600">💠 {{ summary.total_i }}</div>
+            <div class="text-xs text-gray-500">Tổng Nguyên Lực I</div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-gray-100 text-center shadow-sm">
+            <div class="text-xl font-bold text-green-600">💰 {{ summary.total_k }}</div>
+            <div class="text-xs text-gray-500">Tổng Tài Phú K</div>
+        </div>
+        <div class="bg-white rounded-xl p-3 border border-gray-100 text-center shadow-sm col-span-2 md:col-span-1">
+            <div class="text-xl font-bold text-tubi-700" style="color:#388E3C">🪷 {{ summary.total_niem_all }}</div>
+            <div class="text-xs text-gray-500">Tổng Niệm Phật</div>
+        </div>
+    </div>
+
+    <!-- Tab Navigation (HTMX) -->
+    <div class="flex flex-wrap gap-2 mb-6 justify-center"
+         hx-target="#leaderboard-content" hx-swap="innerHTML">
+        <a href="/bang-xep-hang?tab=a"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                  {% if tab == "a" %}text-white shadow-md{% else %}bg-white text-gray-600 border border-gray-200 hover:border-tubi-300{% endif %}"
+           {% if tab == "a" %}style="background-color:#2E7D32"{% endif %}>
+            ⚡ Niệm Lực A
+        </a>
+        <a href="/bang-xep-hang?tab=i"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                  {% if tab == "i" %}bg-purple-700 text-white shadow-md{% else %}bg-white text-gray-600 border border-gray-200 hover:border-purple-300{% endif %}">
+            💠 Nguyên Lực I
+        </a>
+        <a href="/bang-xep-hang?tab=k"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                  {% if tab == "k" %}bg-green-700 text-white shadow-md{% else %}bg-white text-gray-600 border border-gray-200 hover:border-green-300{% endif %}">
+            💰 Tài Phú K
+        </a>
+        <a href="/bang-xep-hang?tab=today"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                  {% if tab == "today" %}text-white shadow-md{% else %}bg-white text-gray-600 border border-gray-200 hover:border-tubi-300{% endif %}"
+           {% if tab == "today" %}style="background-color:#2E7D32"{% endif %}>
+            🪷 Hôm Nay
+        </a>
+        <a href="/bang-xep-hang?tab=streak"
+           class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                  {% if tab == "streak" %}bg-orange-600 text-white shadow-md{% else %}bg-white text-gray-600 border border-gray-200 hover:border-orange-300{% endif %}">
+            🔥 Streak
+        </a>
+    </div>
+
+    <!-- Leaderboard Content -->
+    <div id="leaderboard-content">
+        {% if entries.is_empty() %}
+        <div class="text-center py-12 text-gray-400">
+            <span class="text-4xl">🪷</span>
+            <p class="mt-2">Chưa có ai trong bảng xếp hạng này.</p>
+            <p class="text-sm">Hãy là người đầu tiên!</p>
+        </div>
+        {% else %}
+        <div class="space-y-2">
+            {% for entry in entries %}
+            <div class="flex items-center gap-3 p-3 rounded-xl border {{ entry.row_class() }} transition hover:shadow-md">
+                <div class="w-8 text-center font-bold
+                            {% if entry.rank <= 3 %}text-amber-600 text-lg{% else %}text-gray-400 text-sm{% endif %}">
+                    {{ entry.medal() }}{{ entry.rank }}
+                </div>
+                {% if entry.avatar_url.is_some() %}
+                <img src="{{ entry.avatar_url.as_deref().unwrap_or("") }}" class="w-10 h-10 rounded-full border-2 border-lotus" referrerpolicy="no-referrer">
+                {% else %}
+                <span class="w-10 h-10 rounded-full bg-lotus flex items-center justify-center text-tubi-900 font-bold text-lg" style="color:#1B5E20">{{ entry.display_name.chars().next().unwrap_or('🪷') }}</span>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                        <span class="font-semibold text-gray-800 truncate">{{ entry.display_name }}</span>
+                        <span class="text-xs" title="{{ entry.user_rank }}">{{ entry.rank_icon() }}</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    {% if tab == "streak" %}
+                    <span class="font-bold text-orange-600">{{ entry.score }} ngày</span>
+                    {% else %}
+                    <span class="font-bold text-tubi-700" style="color:#2E7D32">{{ entry.score }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Footer info -->
+    <div class="mt-8 text-center text-xs text-gray-400">
+        🪷 Bảng Xếp Hạng — Giai đoạn 14 (v0.9.10) · Cập nhật theo thời gian thực<br>
+        1000 A = 1 K · Tu cũng niệm Phật. Chơi cũng niệm Phật.
+    </div>
+</section>
+{% endblock %}

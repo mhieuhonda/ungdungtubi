@@ -494,20 +494,97 @@ async fn upsert_google_user(
 
     // 4. Fallback: nếu INSERT thành công nhưng RETURNING/FromRow fail (vd. column mismatch),
     //    thử SELECT lại theo google_sub để lấy User. Tránh bắn lỗi về client.
-    if let Err(ref e) = insert_result {
-        log::warn!("⚠️ INSERT new Google user fail, thử SELECT fallback: {e}");
-        // Có thể INSERT đã thành công nhưng RETURNING fail → thử SELECT lại.
-        if let Some(u) = sqlx::query_as::<_, User>(&select_sql)
-            .bind(&info.sub)
-            .fetch_optional(pool)
-            .await?
-        {
-            log::info!("✅ SELECT fallback thành công sau khi RETURNING fail");
-            return Ok(u);
+    match insert_result {
+        Ok(user) => Ok(user),
+        Err(ref e) => {
+            log::warn!("⚠️ INSERT new Google user fail, thử SELECT fallback: {e}");
+            // Có thể INSERT đã thành công nhưng RETURNING fail → thử SELECT lại.
+            // Thử trước với USER_COLUMNS (đầy đủ).
+            if let Some(u) = sqlx::query_as::<_, User>(&select_sql)
+                .bind(&info.sub)
+                .fetch_optional(pool)
+                .await?
+            {
+                log::info!("✅ SELECT fallback thành công sau khi RETURNING fail");
+                return Ok(u);
+            }
+            // Nếu vẫn fail (vd. column chưa tồn tại), thử SELECT với cột tối thiểu
+            // rồi populate defaults cho các cột còn thiếu.
+            log::warn!("⚠️ SELECT with USER_COLUMNS cũng fail, thử minimal SELECT...");
+            let minimal_sql = "SELECT id, email, display_name, password_hash, rank, \
+                a_balance, k_balance, is_active, created_at, updated_at, \
+                google_sub, avatar_url, email_verified, \
+                phap_danh, phap_hieu, but_danh, gender, bio, \
+                avatar_upload_id \
+                FROM users WHERE google_sub = $1";
+            if let Some(u) = sqlx::query_as::<_, UserMinimal>(minimal_sql)
+                .bind(&info.sub)
+                .fetch_optional(pool)
+                .await?
+            {
+                log::info!("✅ Minimal SELECT fallback thành công — bổ sung defaults cho i_balance/role");
+                return Ok(u.into_full_user());
+            }
+            // Tất cả đều thất bại → trả lỗi gốc
+            let _ = e; // suppress unused
+            return Err(sqlx::Error::RowNotFound);
         }
     }
+}
 
-    insert_result
+/// Minimal User struct — dùng khi SELECT với USER_COLUMNS thất bại
+/// (vd. column i_balance chưa tồn tại trên DB).
+/// Populate defaults cho các cột còn thiếu.
+#[derive(Debug, sqlx::FromRow)]
+struct UserMinimal {
+    id: uuid::Uuid,
+    email: String,
+    display_name: String,
+    password_hash: Option<String>,
+    rank: String,
+    a_balance: i64,
+    k_balance: i64,
+    is_active: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    google_sub: Option<String>,
+    avatar_url: Option<String>,
+    email_verified: bool,
+    phap_danh: Option<String>,
+    phap_hieu: Option<String>,
+    but_danh: Option<String>,
+    gender: String,
+    bio: Option<String>,
+    avatar_upload_id: Option<uuid::Uuid>,
+}
+
+impl UserMinimal {
+    /// Convert sang User đầy đủ, populate defaults cho i_balance (=0) và role (=member).
+    fn into_full_user(self) -> User {
+        User {
+            id: self.id,
+            email: self.email,
+            display_name: self.display_name,
+            password_hash: self.password_hash,
+            rank: self.rank,
+            a_balance: self.a_balance,
+            k_balance: self.k_balance,
+            i_balance: 0, // Default — column có thể chưa tồn tại
+            is_active: self.is_active,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+            google_sub: self.google_sub,
+            avatar_url: self.avatar_url,
+            email_verified: self.email_verified,
+            phap_danh: self.phap_danh,
+            phap_hieu: self.phap_hieu,
+            but_danh: self.but_danh,
+            gender: self.gender,
+            bio: self.bio,
+            avatar_upload_id: self.avatar_upload_id,
+            role: "member".to_string(), // Default — column có thể chưa tồn tại
+        }
+    }
 }
 
 /// Trang lỗi đơn giản (dùng khi OAuth thất bại).

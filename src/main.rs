@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.9 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.10 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.9 — Giai đoạn 13: Không Gian Cá Nhân & Niệm Phật");
+    log::info!("📦 Phiên bản: v0.9.10 — Giai đoạn 14: Bảng Xếp Hạng & Bug Fixes");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -58,6 +58,24 @@ async fn main() -> std::io::Result<()> {
         .expect("Không thể tạo PostgreSQL pool");
 
     log::info!("✅ PostgreSQL pool đã cấu hình");
+
+    // v0.9.10: Safety schema check — ensure critical columns/tables exist
+    // BEFORE sqlx migrations run. This fixes the "column i_balance does not exist"
+    // login error caused by migration checksum mismatch or partial deploy.
+    // Runs idempotent DDL directly, no dependency on _sqlx_migrations table.
+    {
+        match sqlx::query_scalar::<_, String>("SELECT version()")
+            .fetch_one(&db_pool)
+            .await
+        {
+            Ok(_) => {
+                db::ensure_schema_safety(&db_pool).await;
+            }
+            Err(e) => {
+                log::warn!("⚠️ DB chưa sẵn sàng cho safety check: {e}");
+            }
+        }
+    }
 
     // Auto-run migrations on startup
     // (chỉ chạy khi APP_ENV=production hoặc RUN_MIGRATIONS=true)
@@ -69,7 +87,7 @@ async fn main() -> std::io::Result<()> {
             Ok(()) => log::info!("✅ Migrations đã chạy xong"),
             Err(e) => {
                 log::error!("❌ Lỗi chạy migrations: {e}");
-                log::error!("   Server vẫn khởi động để bạn có thể debug. Tắt RUN_MIGRATIONS để bỏ qua.");
+                log::error!("   Server vẫn khởi động. Safety schema đã chạy ở trên nên các cột quan trọng đã tồn tại.");
             }
         }
     } else {
@@ -219,7 +237,9 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         .route("/thuong-thanh", get(handlers::thuong_thanh))
-        .route("/bang-xep-hang", get(handlers::bang_xep_hang))
+        .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
+        // Routes — Bảng Xếp Hạng (v0.9.10 — Giai đoạn 14)
+        .route("/api/bang-xep-hang/stats", get(handlers::bang_xep_hang::bang_xep_hang_stats_api))
         // Routes — Hồ sơ cá nhân
         .route("/ca-nhan", get(handlers::ca_nhan))
         .route("/ca-nhan/cap-nhat", post(handlers::cap_nhat_ho_so))
@@ -292,11 +312,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.9",
+        "version": "0.9.10",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 13,
-        "phase_name": "Giai đoạn 13 — Không Gian Cá Nhân & Niệm Phật",
+        "phase": 14,
+        "phase_name": "Giai đoạn 14 — Bảng Xếp Hạng & Thống Kê Tu Học",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -327,7 +347,10 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "niem-phat-counter",
             "tuong-phat-vows",
             "practice-diary",
-            "i-balance-nguyen-luc"
+            "i-balance-nguyen-luc",
+            "bang-xep-hang",
+            "leaderboard-rankings",
+            "practice-stats"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],

@@ -6,6 +6,76 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.10] — 2026-08-14 — Giai đoạn 14: Bảng Xếp Hạng & Bug Fixes
+
+### Thêm (Features — Giai đoạn 14: Bảng Xếp Hạng & Thống Kê)
+
+- **[FEAT-1] Chuyên mục Bảng Xếp Hạng chính thức ra mắt** (`/bang-xep-hang`)
+  - Bỏ placeholder "Giai đoạn 19", thay bằng trang leaderboard đầy đủ
+  - 5 tabs: Niệm Lực A · Nguyên Lực I · Tài Phú K · Hôm Nay · Streak
+
+- **[FEAT-2] Leaderboard — Top Niệm Lực A** (tab mặc định)
+  - `SELECT ... ORDER BY a_balance DESC` — top 50 active users
+  - Hiển thị medal 🥇🥈🥉 cho top 3, highlight hàng đặc biệt
+
+- **[FEAT-3] Leaderboard — Top Nguyên Lực I**
+  - `SELECT ... ORDER BY i_balance DESC` — top 50 active users có I > 0
+  - Phần thưởng từ Tượng Phật (cầu nguyện / sám hối / hồi hướng)
+
+- **[FEAT-4] Leaderboard — Top Tài Phú K**
+  - `SELECT ... ORDER BY k_balance DESC` — top 50 active users có K > 0
+
+- **[FEAT-5] Leaderboard — Top Niệm Phật Hôm Nay**
+  - JOIN practice_logs WHERE log_date = CURRENT_DATE — top 50
+  - Hiển thị số lần niệm trong ngày
+
+- **[FEAT-6] Leaderboard — Top Streak**
+  - SQL window function tính số ngày liên tiếp tu học
+  - Điều kiện: ngày cuối cùng ≥ yesterday (streak còn hiệu lực)
+
+- **[FEAT-7] Summary Stats**
+  - Tổng users, tổng A, tổng I, tổng K, tổng niệm Phật
+  - Hiển thị trên dashboard head của trang
+
+- **[FEAT-8] API endpoint** `GET /api/bang-xep-hang/stats` — JSON tổng quan
+
+### Sửa (Bug Fixes — CRITICAL)
+
+- **[FIX-1] CRITICAL: Fix lỗi đăng nhập "column i_balance does not exist" (Database 42703)**
+  - Nguyên nhân: migration 015 chưa chạy trên production (checksum mismatch / partial deploy)
+  - Giải pháp triệt để:
+    1. Thêm `db::ensure_schema_safety()` chạy TRƯỚC sqlx migrations — chạy trực tiếp
+       `ALTER TABLE users ADD COLUMN IF NOT EXISTS i_balance` (idempotent)
+    2. Thêm fallback trong `get_user_from_session()`: nếu SELECT với USER_COLUMNS thất bại,
+       thử SELECT với minimal columns rồi populate defaults cho i_balance/role
+    3. Thêm fallback tương tự trong `auth.rs::upsert_google_user()`:
+       nếu INSERT RETURNING thất bại, thử SELECT fallback, rồi minimal SELECT fallback
+  - Kết quả: đăng nhập sẽ KHÔNG BAO GIỜ bị block chỉ vì schema drift
+
+- **[FIX-2] Fix `AdminUserRow` thiếu `i_balance` trong SELECT/struct**
+  - Thêm `i_balance: i64` vào struct và `COALESCE(u.i_balance, 0) AS i_balance` vào query
+
+- **[FIX-3] Fix mọi stale version strings**
+  - Cargo.toml: 0.9.9 → 0.9.10
+  - main.rs: v0.9.9 → v0.9.10 (3 locations + health check)
+  - templates/layout.html: v0.9.8 → v0.9.10
+  - templates/admin/ky-thuat: v0.9.8 → v0.9.10
+  - templates/admin/quan-li: v0.9.8 → v0.9.10
+  - handlers/mod.rs footer: v0.9.8 → v0.9.10
+
+- **[FIX-4] Safety schema check ensures critical columns/tables always exist**
+  - `i_balance` on users, `role` on users, `practice_logs`, `buddha_vows`, `permissions`, `role_permissions`
+  - Chạy idempotent DDL trực tiếp, không phụ thuộc sqlx migration tracking
+
+### Routes mới
+
+| Method | Path | Mô tả | Auth |
+|--------|------|-------|------|
+| GET | `/bang-xep-hang` | Trang Bảng Xếp Hạng (5 tabs) | Public |
+| GET | `/api/bang-xep-hang/stats` | JSON tổng quan | Public |
+
+---
+
 ## [0.9.9] — 2026-08-14 — Giai đoạn 13: Không Gian Cá Nhân & Niệm Phật
 
 ### Thêm (Features — Giai đoạn 13: Không Gian Cá Nhân)
