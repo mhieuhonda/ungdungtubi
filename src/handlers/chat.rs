@@ -260,6 +260,9 @@ async fn handle_chat_socket(
         group_id
     );
 
+    // Clone sender TRƯỚC khi move vào send_task — dùng để gửi error trực tiếp cho client
+    let mut err_sender = sender.clone();
+
     // send_task: forward broadcast → client
     let send_task = tokio::spawn(async move {
         loop {
@@ -289,9 +292,6 @@ async fn handle_chat_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
-
-    // Clone sender để gửi error trực tiếp cho client (không broadcast cho tất cả)
-    let mut err_sender = sender.clone();
 
     while let Some(msg_result) = receiver.next().await {
         let Ok(msg) = msg_result else { break };
@@ -487,6 +487,9 @@ async fn handle_global_chat_socket(
 
     log::info!("💬 Global WS connected: user={}", user.id);
 
+    // Clone sender TRƯỚC khi move vào send_task — dùng để gửi error trực tiếp cho client
+    let mut err_sender = sender.clone();
+
     // send_task: forward broadcast → client
     let send_task = tokio::spawn(async move {
         loop {
@@ -513,9 +516,6 @@ async fn handle_global_chat_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
-
-    // Clone sender để gửi error trực tiếp
-    let mut err_sender = sender.clone();
 
     while let Some(msg_result) = receiver.next().await {
         let Ok(msg) = msg_result else { break };
