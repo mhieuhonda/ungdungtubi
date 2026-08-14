@@ -20,5 +20,5 @@
 #   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.6 — commit 56560dd (fix Docker image: thêm wget cho Coolify healthcheck)
-FROM ghcr.io/mhieuhonda/tubi-app:sha-56560dd
+# v0.9.6 — commit c2740da (simplified migration 012 — bỏ pg_trgm DO blocks)
+FROM ghcr.io/mhieuhonda/tubi-app:sha-c2740da
