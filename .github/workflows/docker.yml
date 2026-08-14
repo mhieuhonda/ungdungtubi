@@ -97,8 +97,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha  # disabled — GHA cache service unstable (400 errors)
+          # cache-to: type=gha,mode=max  # disabled — failure here fails the whole build
           provenance: false
           sbom: false
 

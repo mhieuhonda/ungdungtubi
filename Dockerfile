@@ -34,10 +34,18 @@ COPY src/ ./src/
 COPY templates/ ./templates/
 COPY migrations/ ./migrations/
 
+# ⚠️ Force cargo to recompile src/ (docker COPY có thể preserve old mtime,
+# khiến cargo nghĩ src/main.rs không đổi từ bản dummy → binary cuối là "dummy").
+# Touch tất cả .rs để cập nhật mtime, buộc cargo recompile main crate.
+RUN find src/ -name "*.rs" -exec touch {} +
+
 # Build binary release (LTO + strip đã config trong Cargo.toml)
 ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin ungdungtubi && \
-    cp target/release/ungdungtubi /build/ungdungtubi
+    cp target/release/ungdungtubi /build/ungdungtubi && \
+    test -f /build/ungdungtubi && \
+    strings /build/ungdungtubi | grep -q "Ứng Dụng Từ Bi" || \
+    (echo "ERROR: binary không chứa string 'Ứng Dụng Từ Bi' — có vẻ là dummy binary!" && exit 1)
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
