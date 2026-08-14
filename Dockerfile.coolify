@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ────────────────────────────────────────────────────────────────────────────
-# Dockerfile.coolify — Pull pre-built image từ GHCR (CI/CD v0.9.4)
+# Dockerfile.coolify — Pull pre-built image từ GHCR (CI/CD v0.9.4+)
 #
 # Coolify v4.1.2 API chỉ cho phép build_pack ∈ {dockerfile, nixpacks} — không
 # cho phép set "dockerimage" qua API. Workaround: dùng một Dockerfile tối giản
@@ -10,10 +10,15 @@
 # Image thật được build bởi GitHub Actions (xem ./Dockerfile) và push lên
 # ghcr.io/mhieuhonda/tubi-app. Coolify chỉ pull image đó, không build từ source.
 #
+# [v0.9.5] Reference specific sha tag thay vì :latest để đảm bảo Coolify pull
+# đúng image mới nhất (tránh Docker daemon cache stale digest khi :latest
+# chưa propagate ngay sau GitHub Actions push).
+#
 # Lợi ích:
 #   - Không tốn CPU/RAM VPS để build Rust (build trên GitHub-hosted runner)
 #   - Deploy nhanh (~10-30s pull + restart)
 #   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
 # ────────────────────────────────────────────────────────────────────────────
 
-FROM ghcr.io/mhieuhonda/tubi-app:latest
+# v0.9.5 — commit 8f8aa8e
+FROM ghcr.io/mhieuhonda/tubi-app:sha-8f8aa8e
