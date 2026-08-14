@@ -165,6 +165,31 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Bug fixes**: Fix live chat tổng luôn báo "đang kết nối..." (bỏ check `document.cookie.includes('session_id')` vì cookie HttpOnly không đọc được qua `document.cookie`); thêm server-side logging cho WS errors; fix version strings v0.9.3 → v0.9.5
 - **Mục tiêu:** Thành viên có thể kết bạn, nhắn tin realtime 1-1, gửi thư dài, nhận thông báo — bù lỗ hổng social của v0.9.4
 
+### Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng ✅ (v0.9.7)
+- **Lần đầu tiên app có hệ thống phân quyền rõ ràng** — 4 vai trò:
+  - `member` — Thành Viên (mặc định)
+  - `admin_ky_thuat` — Admin Kỹ Thuật (hệ thống, server, DB, mã nguồn)
+  - `admin_cong_dong` — Admin Cộng Đồng (duyệt nội dung, mod diễn đàn)
+  - `admin_quan_li` — Admin Quản Lý (super admin — quyền cao nhất)
+- **Hierarchy:** Admin Quản Lý > Admin Cộng Đồng > Admin Kỹ Thuật > Thành Viên
+- **Migration 013**: thêm cột `role` vào `users` + CHECK constraint + index
+  + UPSERT `khongdich.admin@gmail.com` → `admin_ky_thuat`
+- **Hiển thị chức vụ trên hồ sơ** (`/ca-nhan`) — role badge bên cạnh rank badge,
+  trong bảng Thông Tin Tài Khoản, và nút "Vào trang Quản Trị" (chỉ admin)
+- **Hiển thị chức vụ trong header** — role badge nhỏ + link "⚙️ Quản Trị"
+  (chỉ admin nhìn thấy)
+- **Trang Quản Trị** `/admin`:
+  - Dashboard: tổng users, active users, admin count, groups/topics/comments/books/mails,
+    cảm ngộ chờ duyệt
+  - `/admin/thanh-vien` — Danh sách thành viên + UI đổi role (chỉ Admin Quản Lý)
+  - `POST /admin/thanh-vien/{user_id}/role` — Đổi role user
+  - Permission gate: user không phải admin → 403 Forbidden
+- **User model** mở rộng: 8 helper methods (`role_display`, `role_icon`, `role_color`,
+  `role_level`, `is_admin`, `is_admin_ky_thuat`, `is_admin_cong_dong`, `is_admin_quan_li`)
+- **Health check** `/api/health` thêm `admin` stats + `roles` object
+- **Mục tiêu:** Hệ thống có admin rõ ràng, có trang quản trị cơ bản, nền tảng
+  cho các giai đoạn tiếp theo (duyệt cảm ngộ, mod community, ban user, ...)
+
 ### Giai đoạn 10: Kinh Sách — Thư viện kinh sách Phật giáo & Đạo giáo ✅ (v0.9.6)
 - **Chuyên mục Kinh Sách chính thức ra mắt** — không còn placeholder
 - **5 Thư Viện Chính** (theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục IV):
@@ -196,11 +221,11 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Health check** bổ sung `kinh_sach` stats (số sách, chương, cảm ngộ, tổng view)
 - **Mục tiêu:** Thành viên có thể đọc kinh sách online, viết cảm ngộ, tặng hoa kính dâng — bù lỗ hổng kiến thức của v0.9.5
 
-### Giai đoạn 11–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 12–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 10 / v0.9.6)
+## Cấu Trúc Dự Án (Giai đoạn 11 / v0.9.7)
 
 ```
 ungdungtubi/
@@ -212,16 +237,17 @@ ungdungtubi/
 │   ├── errors/
 │   │   └── mod.rs           # AppError enum with HTTP response mapping
 │   ├── handlers/
-│   │   ├── mod.rs           # Page handlers + session auth + profile update
+│   │   ├── mod.rs           # Page handlers + session auth + profile update + placeholder pages
 │   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
 │   │   ├── chat.rs          # Live Chat WebSocket + chat-history REST + ChatHub + GlobalChatHub
 │   │   ├── community.rs     # Groups + Topics + Comments handlers + group cover upload
 │   │   ├── kinh_sach.rs     # [v0.9.6] Kinh Sách (Books + Chapters + Reviews + Flowers)
 │   │   ├── friends.rs       # [v0.9.5] Friends + DM + Mail + Notifications
-│   │   └── uploads.rs       # Upload ảnh API + change avatar (5MB max, SHA-256)
+│   │   ├── uploads.rs       # Upload ảnh API + change avatar (5MB max, SHA-256)
+│   │   └── admin.rs         # [v0.9.7] Admin panel: dashboard + user list + role management
 │   ├── models/
 │   │   ├── mod.rs
-│   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
+│   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate + role helpers (v0.9.7)
 │   │   ├── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, ChatMessage
 │   │   ├── friends.rs       # [v0.9.5] Friendship, Conversation, DirectMessage, Mail, Notification
 │   │   └── kinh_sach.rs     # [v0.9.6] Book, BookChapter, BookReview, BookCategory
@@ -235,6 +261,9 @@ ungdungtubi/
 │   ├── profile.html
 │   ├── auth/
 │   │   └── login.html
+│   ├── admin/                # [v0.9.7] Admin panel (dashboard + user list + role UI)
+│   │   ├── index.html
+│   │   └── users.html
 │   ├── community/            # Cộng Đồng (groups + topics + comments + live chat)
 │   │   ├── index.html
 │   │   ├── group.html
@@ -247,7 +276,7 @@ ungdungtubi/
 │       ├── search.html
 │       ├── book.html
 │       └── chapter.html
-├── migrations/                # 12 migration files
+├── migrations/                # 13 migration files
 │   ├── 001_create_users_sessions.sql
 │   ├── 002_google_oauth.sql
 │   ├── 003_member_profile_ranks.sql
@@ -259,11 +288,12 @@ ungdungtubi/
 │   ├── 009_conversations_direct_messages.sql
 │   ├── 010_mails.sql
 │   ├── 011_notifications.sql
-│   └── 012_kinh_sach.sql
+│   ├── 012_kinh_sach.sql
+│   └── 013_admin_roles.sql      # [v0.9.7] Hệ thống vai trò Admin (member/admin_ky_thuat/admin_cong_dong/admin_quan_li)
 ├── .github/workflows/
 │   └── docker.yml            # [v0.9.4] Build & push GHCR (ghcr.io/mhieuhonda/tubi-app) + trigger Coolify API
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.9.6, Rust 1.97, axum ws feature, release profile tối ưu
+├── Cargo.toml                # v0.9.7, Rust 1.97, axum ws feature, release profile tối ưu
 ├── Cargo.lock                # Lock file (commit cho reproducible build)
 ├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB
 ├── docker-compose.yml        # Dev environment (Postgres 17 + app)
@@ -357,7 +387,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - v0.9.1 — Bỏ GitHub Actions, chuyển sang deploy thủ công qua Coolify (build từ source trên VPS)
 - v0.9.4 — Quay lại GitHub Actions nhưng với mô hình Docker Image (Coolify pull image, không build từ source)
 
-## Routes (v0.9.6)
+## Routes (v0.9.7)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -391,6 +421,9 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 | GET | `/kinh-sach/{slug}/chuong/{chapter_slug}` | **[v0.9.6]** Đọc chương (sidebar mục lục) | Public |
 | POST | `/kinh-sach/{slug}/cam-ngo` | **[v0.9.6]** Gửi cảm ngộ (min 100 chữ, chờ duyệt) | Auth |
 | POST | `/kinh-sach/{slug}/tang-hoa` | **[v0.9.6]** Tặng hoa (1 user/sách) | Auth |
+| GET | `/admin` | **[v0.9.7]** Trang Quản Trị (dashboard + stats) | Auth + admin |
+| GET | `/admin/thanh-vien` | **[v0.9.7]** Danh sách thành viên + role | Auth + admin |
+| POST | `/admin/thanh-vien/{user_id}/role` | **[v0.9.7]** Đổi role user (chỉ Admin Quản Lý) | Auth + admin_quan_li |
 | GET | `/quy-tu-bi` | Quỹ Từ Bi (placeholder) | Public |
 | GET | `/thuong-thanh` | Thương Thành (placeholder) | Public |
 | GET | `/bang-xep-hang` | Bảng Xếp Hạng (placeholder) | Public |
@@ -414,6 +447,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.4** — Giai đoạn 8: CI/CD tự động (GitHub Actions build & push Docker Image lên GHCR → Coolify auto pull & deploy)
 - **v0.9.5** — Giai đoạn 9: Module Bạn Bè (Friends + DM 1-1 WebSocket + Mail + Notifications) + Fix live chat bugs (HttpOnly cookie check)
 - **v0.9.6** — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo — 5 thư viện + Books + Chapters + Reviews + Flowers + Search)
+- **v0.9.7** — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng (4 roles + admin panel + role display trên profile/header)
 
 ---
 

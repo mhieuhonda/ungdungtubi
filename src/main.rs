@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.6 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.7 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.6 — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)");
+    log::info!("📦 Phiên bản: v0.9.7 — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -218,6 +218,10 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/ca-nhan", get(handlers::ca_nhan))
         .route("/ca-nhan/cap-nhat", post(handlers::cap_nhat_ho_so))
         .route("/ca-nhan/doi-anh-dai-dien", post(handlers::uploads::change_avatar))
+        // Routes — Admin (v0.9.7 — Giai đoạn 11)
+        .route("/admin", get(handlers::admin))
+        .route("/admin/thanh-vien", get(handlers::admin::admin_users_list))
+        .route("/admin/thanh-vien/{user_id}/role", post(handlers::admin::admin_change_role))
         // Group cover image change (v0.9.3)
         .route(
             "/cong-dong/nhom/{slug}/doi-anh",
@@ -274,13 +278,16 @@ async fn health_check(State(state): State<AppState>) -> Response {
     // Kinh Sách stats (v0.9.6 — Giai đoạn 10)
     let kinh_sach_stats = handlers::kinh_sach::kinh_sach_stats(&state.pool).await;
 
+    // Admin stats (v0.9.7 — Giai đoạn 11)
+    let admin_stats = fetch_admin_stats_summary(&state.pool).await;
+
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.6",
+        "version": "0.9.7",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 10,
-        "phase_name": "Giai đoạn 10 — Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)",
+        "phase": 11,
+        "phase_name": "Giai đoạn 11 — Hệ thống vai trò Admin & Phân quyền cộng đồng",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -299,16 +306,55 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "scripture-library",
             "book-chapters",
             "book-reviews",
-            "book-flowers"
+            "book-flowers",
+            "admin-roles",
+            "admin-panel",
+            "role-based-permissions"
         ],
+        "roles": {
+            "hierarchy": ["admin_quan_li", "admin_cong_dong", "admin_ky_thuat", "member"],
+            "default": "member",
+            "admin_panel_access": ["admin_quan_li", "admin_cong_dong", "admin_ky_thuat"]
+        },
         "database": {
             "status": db_status,
             "version": db_version,
         },
         "kinh_sach": kinh_sach_stats,
+        "admin": admin_stats,
         "message": "Nguyện công đức vô lượng. Nam Mô A Di Đà Phật."
     }))
     .into_response()
+}
+
+/// Helper: fetch admin stats summary for /api/health.
+/// Bất kỳ lỗi nào → trả về zeros (không fail health check).
+async fn fetch_admin_stats_summary(pool: &sqlx::PgPool) -> serde_json::Value {
+    let row: Result<(i64, i64, i64), _> = sqlx::query_as(
+        "SELECT
+            COUNT(*)::BIGINT,
+            COUNT(*) FILTER (WHERE is_active)::BIGINT,
+            COUNT(*) FILTER (WHERE role != 'member')::BIGINT
+         FROM users",
+    )
+    .fetch_one(pool)
+    .await;
+
+    match row {
+        Ok((total, active, admins)) => serde_json::json!({
+            "total_users": total,
+            "active_users": active,
+            "admins": admins,
+            "status": "ok"
+        }),
+        Err(e) => {
+            log::warn!("⚠️ Health check: admin stats query failed: {e}");
+            serde_json::json!({
+                "status": "error",
+                "error": e.to_string()
+            })
+        }
+    }
 }
 
 /// Graceful shutdown signal handler — listens for Ctrl+C / SIGTERM.

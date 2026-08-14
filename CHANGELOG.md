@@ -6,6 +6,111 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.7] — 2026-08-14 — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng
+
+### Thêm (Features)
+
+- **[FEAT-1] Hệ thống phân quyền 4 cấp** — lần đầu tiên app có vai trò quản trị rõ ràng
+  - `member` — Thành Viên (mặc định)
+  - `admin_ky_thuat` — Admin Kỹ Thuật (hệ thống, server, DB, mã nguồn)
+  - `admin_cong_dong` — Admin Cộng Đồng (duyệt nội dung, mod diễn đàn)
+  - `admin_quan_li` — Admin Quản Lý (super admin — quyền cao nhất)
+  - Hierarchy: Admin Quản Lý > Admin Cộng Đồng > Admin Kỹ Thuật > Thành Viên
+
+- **[FEAT-2] Migration 013**: `013_admin_roles.sql`
+  - Thêm cột `role VARCHAR(30) NOT NULL DEFAULT 'member'` vào bảng `users`
+  - CHECK constraint: `role IN ('member', 'admin_ky_thuat', 'admin_cong_dong', 'admin_quan_li')`
+  - Index `idx_users_role` cho truy vấn nhanh
+  - UPSERT `khongdich.admin@gmail.com` → `admin_ky_thuat` (theo yêu cầu dự án)
+  - Khi user này đăng nhập Google lần đầu, `google_sub` được tự động link vào record
+    hiện có (qua logic `upsert_google_user`), giữ nguyên role `admin_ky_thuat`
+
+- **[FEAT-3] Hiển thị chức vụ trên hồ sơ** (`templates/profile.html`)
+  - Role badge mới bên cạnh rank badge, dùng màu + icon riêng:
+    - 👑 Admin Quản Lý (vàng cam #FF6F00)
+    - 🛡️ Admin Cộng Đồng (xanh dương #1565C0)
+    - ⚙️ Admin Kỹ Thuật (tím #6A1B9A)
+    - 🪷 Thành Viên (xanh lá #2E7D32)
+  - Mục "Chức vụ" mới trong bảng Thông Tin Tài Khoản
+  - Nút "Vào trang Quản Trị" (chỉ hiện với admin) ở cuối bảng
+
+- **[FEAT-4] Hiển thị chức vụ trong header** (`templates/layout.html`)
+  - Desktop header: role badge nhỏ bên cạnh tên user
+  - Mobile menu: hiển thị role + link /admin
+  - Link "⚙️ Quản Trị" trong header (chỉ admin nhìn thấy)
+
+- **[FEAT-5] Trang Quản Trị** (`/admin`)
+  - `GET /admin` — Dashboard với stats: tổng users, active users, admin count,
+    tổng groups/topics/comments/books/mails, cảm ngộ chờ duyệt
+  - `GET /admin/thanh-vien` — Danh sách thành viên + role + rank + trạng thái
+    (sort theo role hierarchy: admin_quan_li → admin_cong_dong → admin_ky_thuat → member)
+  - `POST /admin/thanh-vien/{user_id}/role` — Đổi role user
+    - **Chỉ Admin Quản Lý mới được đổi role user khác**
+    - Không cho admin tự demote chính mình (tránh khoá mình ra khỏi hệ thống)
+    - Validate role phải thuộc 4 giá trị hợp lệ
+  - Permission gate: user không phải admin → render 403 Forbidden page
+
+- **[FEAT-6] User model mở rộng** (`src/models/user.rs`)
+  - Thêm field `role: String`
+  - Helper methods:
+    - `role_display()` → "Thành Viên" / "Admin Kỹ Thuật" / "Admin Cộng Đồng" / "Admin Quản Lý"
+    - `role_icon()` → 🪷 / ⚙️ / 🛡️ / 👑
+    - `role_color()` → hex color cho badge
+    - `role_level()` → 1-4 (dùng để so sánh quyền)
+    - `is_admin()` — true nếu user là bất kỳ admin nào
+    - `is_admin_ky_thuat()` / `is_admin_cong_dong()` / `is_admin_quan_li()` — check chính xác role
+    - `can_manage_technical()` — admin_ky_thuat trở lên
+    - `can_manage_community()` — admin_cong_dong trở lên
+
+- **[FEAT-7] Health check endpoint** mở rộng
+  - `/api/health` giờ trả về thêm `admin` stats (total_users, active_users, admins)
+  - `roles` object mô tả hierarchy + admin panel access
+  - `phase: 11`, `version: "0.9.7"`
+  - `features` list thêm: `admin-roles`, `admin-panel`, `role-based-permissions`
+
+- **[FEAT-8] Placeholder pages** (handlers/mod.rs `render_user_menu_html`,
+  `render_mobile_user_menu_html`) — giờ hiển thị role badge + link /admin nếu user là admin
+
+### Sửa (Bug Fixes)
+
+- Không có bug nghiêm trọng trong giai đoạn này — đây là giai đoạn feature-driven
+  nên không có regression nào từ v0.9.6.
+
+### Thay đổi (Changes)
+
+- `Cargo.toml` — version `0.9.6` → `0.9.7`
+- `Cargo.lock` — sync version
+- `src/main.rs` — version string, phase number, thêm routes `/admin/*`, thêm
+  `fetch_admin_stats_summary()` helper cho health check
+- `src/handlers/mod.rs` — `USER_COLUMNS` thêm `u.role`; thêm `admin` module;
+  thêm `handlers::admin` delegate function; `render_user_menu_html` và
+  `render_mobile_user_menu_html` giờ hiển thị role badge + link /admin
+- `src/handlers/admin.rs` — file mới (~400 dòng): handlers + templates structs
+  + helpers cho /admin, /admin/thanh-vien, /admin/thanh-vien/{id}/role
+- `src/models/user.rs` — thêm field `role` + 8 helper methods
+- `templates/profile.html` — thêm role badge + "Chức vụ" trong account info +
+  nút "Vào trang Quản Trị"
+- `templates/layout.html` — role badge trong header + mobile menu + link /admin
+- `templates/admin/index.html` — file mới: dashboard admin
+- `templates/admin/users.html` — file mới: danh sách thành viên + UI đổi role
+- `templates/layout.html` + `src/handlers/mod.rs` — footer version `v0.9.6` → `v0.9.7`
+- `Dockerfile.coolify` — comment update + dùng `:latest` tag (sẽ được GH Actions
+  update tự động)
+- `migrations/013_admin_roles.sql` — file mới: schema cho role system
+- `README.md` — thêm Giai đoạn 11 + update version references
+- `CHANGELOG.md` — entry v0.9.7
+
+### Mục tiêu đạt được
+
+- ✅ Email `khongdich.admin@gmail.com` được gán `admin_ky_thuat` qua migration seed
+- ✅ Chức vụ hiển thị trên hồ sơ (bên cạnh rank badge + trong account info)
+- ✅ Hierarchy rõ ràng: Admin Quản Lý > Admin Cộng Đồng > Admin Kỹ Thuật > Thành Viên
+- ✅ Trang /admin cơ bản (dashboard + user list + đổi role)
+- ✅ Permission gate: chỉ admin mới vào /admin được
+- ✅ Build pipeline giữ nguyên (GitHub Actions → GHCR → Coolify auto-deploy)
+
+---
+
 ## [0.9.6] — 2026-08-14 — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)
 
 ### Thêm (Features)

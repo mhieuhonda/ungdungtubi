@@ -112,12 +112,23 @@
                             {{ u.display_name.chars().next().unwrap_or('🪷') }}
                         </span>
                         {% endif %}
-                        <span class="text-tubi-100 text-sm" title="{{ u.rank_display() }}">
+                        <span class="text-tubi-100 text-sm" title="{{ u.rank_display() }} · {{ u.role_display() }}">
                             {{ u.rank_icon() }} {{ u.display_name }}
+                            {% if u.is_admin() %}
+                            <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                  style="background-color: {{ u.role_color() }}; color: white">
+                                {{ u.role_icon() }} {{ u.role_display() }}
+                            </span>
+                            {% endif %}
                         </span>
                         <a href="/ca-nhan" class="text-tubi-200 hover:text-white text-sm transition-colors">
                             Hồ sơ
                         </a>
+                        {% if u.is_admin() %}
+                        <a href="/admin" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Quản Trị">
+                            ⚙️ Quản Trị
+                        </a>
+                        {% endif %}
                         <a href="/ban-be" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Bạn Bè">
                             👤 Bạn Bè
                         </a>
@@ -160,6 +171,17 @@
                 {% else %}
                 <div class="pt-2 border-t border-tubi-700">
                     <a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Hồ sơ cá nhân</a>
+                    {% if let Some(u) = user %}
+                    {% if u.is_admin() %}
+                    <a href="/admin" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">
+                        {{ u.role_icon() }} Quản Trị
+                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
+                              style="background-color: {{ u.role_color() }}; color: white">
+                            {{ u.role_display() }}
+                        </span>
+                    </a>
+                    {% endif %}
+                    {% endif %}
                     <form action="/dang-xuat" method="POST" class="block">
                         <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">🚪 Thoát</button>
                     </form>
@@ -246,7 +268,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.6 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod auth;
 pub mod chat;
 pub mod community;
@@ -19,11 +20,12 @@ use crate::models::user::{MemberRank, ProfileUpdate, User};
 
 /// Danh sách cột users đầy đủ (đồng bộ với model User).
 /// Tránh drift khi SELECT * — luôn liệt kê rõ ràng các cột.
+/// v0.9.7: thêm `u.role` (Giai đoạn 11 — Hệ thống vai trò Admin).
 pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
     u.a_balance, u.k_balance, u.is_active, u.created_at, u.updated_at, \
     u.google_sub, u.avatar_url, u.email_verified, \
     u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
-    u.avatar_upload_id";
+    u.avatar_upload_id, u.role";
 
 /// Helper: Extract authenticated user from session cookie.
 pub async fn get_user_from_session(pool: &PgPool, jar: &CookieJar) -> Option<User> {
@@ -296,6 +298,11 @@ pub async fn kinh_sach(State(state): State<AppState>, jar: CookieJar) -> Respons
     kinh_sach::kinh_sach_index(State(state), jar).await
 }
 
+pub async fn admin(State(state): State<AppState>, jar: CookieJar) -> Response {
+    // [v0.9.7] Giai đoạn 11 — delegate cho admin handler
+    admin::admin_index(State(state), jar).await
+}
+
 pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
     placeholder_page(user.as_ref(), "", "Quỹ Từ Bi", "🪷", "Quỹ chung cộng đồng — quyên góp, phát quà, hỗ trợ mạnh thường quân", "Giai đoạn 10")
@@ -479,7 +486,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.6 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -517,6 +524,7 @@ fn placeholder_page(
 }
 
 /// Helper: render HTML cho menu user ở header desktop.
+/// v0.9.7: hiển thị thêm role badge nếu user là admin.
 #[allow(clippy::option_if_let_else)]
 fn render_user_menu_html(user: Option<&User>) -> String {
     if let Some(u) = user {
@@ -538,12 +546,26 @@ fn render_user_menu_html(user: Option<&User>) -> String {
         html.push_str(&avatar_html);
         html.push_str("<span class=\"text-tubi-100 text-sm\" title=\"");
         html.push_str(u.rank_display());
+        html.push_str(" · ");
+        html.push_str(u.role_display());
         html.push_str("\">");
         html.push_str(u.rank_icon());
         html.push(' ');
         html.push_str(&u.display_name);
+        // Role badge (chỉ hiện với admin) — v0.9.7
+        if u.is_admin() {
+            html.push_str(&format!(
+                r#"<span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold" style="background-color:{}; color:white">{} {}</span>"#,
+                u.role_color(),
+                u.role_icon(),
+                u.role_display()
+            ));
+        }
         html.push_str("</span>");
         html.push_str("<a href=\"/ca-nhan\" class=\"text-tubi-200 hover:text-white text-sm transition-colors\">Hồ sơ</a>");
+        if u.is_admin() {
+            html.push_str("<a href=\"/admin\" class=\"text-tubi-200 hover:text-white text-sm transition-colors\" title=\"Quản Trị\">⚙️ Quản Trị</a>");
+        }
         html.push_str("<a href=\"#\" onclick=\"event.preventDefault(); document.getElementById(&#39;logout-form-desktop&#39;).submit();\" \
                        class=\"bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer\">Thoát</a>");
         html.push_str("<form id=\"logout-form-desktop\" action=\"/dang-xuat\" method=\"POST\" class=\"hidden\"></form>");
@@ -558,15 +580,27 @@ fn render_user_menu_html(user: Option<&User>) -> String {
 }
 
 /// Helper: render HTML cho menu user ở mobile menu.
+/// v0.9.7: thêm role badge + link /admin nếu user là admin.
 fn render_mobile_user_menu_html(user: Option<&User>) -> String {
     user.map_or_else(
         || r#"<a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>"#
             .to_string(),
-        |_| r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">Hồ sơ cá nhân</a>
-           <form action="/dang-xuat" method="POST" class="block">
-               <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">Thoát</button>
-           </form>"#
-            .to_string(),
+        |u| {
+            let mut html = String::new();
+            html.push_str(r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Hồ sơ cá nhân</a>"#);
+            if u.is_admin() {
+                html.push_str(&format!(
+                    r#"<a href="/admin" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">{} Quản Trị <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold" style="background-color:{}; color:white">{}</span></a>"#,
+                    u.role_icon(),
+                    u.role_color(),
+                    u.role_display()
+                ));
+            }
+            html.push_str(r#"<form action="/dang-xuat" method="POST" class="block">
+               <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">🚪 Thoát</button>
+           </form>"#);
+            html
+        },
     )
 }
 

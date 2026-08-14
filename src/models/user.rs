@@ -12,6 +12,12 @@ use uuid::Uuid;
 /// đăng ký bằng email/password trước đây.
 ///
 /// Từ v0.4, thêm các trường hồ sơ: `phap_danh`, `phap_hieu`, `but_danh`, gender, bio.
+///
+/// Từ v0.9.7 (Giai đoạn 11), thêm trường `role` cho hệ thống phân quyền:
+///   - `member`          — Thành Viên (mặc định)
+///   - `admin_ky_thuat`  — Admin Kỹ Thuật
+///   - `admin_cong_dong` — Admin Cộng Đồng
+///   - `admin_quan_li`   — Admin Quản Lý (quyền cao nhất)
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -44,6 +50,9 @@ pub struct User {
     pub bio: Option<String>,
     /// ID ảnh avatar user tự upload (ưu tiên trước Google `avatar_url`).
     pub avatar_upload_id: Option<Uuid>,
+    /// Vai trò quản trị: member | admin_ky_thuat | admin_cong_dong | admin_quan_li
+    /// (v0.9.7 — Giai đoạn 11)
+    pub role: String,
 }
 
 /// Dữ liệu lấy được từ Google userinfo endpoint.
@@ -147,5 +156,84 @@ impl User {
             "female" => "Nữ",
             _ => "Khác",
         }
+    }
+
+    // ─── Hệ thống vai trò (v0.9.7 — Giai đoạn 11) ───────────────────────────
+
+    /// Tên hiển thị tiếng Việt của vai trò.
+    /// Dùng cho badge trên profile / header.
+    pub fn role_display(&self) -> &str {
+        match self.role.as_str() {
+            "admin_quan_li" => "Admin Quản Lý",
+            "admin_cong_dong" => "Admin Cộng Đồng",
+            "admin_ky_thuat" => "Admin Kỹ Thuật",
+            _ => "Thành Viên",
+        }
+    }
+
+    /// Emoji đại diện cho vai trò.
+    pub fn role_icon(&self) -> &str {
+        match self.role.as_str() {
+            "admin_quan_li" => "👑",
+            "admin_cong_dong" => "🛡️",
+            "admin_ky_thuat" => "⚙️",
+            _ => "🪷",
+        }
+    }
+
+    /// Màu sắc đại diện cho vai trò (hex).
+    pub fn role_color(&self) -> &str {
+        match self.role.as_str() {
+            "admin_quan_li" => "#FF6F00",   // amber-900 (gold)
+            "admin_cong_dong" => "#1565C0",  // blue-800
+            "admin_ky_thuat" => "#6A1B9A",   // purple-800
+            _ => "#2E7D32",                   // tubi-800 (green)
+        }
+    }
+
+    /// Cấp độ vai trò (dùng để so sánh quyền):
+    ///   - member          → 1
+    ///   - admin_ky_thuat  → 2
+    ///   - admin_cong_dong → 3
+    ///   - admin_quan_li   → 4
+    pub const fn role_level(&self) -> u8 {
+        match self.role.as_str() {
+            "admin_ky_thuat" => 2,
+            "admin_cong_dong" => 3,
+            "admin_quan_li" => 4,
+            _ => 1,
+        }
+    }
+
+    /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý).
+    pub const fn is_admin(&self) -> bool {
+        self.role_level() >= 2
+    }
+
+    /// True nếu user chính xác là Admin Kỹ Thuật.
+    pub const fn is_admin_ky_thuat(&self) -> bool {
+        matches!(self.role.as_str(), "admin_ky_thuat")
+    }
+
+    /// True nếu user chính xác là Admin Cộng Đồng.
+    pub const fn is_admin_cong_dong(&self) -> bool {
+        matches!(self.role.as_str(), "admin_cong_dong")
+    }
+
+    /// True nếu user chính xác là Admin Quản Lý (super admin — quyền cao nhất).
+    pub const fn is_admin_quan_li(&self) -> bool {
+        matches!(self.role.as_str(), "admin_quan_li")
+    }
+
+    /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật trở lên).
+    /// Dùng cho route /admin, quản lý users, hệ thống.
+    pub const fn can_manage_technical(&self) -> bool {
+        self.role_level() >= 2
+    }
+
+    /// True nếu user có quyền cộng đồng (Admin Cộng Đồng trở lên).
+    /// Dùng cho duyệt cảm ngộ, ghim/khoá chủ đề, mod comment.
+    pub const fn can_manage_community(&self) -> bool {
+        self.role_level() >= 3
     }
 }

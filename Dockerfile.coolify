@@ -20,5 +20,7 @@
 #   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.6 — commit c2740da (simplified migration 012 — bỏ pg_trgm DO blocks)
-FROM ghcr.io/mhieuhonda/tubi-app:sha-c2740da
+# v0.9.7 — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền
+# Image tag sẽ được GitHub Actions cập nhật tự động qua commit SHA sau khi push
+# Trong trường hợp workflow không chạy, có thể dùng tag `:latest` thay thế.
+FROM ghcr.io/mhieuhonda/tubi-app:latest

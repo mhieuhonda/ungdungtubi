@@ -1,0 +1,120 @@
+{% extends "layout.html" %}
+
+{% block title %}Quản Trị — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+{% if let Some(u) = user %}
+<section class="max-w-7xl mx-auto px-4 py-8 md:py-12">
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-3 mb-2">
+            <span class="text-4xl">{{ u.role_icon() }}</span>
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-tubi-800">Trang Quản Trị</h1>
+                <p class="text-sm text-gray-500">
+                    Chào <strong>{{ u.display_name }}</strong> — vai trò
+                    <span class="font-semibold" style="color: {{ u.role_color() }}">
+                        {{ u.role_icon() }} {{ u.role_display() }}
+                    </span>
+                </p>
+            </div>
+        </div>
+        <p class="text-xs text-gray-400">
+            Hệ thống phân quyền: Admin Quản Lý (cao nhất) → Admin Cộng Đồng → Admin Kỹ Thuật → Thành Viên
+        </p>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <!-- Users -->
+        <div class="bg-white rounded-2xl p-5 shadow-md border-t-4 border-tubi-500">
+            <div class="text-3xl mb-1">👥</div>
+            <div class="text-2xl font-bold text-tubi-800">{{ stats.total_users }}</div>
+            <div class="text-xs text-gray-500">Thành viên</div>
+            <div class="text-[10px] text-green-600 mt-1">{{ stats.active_users }} active</div>
+        </div>
+        <!-- Admins -->
+        <div class="bg-white rounded-2xl p-5 shadow-md border-t-4" style="border-color:#6A1B9A">
+            <div class="text-3xl mb-1">⚙️</div>
+            <div class="text-2xl font-bold" style="color:#6A1B9A">{{ stats.admin_count }}</div>
+            <div class="text-xs text-gray-500">Admin</div>
+            <div class="text-[10px] text-gray-400 mt-1">(kỹ thuật + cộng đồng + quản lý)</div>
+        </div>
+        <!-- Groups -->
+        <div class="bg-white rounded-2xl p-5 shadow-md border-t-4 border-blue-500">
+            <div class="text-3xl mb-1">🏛️</div>
+            <div class="text-2xl font-bold text-blue-700">{{ stats.total_groups }}</div>
+            <div class="text-xs text-gray-500">Nhóm cộng đồng</div>
+            <div class="text-[10px] text-gray-400 mt-1">{{ stats.total_topics }} chủ đề · {{ stats.total_comments }} bình luận</div>
+        </div>
+        <!-- Books -->
+        <div class="bg-white rounded-2xl p-5 shadow-md border-t-4 border-amber-500">
+            <div class="text-3xl mb-1">📚</div>
+            <div class="text-2xl font-bold text-amber-700">{{ stats.total_books }}</div>
+            <div class="text-xs text-gray-500">Sách trong Kinh Sách</div>
+            <div class="text-[10px] text-amber-600 mt-1">{{ stats.pending_reviews }} cảm ngộ chờ duyệt</div>
+        </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <a href="/admin/thanh-vien" class="bg-white rounded-2xl p-6 shadow-md hover:shadow-lg transition border border-gray-100 group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-2xl font-bold text-tubi-800 group-hover:text-tubi-600 transition">👥 Quản Lý Thành Viên</div>
+                    <p class="text-sm text-gray-500 mt-1">Xem danh sách thành viên, đổi vai trò (chỉ Admin Quản Lý).</p>
+                </div>
+                <span class="text-3xl text-tubi-300 group-hover:text-tubi-500 transition">→</span>
+            </div>
+        </a>
+        <a href="/kinh-sach" class="bg-white rounded-2xl p-6 shadow-md hover:shadow-lg transition border border-gray-100 group">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-2xl font-bold text-tubi-800 group-hover:text-tubi-600 transition">📚 Kinh Sách</div>
+                    <p class="text-sm text-gray-500 mt-1">{{ stats.pending_reviews }} cảm ngộ đang chờ duyệt.</p>
+                </div>
+                <span class="text-3xl text-tubi-300 group-hover:text-tubi-500 transition">→</span>
+            </div>
+        </a>
+    </div>
+
+    <!-- Mails + system info -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+            <h3 class="font-bold text-tubi-800 mb-3">📮 Thư đã gửi</h3>
+            <div class="text-3xl font-bold text-tubi-700">{{ stats.total_mails }}</div>
+            <p class="text-xs text-gray-500 mt-1">Tổng số thư trong hệ thống (inbox + sent).</p>
+        </div>
+        <div class="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
+            <h3 class="font-bold text-tubi-800 mb-3">🔐 Phân quyền của bạn</h3>
+            <ul class="text-sm text-gray-700 space-y-1">
+                {% if u.is_admin_quan_li() %}
+                <li>✅ Toàn quyền — Admin Quản Lý (super admin)</li>
+                {% elif u.is_admin_cong_dong() %}
+                <li>🛡️ Quyền Admin Cộng Đồng — duyệt nội dung, mod diễn đàn</li>
+                {% elif u.is_admin_ky_thuat() %}
+                <li>⚙️ Quyền Admin Kỹ Thuật — xem hệ thống, quản lý users</li>
+                {% endif %}
+                {% if !u.is_admin_quan_li() %}
+                <li class="text-xs text-gray-400 mt-2">⚠️ Chỉ Admin Quản Lý mới đổi được vai trò user khác.</li>
+                {% endif %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Back link -->
+    <div class="mt-8">
+        <a href="/" class="inline-block text-tubi-700 hover:text-tubi-900 text-sm">← Về trang chủ</a>
+    </div>
+</section>
+{% else %}
+<section class="max-w-md mx-auto px-4 py-20 text-center">
+    <span class="text-6xl">🪷</span>
+    <h1 class="text-2xl font-bold text-tubi-800 mt-4 mb-2" style="color:#2E7D32">Vui lòng đăng nhập</h1>
+    <p class="text-gray-600 mb-8">Trang Quản Trị chỉ dành cho Admin.</p>
+    <a href="/auth/google" class="inline-block bg-lotus hover:bg-golden text-tubi-900 px-6 py-3 rounded-xl font-semibold transition shadow-md">
+        🪷 Đăng Nhập Bằng Google
+    </a>
+</section>
+{% endif %}
+{% endblock %}
