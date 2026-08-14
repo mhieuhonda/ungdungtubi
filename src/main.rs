@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.10 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.11 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.10 — Giai đoạn 14: Bảng Xếp Hạng & Bug Fixes");
+    log::info!("📦 Phiên bản: v0.9.11 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -59,7 +59,7 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("✅ PostgreSQL pool đã cấu hình");
 
-    // v0.9.10: Safety schema check — ensure critical columns/tables exist
+    // v0.9.10/v0.9.11: Safety schema check — ensure critical columns/tables exist
     // BEFORE sqlx migrations run. This fixes the "column i_balance does not exist"
     // login error caused by migration checksum mismatch or partial deploy.
     // Runs idempotent DDL directly, no dependency on _sqlx_migrations table.
@@ -240,6 +240,9 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
         // Routes — Bảng Xếp Hạng (v0.9.10 — Giai đoạn 14)
         .route("/api/bang-xep-hang/stats", get(handlers::bang_xep_hang::bang_xep_hang_stats_api))
+        // Routes — Quỹ Từ Bi (v0.9.11 — Giai đoạn 15)
+        .route("/quy-tu-bi/dong-gop", post(handlers::quy_tu_bi::quy_tu_bi_dong_gop))
+        .route("/api/quy-tu-bi/stats", get(handlers::quy_tu_bi::quy_tu_bi_stats_api))
         // Routes — Hồ sơ cá nhân
         .route("/ca-nhan", get(handlers::ca_nhan))
         .route("/ca-nhan/cap-nhat", post(handlers::cap_nhat_ho_so))
@@ -312,11 +315,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.10",
+        "version": "0.9.11",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 14,
-        "phase_name": "Giai đoạn 14 — Bảng Xếp Hạng & Thống Kê Tu Học",
+        "phase": 15,
+        "phase_name": "Giai đoạn 15 — Quỹ Từ Bi & Fix lỗi đăng nhập triệt để",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -350,7 +353,12 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "i-balance-nguyen-luc",
             "bang-xep-hang",
             "leaderboard-rankings",
-            "practice-stats"
+            "practice-stats",
+            "quy-tu-bi",
+            "fund-donations",
+            "fund-campaigns",
+            "fund-expenses",
+            "fund-summary-view"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],

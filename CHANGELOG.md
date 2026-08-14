@@ -6,6 +6,103 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.11] — 2026-08-14 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập triệt để
+
+### Thêm (Features — Giai đoạn 15: Quỹ Từ Bi)
+
+- **[FEAT-1] Chuyên mục Quỹ Từ Bi chính thức ra mắt** (`/quy-tu-bi`)
+  - Bỏ placeholder "Giai đoạn 10", thay bằng trang quỹ cộng đồng đầy đủ
+  - Theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục VI
+
+- **[FEAT-2] Hệ thống đóng góp K vào Quỹ Từ Bi**
+  - `POST /quy-tu-bi/dong-gop` — form đóng góp K (trừ từ `k_balance` của user)
+  - 5 loại quỹ: 🪷 Quỹ Chung · 📚 Quỹ Sách · 🕉️ Quỹ Tu · 🎁 Quỹ Quà · 🤝 Quỹ Thiện Nguyện
+  - Transaction-safe: trừ K + insert donation trong cùng transaction
+  - Validate: amount_k > 0, ≤ 1.000.000 K/lần, ≤ user.k_balance
+  - Hỗ trợ đóng góp ẩn danh (is_anonymous = "Đạo hữu ẩn danh")
+  - Lời nhắn tùy chọn (max 500 ký tự)
+  - Notification tự động cho admins khi có donation mới (best-effort)
+
+- **[FEAT-3] Dashboard tổng quan Quỹ Từ Bi**
+  - Hero số dư Quỹ (gradient xanh tubi, chữ vàng amber)
+  - Stats grid: tổng K hệ thống · tổng A · tổng I · tổng lượt đóng góp
+  - Quỹ theo chuyên mục: 5 card màu khác nhau (general/sach/tu/qua/thien_nguyen)
+  - Top 10 nhà hảo tâm (medal 🥇🥈🥉 cho top 3)
+  - 20 đóng góp gần nhất (table với avatar, loại quỹ badge, lời nhắn, thời gian tương đối)
+  - 10 khoản chi tiêu gần đây (công khai, minh bạch)
+
+- **[FEAT-4] API endpoint** `GET /api/quy-tu-bi/stats` — JSON tổng quan
+
+- **[FEAT-5] Migration 016**
+  - `fund_donations` (id, user_id, amount_k, donation_type, message, is_anonymous, status, created_at, updated_at)
+  - `fund_campaigns` (id, name, slug, description, campaign_type, target_amount_k, current_amount_k, start_date, end_date, is_active, created_by)
+  - `fund_expenses` (id, amount_k, expense_type, description, receipt_url, spent_at, approved_by, is_public)
+  - View `v_fund_summary` — tổng quan thu/chi/số dư/theo loại
+  - CHECK constraints: donation_type, status, expense_type, campaign_type
+  - 6 index cho performance
+  - 2 trigger updated_at
+  - Seed: tặng 50 K cho admin_ky_thuat để test donation
+
+- **[FEAT-6] Resilient queries — graceful degradation**
+  - Tất cả query `fund_*` trả về empty vec / default value nếu bảng chưa tồn tại
+  - Migration 016 chưa chạy? Trang vẫn render được (với số 0 và empty list)
+  - `fetch_summary` dùng `COALESCE` cho mọi column → không NULL lỗi
+
+### Sửa (Bug Fixes — CRITICAL: Lỗi đăng nhập)
+
+- **[FIX-1] CRITICAL: Fix production vẫn chạy v0.9.9 dù v0.9.10 đã build & push lên GHCR**
+  - Nguyên nhân: `Dockerfile.coolify` dùng `FROM ghcr.io/mhieuhonda/tubi-app:latest`
+  - Docker daemon cache stale digest khi `:latest` được update nhưng local cache vẫn giữ digest cũ
+  - Triệu chứng: production health check báo `version: 0.9.9` dù v0.9.10 đã push lên GHCR
+  - Giải pháp: đổi `Dockerfile.coolify` sang `FROM ghcr.io/mhieuhonda/tubi-app:0.9.11`
+    (dùng tag semver thay vì `:latest` — tag semver unique per release → Docker chắc chắn pull image mới)
+
+- **[FIX-2] Đảm bảo v0.9.10's safety schema fix được deploy**
+  - v0.9.10 đã thêm `db::ensure_schema_safety()` chạy `ALTER TABLE users ADD COLUMN IF NOT EXISTS i_balance`
+    TRƯỚC khi sqlx migrations chạy — fix lỗi "column i_balance does not exist" (Database 42703)
+  - Nhưng do FIX-1 (Docker cache stale), v0.9.10 chưa bao giờ được deploy
+  - v0.9.11 deploy sẽ mang cả safety schema fix + fallback SELECT lên production
+  - Login sẽ KHÔNG BAO GIỜ bị block chỉ vì schema drift (i_balance/role column missing)
+
+- **[FIX-3] Resilient /quy-tu-bi page khi migration 016 chưa chạy**
+  - `fetch_recent_donations`, `fetch_top_donors`, `fetch_recent_expenses` trả về empty vec nếu bảng chưa tồn tại
+  - `fetch_summary` dùng `fetch_optional` + `unwrap_or_default()` → trả về FundSummary 0 nếu view chưa tồn tại
+  - Log debug (không log error) để tránh spam log khi migration chưa chạy
+
+### Routes mới (v0.9.11)
+
+| Method | Path | Mô tả | Auth |
+|--------|------|-------|------|
+| GET | `/quy-tu-bi` | Trang Quỹ Từ Bi (dashboard + form + lists) | Public |
+| POST | `/quy-tu-bi/dong-gop` | Đóng góp K vào quỹ | Auth |
+| GET | `/api/quy-tu-bi/stats` | JSON tổng quan | Public |
+
+### Đổi (Refactors)
+
+- **[REF-1] `src/handlers/mod.rs::quy_tu_bi`** delegate sang `handlers::quy_tu_bi::quy_tu_bi_index`
+  (bỏ placeholder_page, dùng template đầy đủ)
+
+- **[REF-2] Module structure**
+  - `src/models/quy_tu_bi.rs` — DonationType enum, FundDonation, FundDonationWithUser, DonationForm, FundSummary, TopDonor, FundExpense
+  - `src/handlers/quy_tu_bi.rs` — quy_tu_bi_index, quy_tu_bi_dong_gop, quy_tu_bi_stats_api, fetch_*, notify_admins_of_donation
+  - `templates/quy-tu-bi/index.html` — trang quỹ (Hero + Stats + Funds by Type + Form + Top Donors + Expenses + Recent Donations table)
+
+### Cập Nhật Tài Liệu
+
+- `Cargo.toml` — version `0.9.8` → `0.9.9` → `0.9.10` → `0.9.11`
+- `src/main.rs` — log khởi động v0.9.11, phase 15, health check JSON
+- `templates/layout.html` — footer version v0.9.10 → v0.9.11
+- `templates/admin/ky-thuat/index.html` — version badge + footer v0.9.11
+- `templates/admin/quan-li/index.html` — footer v0.9.11
+- `templates/admin/users.html` — hierarchy note v0.9.11
+- `templates/khong-gian/index.html` — footer v0.9.11
+- `templates/bang-xep-hang/index.html` — footer v0.9.11
+- `Dockerfile.coolify` — `FROM :latest` → `FROM :0.9.11` (CRITICAL deploy fix)
+- `README.md` — thêm entry Giai đoạn 15
+- `CHANGELOG.md` — entry này
+
+---
+
 ## [0.9.10] — 2026-08-14 — Giai đoạn 14: Bảng Xếp Hạng & Bug Fixes
 
 ### Thêm (Features — Giai đoạn 14: Bảng Xếp Hạng & Thống Kê)

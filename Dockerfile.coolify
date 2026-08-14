@@ -14,13 +14,20 @@
 # đúng image mới nhất (tránh Docker daemon cache stale digest khi :latest
 # chưa propagate ngay sau GitHub Actions push).
 #
+# [v0.9.11] CRITICAL FIX: Lỗi production vẫn chạy v0.9.9 dù v0.9.10 đã push
+# lên GHCR là do Docker daemon cache stale digest khi dùng `:latest`.
+# Giải pháp: dùng tag semver `:0.9.11` thay vì `:latest`. Mỗi release mới có
+# tag semver riêng → Docker chắc chắn pull image mới (tag chưa tồn tại trong
+# cache).
+#
 # Lợi ích:
 #   - Không tốn CPU/RAM VPS để build Rust (build trên GitHub-hosted runner)
 #   - Deploy nhanh (~10-30s pull + restart)
-#   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.3`
+#   - Rollback dễ: đổi tag sang `:sha-<old>` hoặc `:v0.9.10`
+#   - [v0.9.11] Tránh Docker cache stale digest bằng tag semver unique
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.7 — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền
-# Image tag sẽ được GitHub Actions cập nhật tự động qua commit SHA sau khi push
-# Trong trường hợp workflow không chạy, có thể dùng tag `:latest` thay thế.
-FROM ghcr.io/mhieuhonda/tubi-app:latest
+# v0.9.11 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập
+# Tag `:0.9.11` được GitHub Actions push lên GHCR khi tạo tag `v0.9.11`.
+# Sử dụng tag semver thay vì `:latest` để tránh Docker cache stale digest.
+FROM ghcr.io/mhieuhonda/tubi-app:0.9.11

@@ -271,6 +271,29 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Health check** bổ sung `kinh_sach` stats (số sách, chương, cảm ngộ, tổng view)
 - **Mục tiêu:** Thành viên có thể đọc kinh sách online, viết cảm ngộ, tặng hoa kính dâng — bù lỗ hổng kiến thức của v0.9.5
 
+### Giai đoạn 15: Quỹ Từ Bi — Hệ thống quỹ cộng đồng ✅ (v0.9.11)
+- **Chuyên mục Quỹ Từ Bi chính thức ra mắt** (`/quy-tu-bi`) — theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục VI
+- **Hệ thống đóng góp K vào quỹ**:
+  - `POST /quy-tu-bi/dong-gop` — form đóng góp K (trừ từ `k_balance` của user, transaction-safe)
+  - 5 loại quỹ: 🪷 Quỹ Chung · 📚 Quỹ Sách · 🕉️ Quỹ Tu · 🎁 Quỹ Quà · 🤝 Quỹ Thiện Nguyện
+  - Hỗ trợ đóng góp ẩn danh, lời nhắn tùy chọn (max 500 ký tự)
+  - Notification tự động cho admins khi có donation mới
+- **Dashboard tổng quan**:
+  - Hero số dư Quỹ (gradient xanh tubi, chữ vàng amber)
+  - Stats grid: tổng K/A/I hệ thống · tổng lượt đóng góp
+  - Quỹ theo chuyên mục: 5 card màu
+  - Top 10 nhà hảo tâm (medal 🥇🥈🥉)
+  - 20 đóng góp gần nhất (table với avatar + loại quỹ badge + lời nhắn)
+  - 10 khoản chi tiêu gần đây (công khai, minh bạch)
+- **Migration 016**: 3 bảng mới (`fund_donations`, `fund_campaigns`, `fund_expenses`) + view `v_fund_summary` + 6 index + 2 trigger
+- **API endpoint** `GET /api/quy-tu-bi/stats` — JSON tổng quan
+- **Bug fix CRITICAL (lỗi đăng nhập)**:
+  - Fix production vẫn chạy v0.9.9 dù v0.9.10 đã build & push lên GHCR
+  - Nguyên nhân: `Dockerfile.coolify` dùng `FROM :latest` → Docker daemon cache stale digest
+  - Giải pháp: đổi sang `FROM :0.9.11` (tag semver unique → Docker chắc chắn pull image mới)
+  - Đảm bảo v0.9.10's safety schema fix được deploy (fix lỗi "column i_balance does not exist")
+- **Mục tiêu:** Thành viên có thể đóng góp K vào quỹ chung, công khai minh bạch, fix triệt để lỗi đăng nhập
+
 ### Giai đoạn 12–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
@@ -474,9 +497,11 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 | GET | `/admin` | **[v0.9.7]** Trang Quản Trị (dashboard + stats) | Auth + admin |
 | GET | `/admin/thanh-vien` | **[v0.9.7]** Danh sách thành viên + role | Auth + admin |
 | POST | `/admin/thanh-vien/{user_id}/role` | **[v0.9.7]** Đổi role user (chỉ Admin Quản Lý) | Auth + admin_quan_li |
-| GET | `/quy-tu-bi` | Quỹ Từ Bi (placeholder) | Public |
+| GET | `/quy-tu-bi` | **[v0.9.11]** Trang Quỹ Từ Bi (dashboard + form + lists) | Public |
+| POST | `/quy-tu-bi/dong-gop` | **[v0.9.11]** Đóng góp K vào quỹ | Auth |
+| GET | `/api/quy-tu-bi/stats` | **[v0.9.11]** JSON tổng quan Quỹ Từ Bi | Public |
 | GET | `/thuong-thanh` | Thương Thành (placeholder) | Public |
-| GET | `/bang-xep-hang` | Bảng Xếp Hạng (placeholder) | Public |
+| GET | `/bang-xep-hang` | **[v0.9.10]** Trang Bảng Xếp Hạng (5 tabs) | Public |
 | GET | `/api/health` | Health check JSON + DB status | Public |
 | POST | `/api/heartbeat` | Heartbeat giữ session | Auth |
 | GET | `/api/upload-info` | Trả về giới hạn upload | Public |
@@ -499,6 +524,9 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.6** — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo — 5 thư viện + Books + Chapters + Reviews + Flowers + Search)
 - **v0.9.7** — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng (4 roles + admin panel + role display trên profile/header)
 - **v0.9.8** — Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt (Admin Kỹ Thuật 50 quyền cao nhất + terminal/mod/executive dashboards)
+- **v0.9.9** — Giai đoạn 13: Không Gian Cá Nhân (Niệm Phật Counter + Tượng Phật vows + Nhật Ký Tu Học + i_balance)
+- **v0.9.10** — Giai đoạn 14: Bảng Xếp Hạng (5 tabs: A/I/K/Hôm Nay/Streak) + Safety schema fix cho login
+- **v0.9.11** — Giai đoạn 15: Quỹ Từ Bi (đóng góp K + dashboard + 5 loại quỹ) + Fix Docker cache stale (CRITICAL deploy fix cho login)
 
 ---
 

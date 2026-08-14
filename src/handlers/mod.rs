@@ -6,6 +6,7 @@ pub mod community;
 pub mod friends;
 pub mod kinh_sach;
 pub mod khong_gian;
+pub mod quy_tu_bi;
 pub mod uploads;
 
 use axum::{
@@ -386,8 +387,8 @@ pub async fn admin(State(state): State<AppState>, jar: CookieJar) -> Response {
 }
 
 pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "", "Quỹ Từ Bi", "🪷", "Quỹ chung cộng đồng — quyên góp, phát quà, hỗ trợ mạnh thường quân", "Giai đoạn 10")
+    // [v0.9.11] Giai đoạn 15 — delegate cho quy_tu_bi handler
+    quy_tu_bi::quy_tu_bi_index(State(state), jar).await
 }
 
 pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Response {
@@ -571,7 +572,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.10 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.11 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
