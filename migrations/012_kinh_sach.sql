@@ -30,21 +30,11 @@ VALUES
     ('quan-trong', 'Quan Trọng', 'Bài viết quan trọng do Quản Lý chọn lựa và đề cử',                                 '⭐', 5)
 ON CONFLICT (slug) DO NOTHING;
 
--- 1.5. Cài đặt pg_trgm extension CHO FULL-TEXT SEARCH (idempotent)
--- Phải chạy TRƯỚC khi tạo GIN index dùng gin_trgm_ops ở phần 2.
--- Dùng DO block với EXCEPTION để migration không fail nếu user DB không có
--- quyền CREATE EXTENSION (rất có thể trên shared/managed PostgreSQL).
--- Nếu pg_trgm không tạo được, app sẽ vẫn hoạt động (ILIKE không cần extension,
--- chỉ không có index nên search chậm hơn).
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS pg_trgm;
-EXCEPTION
-    WHEN insufficient_privilege OR undefined_file THEN
-        RAISE NOTICE 'pg_trgm extension không khả dụng (user không có quyền). App sẽ dùng ILIKE không có index.';
-    WHEN OTHERS THEN
-        RAISE NOTICE 'Không tạo được pg_trgm: %. App sẽ dùng ILIKE không có index.', SQLERRM;
-END $$;
+-- 1.5. (Đã bỏ pg_trgm extension để tránh lỗi permission/compatibility)
+-- App dùng ILIKE cho search (không cần GIN index, vẫn hoạt động bình thường).
+-- Nếu sau này muốn tối ưu search, có thể chạy riêng:
+--   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+--   CREATE INDEX idx_books_title_trgm ON books USING gin (title gin_trgm_ops);
 
 -- 2. Bảng books — Sách điện tử
 CREATE TABLE IF NOT EXISTS books (
@@ -84,16 +74,6 @@ CREATE INDEX IF NOT EXISTS idx_books_featured   ON books(is_featured) WHERE is_f
 CREATE INDEX IF NOT EXISTS idx_books_active     ON books(is_active);
 CREATE INDEX IF NOT EXISTS idx_books_created    ON books(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_books_view_count ON books(view_count DESC);
--- Full-text search index — chỉ tạo nếu pg_trgm đã được cài (xem phần 1.5)
--- Nếu pg_trgm không có, app vẫn hoạt động với ILIKE (chỉ không có GIN index).
-DO $$
-BEGIN
-    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') THEN
-        CREATE INDEX IF NOT EXISTS idx_books_title_trgm ON books USING gin (title gin_trgm_ops);
-    END IF;
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'Không tạo được gin_trgm_ops index: %', SQLERRM;
-END $$;
 
 -- 3. Bảng book_chapters — Chương mục của sách
 CREATE TABLE IF NOT EXISTS book_chapters (
