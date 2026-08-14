@@ -12,22 +12,17 @@ on:
   push:
     tags:
       - 'v*'
-    branches:
-      - main
-    paths:
-      - 'src/**'
-      - 'templates/**'
-      - 'migrations/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'Dockerfile'
-      - '.github/workflows/docker.yml'
   workflow_dispatch:
     inputs:
       tag:
         description: 'Tag image (mặc định: latest)'
         required: false
         default: 'latest'
+
+# Top-level permissions — GITHUB_TOKEN cần write packages để push lên GHCR
+permissions:
+  contents: read
+  packages: write
 
 env:
   REGISTRY: ghcr.io
@@ -36,9 +31,6 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
 
     steps:
       - name: 📥 Checkout source
@@ -61,7 +53,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=sha,format=short
             type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
@@ -75,6 +67,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
 
       - name: 📊 Output image digest
         run: |
@@ -86,12 +79,12 @@ jobs:
   trigger-coolify:
     needs: build-and-push
     runs-on: ubuntu-latest
-    env:
-      COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
 
     steps:
       - name: 🚀 Trigger Coolify Webhook (skip if not configured)
-        if: env.COOLIFY_WEBHOOK_URL != ''
+        if: ${{ secrets.COOLIFY_WEBHOOK_URL != '' }}
+        env:
+          COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
         run: |
           echo "📡 Gọi Coolify webhook để trigger deploy..."
           RESPONSE=$(curl -sS -X POST "$COOLIFY_WEBHOOK_URL" \
@@ -110,7 +103,7 @@ jobs:
           fi
 
       - name: ℹ️ Skip Coolify trigger (no webhook URL configured)
-        if: env.COOLIFY_WEBHOOK_URL == ''
+        if: ${{ secrets.COOLIFY_WEBHOOK_URL == '' }}
         run: |
           echo "ℹ️  COOLIFY_WEBHOOK_URL secret chưa được cấu hình."
           echo "    Image đã được push lên GHCR — Coolify sẽ deploy theo lịch nếu đã set auto-deploy."
