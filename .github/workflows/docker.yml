@@ -1,0 +1,174 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# GitHub Actions — Ứng Dụng Từ Bi v0.9.4
+# Build & push Docker image (Rust 1.97.1) lên GHCR, sau đó gọi Coolify API
+# để trigger deploy — Coolify auto pull image mới nhất và deploy lên
+# tubi.louis.vangioitutien.com
+#
+# Quy trình:
+#   1. Push code lên branch `main` (hoặc tạo tag `v*`)
+#   2. Workflow build multi-stage Docker image với Rust 1.97.1-slim-bookworm
+#   3. Push image lên GHCR: ghcr.io/mhieuhonda/ungdungtubi:{latest, sha, tag}
+#   4. Gửi GET request tới Coolify API endpoint /start
+#   5. Coolify nhận yêu cầu → pull image mới nhất từ GHCR → redeploy container
+#
+# Secrets cần thiết (Settings → Secrets and variables → Actions):
+#   - COOLIFY_API_TOKEN    : API token của Coolify (tạo ở User Settings → API Tokens)
+#   - COOLIFY_APP_UUID     : UUID của application trên Coolify
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# Quyền cần thiết: ghi package lên GHCR, đọc contents repo
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # -> mhieuhonda/ungdungtubi
+  COOLIFY_API_URL: https://coolify.buppou.com
+
+concurrency:
+  group: build-deploy-${{ github.ref }}
+  cancel-in-progress: false   # không cancel build đang chạy (có thể đang deploy)
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Build & push Docker image lên GHCR
+  # ──────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.push.outputs.digest }}
+      image_tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.16.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=sha-,enable=true
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+          labels: |
+            org.opencontainers.image.title=Ứng Dụng Từ Bi
+            org.opencontainers.image.description=Rust 1.97.1 + Axum 0.8 web app — Cộng Đồng Từ Bi
+            org.opencontainers.image.source=https://github.com/mhieuhonda/ungdungtubi
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build & push Docker image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      - name: Summary
+        run: |
+          {
+            echo "### Docker Image pushed to GHCR 🪷"
+            echo ""
+            echo "- Image: \`ghcr.io/mhieuhonda/ungdungtubi\`"
+            echo "- Tags:"
+            echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+            echo "- Digest: \`${{ steps.push.outputs.digest }}\`"
+            echo "- Source SHA: \`${{ github.sha }}\`"
+          } >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Trigger Coolify deploy — gọi API /start để Coolify pull image mới
+  # ──────────────────────────────────────────────────────────────────────────
+  trigger-coolify:
+    name: Trigger Coolify Deploy
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Call Coolify API /start
+        env:
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COOLIFY_API_TOKEN}" ]; then
+            echo "::error::Secret COOLIFY_API_TOKEN is not set. Add it in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          if [ -z "${COOLIFY_APP_UUID}" ]; then
+            echo "::error::Secret COOLIFY_APP_UUID is not set. Add it in repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+          URL="${COOLIFY_API_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start"
+          echo "→ Calling Coolify API: $URL"
+
+          HTTP_CODE=$(curl -sS -o /tmp/coolify_resp.json -w "%{http_code}" \
+            --max-time 30 \
+            -X GET \
+            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${URL}")
+
+          echo "HTTP status: ${HTTP_CODE}"
+          echo "Response:"
+          cat /tmp/coolify_resp.json
+          echo
+
+          # Coolify trả về 200 khi deploy được xếp hàng thành công
+          if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "202" ]; then
+            DEPLOY_UUID=$(python3 -c "import json,sys; print(json.load(open('/tmp/coolify_resp.json')).get('deployment_uuid',''))" 2>/dev/null || echo "")
+            echo "✅ Deployment queued — deployment_uuid=$DEPLOY_UUID"
+            if [ -n "$DEPLOY_UUID" ]; then
+              echo "deploy_uuid=$DEPLOY_UUID" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "::error::Coolify API returned HTTP ${HTTP_CODE}"
+            exit 1
+          fi
+
+      - name: Summary
+        run: |
+          {
+            echo "### Coolify Deploy Triggered 🚀"
+            echo ""
+            echo "Coolify will now:"
+            echo "1. Pull the latest image from \`ghcr.io/mhieuhonda/ungdungtubi:latest\`"
+            echo "2. Stop the old container"
+            echo "3. Start a new container with the new image"
+            echo "4. Run health checks on https://tubi.louis.vangioitutien.com/api/health"
+            echo ""
+            echo "Watch the deployment at: https://coolify.buppou.com/project/o11iuvcvbs5394dxxchp4w4c"
+          } >> $GITHUB_STEP_SUMMARY

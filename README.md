@@ -21,7 +21,8 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 | Styling | Tailwind CSS |
 | Auth | Google OAuth 2.0 (OpenID Connect — userinfo) — đăng nhập duy nhất |
 | Container | Docker (multi-stage build với Rust 1.97.1-slim-bookworm, image final ~30 MB) |
-| Deploy | Coolify (build thủ công từ GitHub repo trên sub VPS, không dùng GitHub Actions) |
+| CI/CD | GitHub Actions (build → push GHCR) + Coolify API (auto pull image → deploy) |
+| Registry | GHCR (ghcr.io/mhieuhonda/ungdungtubi) — image public |
 
 ## 4 Chuyên Mục Chính
 
@@ -88,8 +89,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 
 ### Giai đoạn 5: Hạ tầng deploy — Docker + Coolify + storage ảnh ✅ (v0.5)
 - **Dockerfile multi-stage** với Rust 1.97.1, image final ~30 MB (glibc + stripped binary)
-- **GitHub Actions** workflow: build → push Docker image lên GHCR → trigger Coolify webhook
-- **Coolify** auto pull image mới + deploy lên domain `tubi.louis.vangioitutien.com`
+- **Coolify** deploy trên sub VPS, domain `tubi.louis.vangioitutien.com`
 - **PostgreSQL 17** trên sub VPS (10.187.247.3) làm database + storage
 - **API upload ảnh** `/api/upload-image` (max 5 MB/ảnh, JPEG/PNG/WebP/GIF)
 - Migration 004: bảng `images` + `audit_log` + trigger `updated_at` tự động
@@ -100,7 +100,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - Graceful shutdown (30s timeout), 4 workers
 - DB pool size tunable qua env `DB_MAX_CONNECTIONS`
 - Release profile tối ưu (LTO thin, strip symbols, panic=abort)
-- **Mục tiêu:** Web chạy production ổn định, deploy tự động, sẵn sàng cho giai đoạn 6+
+- **Mục tiêu:** Web chạy production ổn định, sẵn sàng cho giai đoạn 6+
 
 ### Giai đoạn 6: Cộng Đồng Foundation — Nhóm + Chủ Đề + Bình luận ✅ (v0.6)
 - **Chuyên mục Cộng Đồng chính thức ra mắt** — không còn placeholder
@@ -137,11 +137,30 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Frontend**: Alpine.js `liveChat()` component — auto-reconnect exponential backoff, auto-scroll, formatTime vi-VN
 - **Mục tiêu:** Thành viên trong nhóm có thể chat real-time, kết nối cộng đồng
 
+### Giai đoạn 8: CI/CD tự động — GitHub Actions + Docker Image + Coolify ✅ (v0.9.4)
+- **Quay lại GitHub Actions** nhưng với mô hình mới: GitHub Actions build & push Docker Image lên GHCR, Coolify auto pull image và deploy (không còn build từ source trên VPS như v0.9.1)
+- **Workflow `.github/workflows/docker.yml`**:
+  - Trigger: push lên `main` hoặc tag `v*`
+  - Build multi-stage Docker image với Rust 1.97.1-slim-bookworm (image final ~30 MB)
+  - Push lên GHCR (`ghcr.io/mhieuhonda/ungdungtubi`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`
+  - Buildx cache (type=gha) để tăng tốc build sau
+  - Gọi Coolify API `/api/v1/applications/{uuid}/start` để trigger deploy
+  - Coolify nhận yêu cầu → pull image `:latest` → redeploy container
+- **Coolify app** chuyển từ `build_pack: dockerfile` (build từ source) sang `build_pack: dockerimage` (pull image từ registry)
+- **GitHub Secrets**: `COOLIFY_API_TOKEN`, `COOLIFY_APP_UUID`
+- **Lợi ích so với v0.9.1**:
+  - Build trên GitHub-hosted runner (không tốn CPU/RAM VPS)
+  - Image đã build sẵn, deploy chỉ mất vài giây (pull + restart)
+  - Rollback dễ dàng: đổi tag trong Coolify về `sha-<old>` hoặc `v0.9.3`
+  - Multi-arch support sẵn sàng (chỉ cần thêm `platforms: linux/amd64,linux/arm64`)
+  - Image có thể ký (provenance/SBOM optional)
+- **Mục tiêu:** Push code → tự động build & deploy trong < 5 phút, không cần thao tác thủ công
+
 ### Giai đoạn 8–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 7 / v0.9.2)
+## Cấu Trúc Dự Án (Giai đoạn 8 / v0.9.4)
 
 ```
 ungdungtubi/
@@ -155,40 +174,45 @@ ungdungtubi/
 │   ├── handlers/
 │   │   ├── mod.rs           # Page handlers + session auth + profile update
 │   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
-│   │   ├── chat.rs          # [v0.9.2] Live Chat WebSocket + chat-history REST + ChatHub
-│   │   ├── community.rs     # Groups + Topics + Comments handlers (10 endpoints)
-│   │   └── uploads.rs       # [v0.5] Upload ảnh API (5MB max, SHA-256, dimensions)
+│   │   ├── chat.rs          # Live Chat WebSocket + chat-history REST + ChatHub + GlobalChatHub
+│   │   ├── community.rs     # Groups + Topics + Comments handlers + group cover upload
+│   │   └── uploads.rs       # Upload ảnh API + change avatar (5MB max, SHA-256)
 │   ├── models/
 │   │   ├── mod.rs
 │   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
-│   │   └── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, [v0.9.2] ChatMessage
+│   │   └── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, ChatMessage
 │   └── static/
 │       ├── css/app.css
-│       ├── js/app.js        # [v0.9.2] + liveChat() Alpine.js component
-│       └── uploads/         # [v0.5] Nơi lưu ảnh user upload
+│       ├── js/app.js        # + liveChat() + globalChat() Alpine.js components
+│       └── uploads/         # Nơi lưu ảnh user upload
 ├── templates/                # Askama templates (Vietnamese)
 │   ├── layout.html
 │   ├── home.html
 │   ├── profile.html
 │   ├── auth/
 │   │   └── login.html
-│   └── community/            # [v0.6]
-│       ├── index.html        # Trang chính Cộng Đồng (Lướt Nhóm / Lướt Chủ Đề)
-│       ├── group.html        # [v0.9.2] Trang nhóm + topic list + Live Chat panel
-│       ├── topic.html        # Trang chủ đề + bình luận
-│       ├── create_group.html # Form tạo nhóm
-│       └── create_topic.html # Form tạo chủ đề
-├── migrations/
+│   └── community/            # Cộng Đồng (groups + topics + comments + live chat)
+│       ├── index.html
+│       ├── group.html
+│       ├── topic.html
+│       ├── create_group.html
+│       └── create_topic.html
+├── migrations/                # 7 migration files
 │   ├── 001_create_users_sessions.sql
 │   ├── 002_google_oauth.sql
 │   ├── 003_member_profile_ranks.sql
-│   ├── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
-│   ├── 005_community_groups_topics_comments.sql  # [v0.6] groups + group_members + topics + comments + triggers
-│   └── 006_group_chat_messages.sql  # [v0.9.2] Live Chat messages table + indexes
+│   ├── 004_storage_images_audit.sql
+│   ├── 005_community_groups_topics_comments.sql
+│   ├── 006_group_chat_messages.sql
+│   └── 007_global_chat_messages.sql
+├── .github/workflows/
+│   └── docker.yml            # [v0.9.4] Build & push GHCR + trigger Coolify API
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.9.2, Rust 1.97, axum ws feature, release profile tối ưu
-├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB (dùng cho local/dev; production dùng inline Dockerfile trên Coolify)
+├── Cargo.toml                # v0.9.4, Rust 1.97, axum ws feature, release profile tối ưu
+├── Cargo.lock                # Lock file (commit cho reproducible build)
+├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB
 ├── docker-compose.yml        # Dev environment (Postgres 17 + app)
+├── .dockerignore             # Tối ưu build context
 ├── .env.example              # Template cấu hình môi trường v0.9
 └── README.md
 ```
@@ -242,28 +266,20 @@ cargo run
 # Server: http://localhost:8080
 ```
 
-### Production (Deploy thủ công qua Coolify trên sub VPS)
+### Production (CI/CD tự động qua GitHub Actions + Coolify)
 
-Từ v0.9.1, dự án bỏ hoàn toàn GitHub Actions và chuyển sang deploy thủ công qua Coolify.
-Coolify app đã được cấu hình sẵn với inline Dockerfile (clone repo + build với Rust 1.97.1 trên sub VPS 10.187.247.3).
+Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 
-**Quy trình deploy thủ công:**
-
-1. **Push code** lên branch `main` của repo `mhieuhonda/ungdungtubi`
-2. **Trigger Coolify deploy** qua một trong hai cách:
-   - **Cách 1 — Coolify Web UI:** Vào `https://coolify.buppou.com` → chọn app `ungdung-tu-bi` (UUID `xsrqp8xrcwwk57dvtcwt6393`) → bấm nút **Deploy**
-   - **Cách 2 — Coolify API:**
-     ```bash
-     curl -X GET \
-       -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
-       -H "Content-Type: application/json" \
-       https://coolify.buppou.com/api/v1/applications/xsrqp8xrcwwk57dvtcwt6393/start
-     ```
-3. Coolify tự:
-   - Pull source mới nhất từ branch `main`
-   - Build Docker image với Rust 1.97.1 trên sub VPS (multi-stage build, image final ~30 MB)
-   - Redeploy container lên domain `tubi.louis.vangioitutien.com`
-   - Cấp phát SSL tự động qua Traefik + Let's Encrypt
+1. **Push code** lên branch `main` (hoặc tạo tag `v*`)
+2. **GitHub Actions** tự động:
+   - Build Docker image với Rust 1.97.1 (multi-stage, image final ~30 MB)
+   - Push lên GHCR: `ghcr.io/mhieuhonda/ungdungtubi:{latest,sha-<short>,vX.Y.Z}`
+   - Gọi Coolify API `/api/v1/applications/{uuid}/start` để trigger deploy
+3. **Coolify** tự động:
+   - Pull image `:latest` từ GHCR
+   - Stop container cũ, start container mới
+   - Run health check trên `https://tubi.louis.vangioitutien.com/api/health`
+   - Cấp phát SSL tự động qua Traefik + Let's Encrypt (đã có sẵn)
 4. Kiểm tra trạng thái: `https://tubi.louis.vangioitutien.com/api/health`
 
 **Cấu hình đã có trên Coolify:**
@@ -275,10 +291,18 @@ Coolify app đã được cấu hình sẵn với inline Dockerfile (clone repo 
 - Auto-migrations: chạy khi khởi động (`RUN_MIGRATIONS=true`, `APP_ENV=production`)
 - Sentinel: bật (giám sát VPS, push metrics mỗi 60s, giữ history 7 ngày)
 
-**Bỏ GitHub Actions từ v0.9.1:** Workflow cũ `.github/workflows/docker.yml` đã bị xóa.
-Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, không gặp permission issues như `write_package`.
+**GitHub Secrets cần thiết:**
+- `COOLIFY_API_TOKEN` — API token của Coolify (tạo ở User Settings → API Tokens)
+- `COOLIFY_APP_UUID` — UUID của application trên Coolify
 
-## Routes (v0.9.2)
+**Rollback:** Đổi tag image trong Coolify từ `:latest` sang `:sha-<old>` hoặc `:v0.9.3` → deploy lại.
+
+**Lịch sử thay đổi CI/CD:**
+- v0.5 — GitHub Actions đầu tiên (build + push GHCR + webhook)
+- v0.9.1 — Bỏ GitHub Actions, chuyển sang deploy thủ công qua Coolify (build từ source trên VPS)
+- v0.9.4 — Quay lại GitHub Actions nhưng với mô hình Docker Image (Coolify pull image, không build từ source)
+
+## Routes (v0.9.4)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -322,8 +346,10 @@ Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, k
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 - **v0.9** — Giai đoạn 9: Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 ổn định
-- **v0.9.1** — Giai đoạn 1 finalization: Fix UI mobile (bottom nav + x-cloak), bỏ GitHub Actions, deploy thủ công qua Coolify
+- **v0.9.1** — Fix UI mobile (bottom nav + x-cloak), bỏ GitHub Actions, deploy thủ công qua Coolify
 - **v0.9.2** — Giai đoạn 7: Live Chat WebSocket trong Nhóm (Axum 0.8 ws + ChatHub broadcast + Alpine.js liveChat component)
+- **v0.9.3** — Fix live chat (mpsc channel + tokio::select!), thêm Chat Chung toàn platform, avatar/group image upload, favicon
+- **v0.9.4** — Giai đoạn 8: CI/CD tự động (GitHub Actions build & push Docker Image lên GHCR → Coolify auto pull & deploy)
 
 ---
 

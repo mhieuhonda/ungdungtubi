@@ -40,14 +40,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.3 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.4 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.3 — Giai đoạn 7+: Live Chat WebSocket + Chat Chung toàn platform + Avatar/Cover upload");
+    log::info!("📦 Phiên bản: v0.9.4 — Giai đoạn 8: CI/CD GitHub Actions + Docker Image + Coolify webhook auto-deploy");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -239,11 +239,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.3",
+        "version": "0.9.4",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 7,
-        "phase_name": "Giai đoạn 7+ — Live Chat + Chat Chung toàn platform",
+        "phase": 8,
+        "phase_name": "Giai đoạn 8 — CI/CD GitHub Actions + Docker Image + Coolify auto-deploy",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [

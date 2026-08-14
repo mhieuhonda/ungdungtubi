@@ -6,6 +6,41 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.4] — 2026-08-14 — Giai đoạn 8: CI/CD tự động (GitHub Actions + Docker Image + Coolify)
+
+### Thêm
+- **Workflow `.github/workflows/docker.yml`** — pipeline CI/CD hoàn toàn tự động:
+  - Trigger: push lên branch `main` hoặc tạo tag `v*` (hỗ trợ cả `workflow_dispatch` để chạy thủ công)
+  - **Job `build-and-push`**: build multi-stage Docker image với Rust 1.97.1-slim-bookworm, push lên GHCR (`ghcr.io/mhieuhonda/ungdungtubi`) với multi-tag: `latest`, `sha-<short>`, `vX.Y.Z`, `vX.Y`, `<branch>`
+  - Buildx cache (type=gha) — build sau chỉ mất ~30s (chỉ rebuild các layer thay đổi)
+  - `concurrency` group để tránh xung đột deploy (không cancel build đang chạy)
+  - Permissions tối thiểu: `contents: read`, `packages: write`
+  - Summary panel hiển thị image digest + tags
+- **Job `trigger-coolify`**: gọi Coolify API `/api/v1/applications/{uuid}/start` để queue deploy. Coolify nhận → pull image `:latest` từ GHCR → stop container cũ → start container mới → run health check.
+- **GitHub Secrets** setup: `COOLIFY_API_TOKEN`, `COOLIFY_APP_UUID` (đã add vào repo settings).
+- **Coolify app** chuyển `build_pack` từ `dockerfile` (build từ source trên VPS — tốn CPU/RAM VPS) sang `dockerimage` (pull image đã build sẵn từ GHCR — chỉ mất vài giây).
+- **README.md** cập nhật:
+  - Bảng công nghệ: thêm dòng `CI/CD` (GitHub Actions + Coolify API) và `Registry` (GHCR)
+  - Mục "Giai đoạn 8: CI/CD tự động" mới trong lộ trình 25 giai đoạn
+  - Section "Production (CI/CD tự động qua GitHub Actions + Coolify)" thay thế cho section deploy thủ công cũ
+  - Lịch sử thay đổi CI/CD (v0.5 → v0.9.1 → v0.9.4)
+  - Cấu trúc dự án cập nhật với `.github/workflows/docker.yml`
+- **CHANGELOG.md** bổ sung entry v0.9.4.
+
+### Sửa
+- **`Cargo.toml`**: bump version `0.9.3` → `0.9.4`.
+- **`src/main.rs`**: cập nhật version string trong log khởi động (`v0.9.3` → `v0.9.4`), trong health check JSON response (`"version": "0.9.4"`, `"phase": 8`), và phase_name.
+
+### Lợi ích so với v0.9.1 (deploy thủ công)
+- **Không tốn CPU/RAM VPS để build**: GitHub-hosted runner build image, VPS chỉ pull image đã build sẵn (~30 MB).
+- **Deploy nhanh**: chỉ mất ~10-30s (pull + restart) thay vì 5-10 phút build từ source.
+- **Rollback dễ dàng**: đổi tag image trong Coolify từ `:latest` sang `:sha-<old>` hoặc `:v0.9.3` → deploy lại.
+- **Reproducible build**: image được build trong môi trường GitHub runner chuẩn, không phụ thuộc VPS state.
+- **Multi-arch ready**: chỉ cần thêm `platforms: linux/amd64,linux/arm64` vào workflow để hỗ trợ ARM VPS.
+- **Audit trail**: mỗi image có SHA + tag version, dễ trace ngược về commit nào.
+
+---
+
 ## [0.9.2] — 2026-08-14 — Giai đoạn 7: Live Chat WebSocket trong Nhóm
 
 ### Thêm
