@@ -217,7 +217,7 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             post(handlers::community::change_group_cover),
         )
         // Routes — Bạn Bè (v0.9.5 — Giai đoạn 9)
-        .route("/ban-be", get(handlers::friends::ban_be_index))
+        // Note: /ban-be route đã có ở trên (delegate sang handlers::friends::ban_be_index)
         .route("/ban-be/keu-ban/{user_id}", post(handlers::friends::send_friend_request))
         .route("/ban-be/chap-nhan/{friendship_id}", post(handlers::friends::accept_friend_request))
         .route("/ban-be/tu-choi/{friendship_id}", post(handlers::friends::decline_friend_request))
