@@ -1,5 +1,6 @@
 pub mod community;
 pub mod friends;
+pub mod kinh_sach;
 pub mod user;
 
 #[allow(unused_imports)]
@@ -16,4 +17,10 @@ pub use community::{
 pub use friends::{
     Conversation, ConversationWithParticipant, DirectMessage, DirectMessageWithAuthor,
     Friendship, FriendshipWithUser, Mail, MailWithUsers, Notification, NotificationWithActor,
+};
+
+#[allow(unused_imports)]
+pub use kinh_sach::{
+    Book, BookCategory, BookChapter, BookChapterSummary, BookReview, BookReviewForm,
+    BookReviewWithAuthor, BookWithCategory,
 };

@@ -165,11 +165,42 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Bug fixes**: Fix live chat tổng luôn báo "đang kết nối..." (bỏ check `document.cookie.includes('session_id')` vì cookie HttpOnly không đọc được qua `document.cookie`); thêm server-side logging cho WS errors; fix version strings v0.9.3 → v0.9.5
 - **Mục tiêu:** Thành viên có thể kết bạn, nhắn tin realtime 1-1, gửi thư dài, nhận thông báo — bù lỗ hổng social của v0.9.4
 
-### Giai đoạn 10–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 10: Kinh Sách — Thư viện kinh sách Phật giáo & Đạo giáo ✅ (v0.9.6)
+- **Chuyên mục Kinh Sách chính thức ra mắt** — không còn placeholder
+- **5 Thư Viện Chính** (theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục IV):
+  - 🪷 Phật Gia — Kinh điển, luận thư, pháp thoại Phật giáo
+  - ☯️ Đạo Gia — Đạo Đức Kinh, Nam Hoa Kinh, thư tịch Đạo giáo
+  - 📜 Kinh Văn — Kinh văn tụng đọc, chú giải, nghi thức
+  - 💎 Sách Quý — Khoa học, Triết học, Tâm học, Văn học
+  - ⭐ Quan Trọng — Bài viết quan trọng do Quản Lý chọn lựa
+- **Hệ thống Sách (Books)**:
+  - Sách điện tử hoàn chỉnh (`book_type=single`) hoặc theo chương (`book_type=multi`)
+  - Trang sách `/kinh-sach/{slug}` hiển thị thông tin + danh sách chương + cảm ngộ
+  - Tự tăng `view_count` khi xem sách/chương
+  - Phân loại theo 5 thư viện + 3 ngôn ngữ (vi/en/zh, ưu tiên Tiếng Việt)
+- **Hệ thống Chương (Chapters)**:
+  - Trang đọc chương `/kinh-sach/{slug}/chuong/{chapter_slug}` với sidebar mục lục sticky
+  - Điều hướng trước/sau giữa các chương
+  - Tự tăng `view_count` chương khi đọc
+- **Hệ thống Cảm Ngộ (Reviews)**:
+  - Form cảm ngộ ngay trên trang sách (tối thiểu 100 chữ, tối đa 10.000 chữ)
+  - **Phải qua xét duyệt** mới hiển thị công khai (status: `pending` → `approved`)
+  - 1 user chỉ được viết 1 cảm ngộ/sách (unique index), có thể edit
+  - Hiển thị trạng thái cảm ngộ của user (chờ duyệt / đã duyệt / bị từ chối)
+- **Tặng Hoa (Flowers)**:
+  - 1 user chỉ tặng 1 hoa/sách (unique index `book_flowers`)
+  - Tự tăng counter `flower_count` qua trigger
+- **Tìm kiếm sách** `/kinh-sach/tim-kiem?q=` — dùng ILIKE + pg_trgm (fuzzy search)
+- **Migration 012**: 5 bảng mới (`book_categories`, `books`, `book_chapters`, `book_reviews`, `book_donations`, `book_flowers`) + 5 triggers + seed 4 cuốn sách mẫu (Kinh A Di Đà, Đạo Đức Kinh, Kinh Tam Đại Hải, Kinh Pháp Cú)
+- **12 endpoint** mới cho Kinh Sách
+- **Health check** bổ sung `kinh_sach` stats (số sách, chương, cảm ngộ, tổng view)
+- **Mục tiêu:** Thành viên có thể đọc kinh sách online, viết cảm ngộ, tặng hoa kính dâng — bù lỗ hổng kiến thức của v0.9.5
+
+### Giai đoạn 11–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 9 / v0.9.5)
+## Cấu Trúc Dự Án (Giai đoạn 10 / v0.9.6)
 
 ```
 ungdungtubi/
@@ -185,11 +216,15 @@ ungdungtubi/
 │   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
 │   │   ├── chat.rs          # Live Chat WebSocket + chat-history REST + ChatHub + GlobalChatHub
 │   │   ├── community.rs     # Groups + Topics + Comments handlers + group cover upload
+│   │   ├── kinh_sach.rs     # [v0.9.6] Kinh Sách (Books + Chapters + Reviews + Flowers)
+│   │   ├── friends.rs       # [v0.9.5] Friends + DM + Mail + Notifications
 │   │   └── uploads.rs       # Upload ảnh API + change avatar (5MB max, SHA-256)
 │   ├── models/
 │   │   ├── mod.rs
 │   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
-│   │   └── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, ChatMessage
+│   │   ├── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, ChatMessage
+│   │   ├── friends.rs       # [v0.9.5] Friendship, Conversation, DirectMessage, Mail, Notification
+│   │   └── kinh_sach.rs     # [v0.9.6] Book, BookChapter, BookReview, BookCategory
 │   └── static/
 │       ├── css/app.css
 │       ├── js/app.js        # + liveChat() + globalChat() Alpine.js components
@@ -200,24 +235,35 @@ ungdungtubi/
 │   ├── profile.html
 │   ├── auth/
 │   │   └── login.html
-│   └── community/            # Cộng Đồng (groups + topics + comments + live chat)
+│   ├── community/            # Cộng Đồng (groups + topics + comments + live chat)
+│   │   ├── index.html
+│   │   ├── group.html
+│   │   ├── topic.html
+│   │   ├── create_group.html
+│   │   └── create_topic.html
+│   └── kinh-sach/            # [v0.9.6] Kinh Sách (books + chapters + reviews)
 │       ├── index.html
-│       ├── group.html
-│       ├── topic.html
-│       ├── create_group.html
-│       └── create_topic.html
-├── migrations/                # 7 migration files
+│       ├── category.html
+│       ├── search.html
+│       ├── book.html
+│       └── chapter.html
+├── migrations/                # 12 migration files
 │   ├── 001_create_users_sessions.sql
 │   ├── 002_google_oauth.sql
 │   ├── 003_member_profile_ranks.sql
 │   ├── 004_storage_images_audit.sql
 │   ├── 005_community_groups_topics_comments.sql
 │   ├── 006_group_chat_messages.sql
-│   └── 007_global_chat_messages.sql
+│   ├── 007_global_chat_messages.sql
+│   ├── 008_friendships.sql
+│   ├── 009_conversations_direct_messages.sql
+│   ├── 010_mails.sql
+│   ├── 011_notifications.sql
+│   └── 012_kinh_sach.sql
 ├── .github/workflows/
 │   └── docker.yml            # [v0.9.4] Build & push GHCR (ghcr.io/mhieuhonda/tubi-app) + trigger Coolify API
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.9.4, Rust 1.97, axum ws feature, release profile tối ưu
+├── Cargo.toml                # v0.9.6, Rust 1.97, axum ws feature, release profile tối ưu
 ├── Cargo.lock                # Lock file (commit cho reproducible build)
 ├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB
 ├── docker-compose.yml        # Dev environment (Postgres 17 + app)
@@ -311,7 +357,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - v0.9.1 — Bỏ GitHub Actions, chuyển sang deploy thủ công qua Coolify (build từ source trên VPS)
 - v0.9.4 — Quay lại GitHub Actions nhưng với mô hình Docker Image (Coolify pull image, không build từ source)
 
-## Routes (v0.9.4)
+## Routes (v0.9.6)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -336,8 +382,15 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 | **WS** | `/ws/cong-dong/nhom/{slug}` | **[v0.9.2]** Live Chat WebSocket (upgrade) | Auth + member |
 | GET | `/api/cong-dong/nhom/{slug}/chat-history` | **[v0.9.2]** Lấy 50 tin nhắn gần nhất (`?limit=&before=`) | Public |
 | GET | `/khong-gian` | Không Gian (placeholder) | Public |
-| GET | `/ban-be` | Bạn Bè (placeholder) | Public |
-| GET | `/kinh-sach` | Kinh Sách (placeholder) | Public |
+| GET | `/cong-dong` | Cộng Đồng — Lướt Nhóm / Lướt Chủ Đề | Public |
+| GET | `/ban-be` | Bạn Bè — Friend list, DM, Mail, Notifications | Public |
+| GET | `/kinh-sach` | **[v0.9.6]** Trang chính Kinh Sách (Featured / Popular / Recent) | Public |
+| GET | `/kinh-sach/tim-kiem` | **[v0.9.6]** Tìm kiếm sách `?q=` | Public |
+| GET | `/kinh-sach/thu-vien/{category_slug}` | **[v0.9.6]** Lọc theo thư viện (phat-gia/dao-gia/kinh-van/sach-quy/quan-trong) | Public |
+| GET | `/kinh-sach/{slug}` | **[v0.9.6]** Trang sách + danh sách chương + cảm ngộ | Public |
+| GET | `/kinh-sach/{slug}/chuong/{chapter_slug}` | **[v0.9.6]** Đọc chương (sidebar mục lục) | Public |
+| POST | `/kinh-sach/{slug}/cam-ngo` | **[v0.9.6]** Gửi cảm ngộ (min 100 chữ, chờ duyệt) | Auth |
+| POST | `/kinh-sach/{slug}/tang-hoa` | **[v0.9.6]** Tặng hoa (1 user/sách) | Auth |
 | GET | `/quy-tu-bi` | Quỹ Từ Bi (placeholder) | Public |
 | GET | `/thuong-thanh` | Thương Thành (placeholder) | Public |
 | GET | `/bang-xep-hang` | Bảng Xếp Hạng (placeholder) | Public |
@@ -360,6 +413,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.3** — Fix live chat (mpsc channel + tokio::select!), thêm Chat Chung toàn platform, avatar/group image upload, favicon
 - **v0.9.4** — Giai đoạn 8: CI/CD tự động (GitHub Actions build & push Docker Image lên GHCR → Coolify auto pull & deploy)
 - **v0.9.5** — Giai đoạn 9: Module Bạn Bè (Friends + DM 1-1 WebSocket + Mail + Notifications) + Fix live chat bugs (HttpOnly cookie check)
+- **v0.9.6** — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo — 5 thư viện + Books + Chapters + Reviews + Flowers + Search)
 
 ---
 

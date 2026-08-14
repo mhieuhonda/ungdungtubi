@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.5 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.6 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.5 — Giai đoạn 9: Module Bạn Bè + Fix live chat bugs");
+    log::info!("📦 Phiên bản: v0.9.6 — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -156,6 +156,13 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/cong-dong", get(handlers::cong_dong))
         .route("/ban-be", get(handlers::ban_be))
         .route("/kinh-sach", get(handlers::kinh_sach))
+        // Routes — Kinh Sách (v0.9.6 — Giai đoạn 10)
+        .route("/kinh-sach/tim-kiem", get(handlers::kinh_sach::kinh_sach_search))
+        .route("/kinh-sach/thu-vien/{category_slug}", get(handlers::kinh_sach::kinh_sach_category))
+        .route("/kinh-sach/{slug}/cam-ngo", post(handlers::kinh_sach::kinh_sach_submit_review))
+        .route("/kinh-sach/{slug}/tang-hoa", post(handlers::kinh_sach::kinh_sach_give_flower))
+        .route("/kinh-sach/{slug}/chuong/{chapter_slug}", get(handlers::kinh_sach::kinh_sach_chapter))
+        .route("/kinh-sach/{slug}", get(handlers::kinh_sach::kinh_sach_book))
         // Routes — Cộng Đồng (v0.6+)
         .route(
             "/cong-dong/tao-nhom",
@@ -264,13 +271,16 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     let (db_status, db_version): (&str, String) = db_ok.map_or_else(|_| ("error", String::new()), |v| ("ok", v));
 
+    // Kinh Sách stats (v0.9.6 — Giai đoạn 10)
+    let kinh_sach_stats = handlers::kinh_sach::kinh_sach_stats(&state.pool).await;
+
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.5",
+        "version": "0.9.6",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 9,
-        "phase_name": "Giai đoạn 9 — Module Bạn Bè (Friends + DM + Mail + Notifications) + Fix live chat bugs",
+        "phase": 10,
+        "phase_name": "Giai đoạn 10 — Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -285,12 +295,17 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "friends-system",
             "direct-messaging",
             "mail-inbox",
-            "notifications"
+            "notifications",
+            "scripture-library",
+            "book-chapters",
+            "book-reviews",
+            "book-flowers"
         ],
         "database": {
             "status": db_status,
             "version": db_version,
         },
+        "kinh_sach": kinh_sach_stats,
         "message": "Nguyện công đức vô lượng. Nam Mô A Di Đà Phật."
     }))
     .into_response()

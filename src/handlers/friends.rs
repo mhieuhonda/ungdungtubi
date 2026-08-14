@@ -1012,15 +1012,15 @@ pub async fn mail_view(
     .unwrap_or(None);
 
     // Nếu user là recipient và chưa đọc → đánh dấu đã đọc
-    if let Some(ref m) = mail {
-        if m.recipient_id == user.id && !m.is_read {
-            let _ = sqlx::query(
-                "UPDATE mails SET is_read = true, read_at = NOW() WHERE id = $1",
-            )
-            .bind(mail_id)
-            .execute(&state.pool)
-            .await;
-        }
+    if let Some(ref m) = mail
+        && m.recipient_id == user.id && !m.is_read
+    {
+        let _ = sqlx::query(
+            "UPDATE mails SET is_read = true, read_at = NOW() WHERE id = $1",
+        )
+        .bind(mail_id)
+        .execute(&state.pool)
+        .await;
     }
 
     let html = MailViewTemplate {

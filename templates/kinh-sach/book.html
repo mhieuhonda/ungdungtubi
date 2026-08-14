@@ -1,0 +1,234 @@
+{% extends "layout.html" %}
+{% block title %}{{ book.title }} — Kinh Sách — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Breadcrumb -->
+  <nav class="text-sm text-gray-500 mb-4">
+    <a href="/kinh-sach" class="hover:text-tubi-700">📚 Kinh Sách</a>
+    {% if let Some(cat_name) = &book.category_name %}
+    <span class="mx-2">›</span>
+    <span>{{ book.category_icon_or_book() }} {{ cat_name }}</span>
+    {% endif %}
+    <span class="mx-2">›</span>
+    <span class="text-gray-700 font-medium">{{ book.title }}</span>
+  </nav>
+
+  <!-- Thông báo từ query string -->
+  <div id="query-msg"></div>
+
+  <!-- Book Info -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+    <div class="p-6 md:p-8 flex flex-col md:flex-row gap-6">
+      <!-- Cover -->
+      <div class="flex-shrink-0 mx-auto md:mx-0">
+        <div class="w-32 h-44 md:w-40 md:h-56 rounded-xl flex items-center justify-center text-6xl shadow-md" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+          <span class="filter drop-shadow-md">{{ book.category_icon_or_book() }}</span>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="flex-1">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs px-2 py-0.5 rounded-full" style="background-color:#E8F5E9;color:#2E7D32">
+            {{ book.category_name_or_other() }}
+          </span>
+          {% if book.is_featured %}
+          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">⭐ Nổi bật</span>
+          {% endif %}
+          <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ book.language_display() }}</span>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{{ book.title }}</h1>
+        {% if let Some(author) = &book.author %}
+        <p class="text-gray-600 mb-1">Tác giả: <span class="font-medium">{{ author }}</span></p>
+        {% endif %}
+        {% if let Some(translator) = &book.translator %}
+        <p class="text-gray-600 mb-1">Dịch giả: <span class="font-medium">{{ translator }}</span></p>
+        {% endif %}
+        <div class="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-500">
+          <span title="Số chương">📖 {{ book.chapter_count }} chương</span>
+          <span title="Lượt xem">👁 {{ book.view_count }} lượt xem</span>
+          <span title="Số cảm ngộ">🌸 {{ book.review_count }} cảm ngộ</span>
+          <span title="Số hoa tặng">🌺 {{ book.flower_count }} hoa</span>
+          <span title="Tổng Kính" class="text-amber-600">🙏 {{ book.donation_total_k }} K</span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-wrap gap-2 mt-5">
+          {% if book.book_type == "multi" %}
+            {% if !chapters.is_empty() %}
+            <a href="/kinh-sach/{{ book.slug }}/chuong/{{ chapters[0].slug }}"
+               class="bg-tubi-700 hover:bg-tubi-800 text-white px-5 py-2.5 rounded-xl font-semibold transition shadow-md" style="background-color:#388E3C">
+              📖 Bắt đầu đọc
+            </a>
+            {% endif %}
+          {% else if !chapters.is_empty() %}
+            <a href="/kinh-sach/{{ book.slug }}/chuong/{{ chapters[0].slug }}"
+               class="bg-tubi-700 hover:bg-tubi-800 text-white px-5 py-2.5 rounded-xl font-semibold transition shadow-md" style="background-color:#388E3C">
+              📖 Đọc ngay
+            </a>
+          {% endif %}
+
+          {% if let Some(dl) = &book.download_url %}
+          <a href="{{ dl }}" download class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-5 py-2.5 rounded-xl font-semibold transition">
+            ⬇️ Tải về
+          </a>
+          {% endif %}
+
+          <!-- Tặng hoa -->
+          {% if let Some(_u) = &user %}
+          <form action="/kinh-sach/{{ book.slug }}/tang-hoa" method="POST" class="inline">
+            {% if has_flowered %}
+            <button type="button" disabled class="bg-pink-100 text-pink-600 px-5 py-2.5 rounded-xl font-semibold cursor-not-allowed">
+              🌺 Đã tặng hoa
+            </button>
+            {% else %}
+            <button type="submit" class="bg-pink-500 hover:bg-pink-600 text-white px-5 py-2.5 rounded-xl font-semibold transition shadow-md">
+              🌺 Tặng hoa
+            </button>
+            {% endif %}
+          </form>
+          {% else %}
+          <a href="/dang-nhap" class="bg-pink-100 text-pink-600 px-5 py-2.5 rounded-xl font-semibold">
+            🌺 Đăng nhập tặng hoa
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Description -->
+    {% if let Some(desc) = &book.description %}
+    <div class="px-6 md:px-8 pb-6 border-t border-gray-100 pt-6">
+      <h3 class="text-sm font-bold text-gray-700 mb-2">📖 Giới thiệu</h3>
+      <p class="text-gray-600 leading-relaxed whitespace-pre-line">{{ desc }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Danh sách chương (chỉ áp dụng cho multi-chapter) -->
+  {% if book.book_type == "multi" && !chapters.is_empty() %}
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm mb-6">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h2 class="text-lg font-bold text-gray-800">📑 Mục Lục ({{ chapters.len() }} chương)</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for chapter in &chapters %}
+      <a href="/kinh-sach/{{ book.slug }}/chuong/{{ chapter.slug }}"
+         class="flex items-center justify-between px-6 py-3 hover:bg-gray-50 transition group">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="text-xs font-mono text-gray-400 w-8 text-right">{{ chapter.sort_order }}</span>
+          <span class="font-medium text-gray-700 group-hover:text-tubi-700 truncate">{{ chapter.title }}</span>
+        </div>
+        <span class="text-xs text-gray-400 flex-shrink-0 ml-3" title="Lượt xem">👁 {{ chapter.view_count }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Form viết cảm ngộ -->
+  {% if let Some(_u) = &user %}
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm mb-6">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h2 class="text-lg font-bold text-gray-800">✍️ Viết Cảm Ngộ</h2>
+      <p class="text-xs text-gray-500 mt-1">Tối thiểu 100 chữ. Sau khi gửi sẽ được xét duyệt trước khi hiển thị công khai.</p>
+    </div>
+    <div class="p-6">
+      {% if let Some(review) = &user_review %}
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+        <p class="text-sm text-amber-700">
+          <strong>Trạng thái cảm ngộ của bạn:</strong>
+          {% if review.status == "pending" %}
+          ⏳ Chờ duyệt
+          {% else if review.status == "approved" %}
+          ✅ Đã duyệt
+          {% else if review.status == "rejected" %}
+          ❌ Bị từ chối (vui lòng viết lại)
+          {% endif %}
+        </p>
+        <p class="text-xs text-gray-500 mt-1">Cập nhật: {{ review.time_ago() }}</p>
+      </div>
+      {% endif %}
+
+      <form action="/kinh-sach/{{ book.slug }}/cam-ngo" method="POST">
+        <textarea name="body" rows="6" required minlength="100"
+                  placeholder="Hãy chia sẻ cảm ngộ của bạn sau khi đọc sách. Tối thiểu 100 chữ, tối đa 10.000 chữ. Hãy viết nghiêm túc, tránh viết tầm bậy vì sẽ bị từ chối."
+                  class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-tubi-400 focus:border-transparent resize-y">{% if let Some(review) = &user_review %}{{ review.body }}{% endif %}</textarea>
+        <div class="flex items-center justify-between mt-3">
+          <span class="text-xs text-gray-500">Cảm ngộ phải có tối thiểu <strong>100 chữ</strong>.</span>
+          <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white px-5 py-2.5 rounded-xl font-semibold transition" style="background-color:#388E3C">
+            {% if user_review.is_some() %}🔄 Cập nhật{% else %}🙏 Gửi cảm ngộ{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <div class="bg-tubi-50 rounded-2xl border border-tubi-100 p-6 mb-6 text-center" style="background-color:#E8F5E9">
+    <p class="text-gray-700">Đăng nhập để viết cảm ngộ và tặng hoa cho cuốn sách này.</p>
+    <a href="/dang-nhap" class="inline-block mt-3 bg-tubi-700 text-white px-5 py-2.5 rounded-xl hover:bg-tubi-800 transition" style="background-color:#388E3C">
+      🪷 Đăng nhập
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Cảm ngộ đã duyệt -->
+  {% if !reviews.is_empty() %}
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm">
+    <div class="px-6 py-4 border-b border-gray-100">
+      <h2 class="text-lg font-bold text-gray-800">🌸 Cảm Ngộ Của Đạo Hữu ({{ reviews.len() }})</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+      {% for review in &reviews %}
+      <div class="px-6 py-5">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
+            {{ review.author_initial() }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-2 flex-wrap mb-1">
+              <span class="font-semibold text-gray-800">{{ review.author_display_name }}</span>
+              <span class="text-xs text-gray-400">{{ review.time_ago() }}</span>
+              {% if review.flower_count > 0 %}
+              <span class="text-xs text-pink-500">🌺 {{ review.flower_count }} hoa</span>
+              {% endif %}
+            </div>
+            <p class="text-gray-700 leading-relaxed whitespace-pre-line text-sm">{{ review.body }}</p>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</section>
+
+<script>
+  // Hiển thị thông báo từ query string
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const msgEl = document.getElementById('query-msg');
+    if (!msgEl) return;
+    let msg = '';
+    let cls = '';
+    const error = params.get('error');
+    const review = params.get('review');
+    const flower = params.get('flower');
+    if (error === 'empty') { msg = '⚠️ Vui lòng nhập nội dung cảm ngộ.'; cls = 'bg-red-50 border-red-200 text-red-700'; }
+    else if (error === 'too_long') { msg = '⚠️ Cảm ngộ quá dài (tối đa 10.000 ký tự).'; cls = 'bg-red-50 border-red-200 text-red-700'; }
+    else if (error === 'too_short') { msg = '⚠️ Cảm ngộ phải có tối thiểu 100 chữ. Hiện tại: ' + (params.get('words') || 0) + ' chữ.'; cls = 'bg-red-50 border-red-200 text-red-700'; }
+    else if (error === 'db') { msg = '❌ Có lỗi xảy ra. Vui lòng thử lại.'; cls = 'bg-red-50 border-red-200 text-red-700'; }
+    else if (review === 'submitted') { msg = '🙏 Cảm ngộ của bạn đã được gửi và đang chờ duyệt.'; cls = 'bg-green-50 border-green-200 text-green-700'; }
+    else if (flower === 'given') { msg = '🌺 Đã tặng hoa cho cuốn sách này.'; cls = 'bg-green-50 border-green-200 text-green-700'; }
+    else if (flower === 'already') { msg = '🌺 Bạn đã tặng hoa cho cuốn sách này rồi.'; cls = 'bg-amber-50 border-amber-200 text-amber-700'; }
+    if (msg) {
+      msgEl.innerHTML = '<div class="border rounded-xl p-4 mb-4 text-sm ' + cls + '">' + msg + '</div>';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => { msgEl.innerHTML = ''; }, 8000);
+    }
+  })();
+</script>
+{% endblock %}

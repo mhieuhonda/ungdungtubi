@@ -2,6 +2,7 @@ pub mod auth;
 pub mod chat;
 pub mod community;
 pub mod friends;
+pub mod kinh_sach;
 pub mod uploads;
 
 use axum::{
@@ -291,8 +292,8 @@ pub async fn ban_be(State(state): State<AppState>, jar: CookieJar) -> Response {
 }
 
 pub async fn kinh_sach(State(state): State<AppState>, jar: CookieJar) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "books", "Kinh Sách", "📚", "Thư viện kinh sách Phật giáo, Đạo giáo và triết học", "Giai đoạn 17")
+    // [v0.9.6] Giai đoạn 10 — delegate cho kinh_sach handler
+    kinh_sach::kinh_sach_index(State(state), jar).await
 }
 
 pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Response {
@@ -478,7 +479,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.6 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

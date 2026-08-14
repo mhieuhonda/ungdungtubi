@@ -6,6 +6,123 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.6] — 2026-08-14 — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo)
+
+### Thêm (Features)
+
+- **[FEAT-1] Chuyên mục Kinh Sách chính thức ra mắt** — không còn placeholder
+  - 1 trong 4 chuyên mục chính của app (Không Gian, Cộng Đồng, Bạn Bè, Kinh Sách) cuối cùng hoàn thiện
+  - Theo thiết kế `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục IV. Kinh Sách
+
+- **[FEAT-2] 5 Thư Viện Chính**:
+  - 🪷 Phật Gia — Kinh điển, luận thư, pháp thoại Phật giáo
+  - ☯️ Đạo Gia — Đạo Đức Kinh, Nam Hoa Kinh, thư tịch Đạo giáo
+  - 📜 Kinh Văn — Kinh văn tụng đọc, chú giải, nghi thức
+  - 💎 Sách Quý — Khoa học, Triết học, Tâm học, Văn học
+  - ⭐ Quan Trọng — Bài viết quan trọng do Quản Lý chọn lựa
+
+- **[FEAT-3] Hệ thống Sách (Books)**:
+  - Sách điện tử hoàn chỉnh (`book_type=single`) hoặc theo chương (`book_type=multi`)
+  - Trang sách `/kinh-sach/{slug}` hiển thị thông tin + danh sách chương + cảm ngộ
+  - Tự tăng `view_count` khi xem sách/chương
+  - Phân loại theo 5 thư viện + 3 ngôn ngữ (vi/en/zh, ưu tiên Tiếng Việt)
+  - Hỗ trợ `download_url` để tải offline
+
+- **[FEAT-4] Hệ thống Chương (Chapters)**:
+  - Trang đọc chương `/kinh-sach/{slug}/chuong/{chapter_slug}` với sidebar mục lục sticky
+  - Điều hướng trước/sau giữa các chương (prev/next)
+  - Tự tăng `view_count` chương khi đọc
+  - Highlight chương hiện tại trong sidebar
+
+- **[FEAT-5] Hệ thống Cảm Ngộ (Reviews)**:
+  - Form cảm ngộ ngay trên trang sách (tối thiểu 100 chữ, tối đa 10.000 chữ)
+  - **Phải qua xét duyệt** mới hiển thị công khai (status: `pending` → `approved`)
+  - 1 user chỉ được viết 1 cảm ngộ/sách (partial unique index `WHERE is_active = true`), có thể edit
+  - Hiển thị trạng thái cảm ngộ của user (chờ duyệt / đã duyệt / bị từ chối)
+  - Theo HieuLouis/: "Cảm ngộ phải có tối thiểu 100 chữ và qua xét duyệt thì mới được hiển thị."
+
+- **[FEAT-6] Tặng Hoa (Flowers)**:
+  - 1 user chỉ tặng 1 hoa/sách (unique index `book_flowers`)
+  - Tự tăng counter `flower_count` qua trigger
+  - Button disable + label "Đã tặng hoa" nếu user đã tặng
+
+- **[FEAT-7] Tìm kiếm sách** `/kinh-sach/tim-kiem?q=`:
+  - Dùng ILIKE để match title/author/description
+  - Priority: title match trước, sau đó sort theo view_count
+  - Giới hạn 50 kết quả
+
+- **[FEAT-8] Lọc theo thư viện** `/kinh-sach/thu-vien/{category_slug}`:
+  - Hiển thị danh sách sách trong 1 thư viện cụ thể
+  - Hero banner riêng cho từng thư viện với icon + description
+
+- **[FEAT-9] Health check mở rộng**:
+  - Thêm `kinh_sach` stats: số sách, chương, cảm ngộ đã duyệt, tổng lượt xem
+
+- **[FEAT-10] Seed 4 cuốn sách mẫu**:
+  - Kinh A Di Đà (single, Phật Gia) — featured
+  - Đạo Đức Kinh (multi, Đạo Gia, 3 chương: 1, 2, 8) — featured
+  - Kinh Tam Đại Hải (single, Phật Gia)
+  - Kinh Pháp Cú (multi, Phật Gia, 1 chương) — featured
+
+### Migration
+
+- **012_kinh_sach.sql**: 6 bảng mới
+  - `book_categories` — 5 thư viện + seed data
+  - `books` — sách điện tử (title, author, description, category, language, cover_url, download_url, book_type, status, is_featured)
+  - `book_chapters` — chương mục (title, content, sort_order, view_count)
+  - `book_reviews` — cảm ngộ (body, status, flower_count) với partial unique index
+  - `book_donations` — donate K (sẽ activate khi có hệ thống tiền tệ)
+  - `book_flowers` — tặng hoa với unique(book_id, user_id)
+  - 5 triggers: `set_updated_at` × 3, `update_book_chapter_count`, `update_book_flower_count`, `update_book_review_count`
+  - `CREATE EXTENSION IF NOT EXISTS pg_trgm` cho fuzzy search
+  - Index: title gin_trgm, category, language, status, featured, active, created, view_count
+
+### Sửa (Bug Fixes)
+
+- **[BUG-1] Fix clippy warning `collapsible_if`** trong `handlers/friends.rs` (mail_view):
+  - Collapse 2 nested `if` thành `if let Some(ref m) = mail && m.recipient_id == user.id && !m.is_read { ... }`
+  - Sử dụng let-chains (Rust 1.88+)
+
+### Routes mới (12 endpoints)
+
+| Method | Path | Mô tả | Auth |
+|--------|------|-------|------|
+| GET | `/kinh-sach` | Trang chính Kinh Sách | Public |
+| GET | `/kinh-sach/tim-kiem` | Tìm kiếm sách `?q=` | Public |
+| GET | `/kinh-sach/thu-vien/{category_slug}` | Lọc theo thư viện | Public |
+| GET | `/kinh-sach/{slug}` | Trang sách + chương + cảm ngộ | Public |
+| GET | `/kinh-sach/{slug}/chuong/{chapter_slug}` | Đọc chương | Public |
+| POST | `/kinh-sach/{slug}/cam-ngo` | Gửi cảm ngộ | Auth |
+| POST | `/kinh-sach/{slug}/tang-hoa` | Tặng hoa | Auth |
+
+### Files mới
+
+- `src/models/kinh_sach.rs` — Book, BookWithCategory, BookChapter, BookChapterSummary, BookReview, BookReviewWithAuthor, BookCategory, BookReviewForm
+- `src/handlers/kinh_sach.rs` — 7 handlers + 1 stats helper
+- `templates/kinh-sach/index.html` — trang chính
+- `templates/kinh-sach/category.html` — lọc theo thư viện
+- `templates/kinh-sach/search.html` — kết quả tìm kiếm
+- `templates/kinh-sach/book.html` — trang sách + form cảm ngộ
+- `templates/kinh-sach/chapter.html` — đọc chương với sidebar mục lục
+- `migrations/012_kinh_sach.sql` — schema + seed data
+
+### Files sửa
+
+- `Cargo.toml` — version `0.9.5` → `0.9.6`
+- `src/main.rs` — version strings, log messages, routes mới, health check `kinh_sach` stats
+- `src/handlers/mod.rs` — đăng ký module `kinh_sach`, `kinh_sach()` delegate, version footer
+- `src/handlers/friends.rs` — fix clippy warning
+- `src/models/mod.rs` — đăng ký module `kinh_sach` + re-export
+- `templates/layout.html` — version footer `v0.9.5` → `v0.9.6`
+- `README.md` — Giai đoạn 10 entry, routes mới, cấu trúc dự án, version list
+- `CHANGELOG.md` — entry v0.9.6
+
+### Mục tiêu
+
+Thành viên có thể đọc kinh sách online, viết cảm ngộ (qua xét duyệt), tặng hoa kính dâng — bù lỗ hổng kiến thức của v0.9.5.
+
+---
+
 ## [0.9.5] — 2026-08-14 — Giai đoạn 9: Module Bạn Bè + Fix live chat bugs
 
 ### Sửa (Bug Fixes — Critical)
