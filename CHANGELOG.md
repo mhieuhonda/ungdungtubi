@@ -6,6 +6,86 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.2] — 2026-08-14 — Giai đoạn 7: Live Chat WebSocket trong Nhóm
+
+### Thêm
+- **Live Chat real-time (WebSocket) trong Nhóm** — điểm khác biệt cốt lõi của Cộng Đồng Ứng Dụng Từ Bi so với Telegram/Zalo/Facebook Group. Theo thiết kế trong `HieuLouis/Giao Diện Cộng Đồng Trong Ứng Dụng.docx`: Live Chat kết hợp với List Chủ Đề trong mỗi nhóm, Live Chat chỉ để giao lưu / kết bạn / tán gẫu / hỏi nhanh, mọi nội dung có giá trị nên được chuyển thành Chủ Đề.
+- **Migration 006**: bảng `group_chat_messages` (id, group_id, author_id, body VARCHAR(500), is_active, created_at) + 2 index (group+created_at DESC cho history, author cho profile) + comments. Phân biệt rõ với `comments`: comments gắn trên Chủ Đề (lưu trữ tri thức), còn `group_chat_messages` là chat real-time (kết nối, giao lưu).
+- **WebSocket endpoint** `GET /ws/cong-dong/nhom/{slug}` — Axum 0.8 `WebSocketUpgrade`:
+  - Auth bằng `session_id` cookie trước khi upgrade (HTTP 401 nếu chưa đăng nhập)
+  - Resolve `group_id` từ slug + kiểm tra `is_active`
+  - Kiểm tra user có membership `active` trong nhóm (HTTP 403 nếu không phải member)
+  - Upgrade WebSocket → spawn 2 task song song:
+    - `send_task`: forward từ broadcast channel → client (tin nhắn từ người khác)
+    - recv loop: đọc từ client → persist DB → broadcast (tin nhắn của mình)
+  - Khi client ngắt, `send_task` bị abort để tránh task leak
+- **REST endpoint** `GET /api/cong-dong/nhom/{slug}/chat-history?limit=50&before={iso8601}` — paginated chat history:
+  - Public (ai cũng xem được chat history của nhóm public)
+  - `limit` clamp [1, 100], mặc định 50
+  - `before` (RFC 3339) cho cursor pagination — lấy tin nhắn có `created_at < before`
+  - Trả về JSON array các ChatMessageWithAuthor (mới nhất trước)
+- **ChatHub** — quản lý `HashMap<Uuid, broadcast::Sender<String>>` trong `Arc<Mutex<...>>`:
+  - Mỗi nhóm có một broadcast channel (capacity 256)
+  - Client subscribe khi kết nối WebSocket, unsub khi ngắt
+  - `broadcast()` gửi payload JSON đến tất cả client online trong nhóm
+  - Bỏ qua lỗi "no receivers" (không ai online khi tin nhắn được gửi — bình thường)
+  - Bỏ qua `Lagged` (client chậm, bỏ qua tin cũ, tiếp tục)
+- **Models `ChatMessage` + `ChatMessageWithAuthor`** trong `models/community.rs` — derive Serialize cho JSON response + FromRow cho sqlx.
+- **Helper `recent_messages(pool, group_id)`** trong `handlers/chat.rs` — trả về 20 tin nhắn gần nhất (đã đảo ngược để render oldest-first) cho SSR template.
+- **Template `community/group.html` cập nhật** — thêm Live Chat panel phía dưới Topics List:
+  - Panel cao 360px (desktop) / 300px (mobile) — chiếm ~35% chiều cao, List Chủ Đề chiếm 65%
+  - Render 20 tin nhắn gần nhất từ SSR (`chat_messages_json` truyền từ Rust)
+  - Alpine.js `liveChat()` component quản lý WebSocket state
+  - Hiển thị avatar (Google avatar hoặc chữ cái đầu tên), tên, thời gian, bubble chat
+  - Auto-scroll xuống cuối khi có tin nhắn mới
+  - Input field + nút "🙏 Gửi" (Enter để gửi)
+  - Disabled input khi chưa kết nối / chưa tham gia nhóm / chưa đăng nhập
+  - Hiển thị trạng thái kết nối: "đang kết nối…", "● đã kết nối", "● N người online", lỗi
+  - Validation: maxlength=500, không gửi tin rỗng
+  - Gợi ý: "Live Chat chỉ để giao lưu. Nội dung quý giá nên tạo thành Chủ Đề"
+- **Alpine.js `liveChat(opts)` component** trong `static/js/app.js`:
+  - State: `messages`, `draft`, `connected`, `error`, `socket`, `reconnectAttempts`
+  - `connect()`: mở WebSocket với URL `wss://host/ws/cong-dong/nhom/{slug}` (production) hoặc `ws://` (dev)
+  - `handleIncoming(raw)`: parse JSON, xử lý 2 loại payload:
+    - `{ type: "error", message: "..." }` — error từ server, hiển thị 3s
+    - `{ id, body, author_display_name, ... }` — chat message, thêm vào `messages` (tránh duplicate)
+  - `send()`: gửi text qua `socket.send()`, validate length, clear draft
+  - `scheduleReconnect()`: exponential backoff (1s, 2s, 4s, 8s, 16s — max 30s, max 5 lần thử)
+  - `onclose` handler: code 1008 = policy violation (auth/permission) → không reconnect; khác → reconnect
+  - `formatTime(isoStr)`: format `dd/MM HH:mm` bằng `Intl.DateTimeFormat('vi-VN')`
+  - `scrollToBottom()`: auto-scroll khi có tin nhắn mới
+- **`AppState` thêm field `chat_hub: ChatHub`** — ChatHub clone-able (Arc inside), share giữa các handler.
+
+### Sửa
+- **`Cargo.toml`**: 
+  - Bump version `0.9.1` → `0.9.2`
+  - Thêm feature `"ws"` cho `axum` (cần thiết cho `axum::extract::ws::WebSocketUpgrade`)
+- **`src/main.rs`**:
+  - Import `handlers::chat::ChatHub`, thêm field `chat_hub: ChatHub::default()` vào AppState
+  - Log khởi động: v0.9.1 → v0.9.2, đổi thông điệp thành "Giai đoạn 7: Live Chat WebSocket trong Nhóm + Cộng Đồng Foundation"
+  - Health endpoint: `version: 0.9.2`, `phase: 7`, `phase_name: "Giai đoạn 7 — Live Chat WebSocket trong Nhóm"`, thêm mảng `features` liệt kê 5 tính năng chính
+  - Thêm 2 routes mới: `GET /ws/cong-dong/nhom/{slug}` + `GET /api/cong-dong/nhom/{slug}/chat-history`
+- **`src/handlers/mod.rs`**: export thêm `pub mod chat`
+- **`src/handlers/community.rs`**: 
+  - `GroupTemplate` thêm field `chat_messages_json: String` (JSON-serialised cho Alpine.js init)
+  - `view_group` handler gọi `recent_messages()` để lấy 20 tin gần nhất, serialize sang JSON, truyền vào template
+- **`src/models/community.rs`**: thêm `ChatMessage` + `ChatMessageWithAuthor` structs + impl helpers `time_ago()` + `author_initial()`
+
+### Đổi
+- **README.md**: cập nhật version v0.9.1 → v0.9.2, thêm 2 routes mới vào bảng routes, thêm mục "Giai đoạn 7: Live Chat WebSocket" vào lộ trình, cập nhật Cargo.toml description (thêm feature ws).
+- **CHANGELOG.md**: thêm mục v0.9.2.
+- **Footer version** trong `layout.html` + `placeholder_page()`: giữ nguyên "v0.9" (số minor hiển thị — chi tiết version nằm trong health endpoint + CHANGELOG).
+
+### Lộ trình tiếp theo (v0.10+)
+- **v0.10**: Quỹ Từ Bi + Thương Thành (placeholder hiện có)
+- **v0.11**: Ghim/khoá chủ đề, sticky topics, pagination
+- **v0.12**: Nested comments (reply tree), vote/like chủ đề và bình luận
+- **v0.15**: Bạn Bè — kết bạn, nhắn tin, gửi thư
+- **v0.17**: Kinh Sách — thư viện sách điện tử
+- **v0.19**: Bảng Xếp Hạng + Thành tích
+
+---
+
 ## [0.9.1] — 2026-08-14 — Giai đoạn 1 finalization: Fix UI mobile + Bỏ GitHub Actions + Deploy thủ công qua Coolify
 
 ### Sửa lỗi UI trên mobile

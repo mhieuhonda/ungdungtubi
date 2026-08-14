@@ -1,12 +1,13 @@
 [package]
 name = "ungdungtubi"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 rust-version = "1.97"
 
 [dependencies]
 # Web framework ( migrated from actix-web 4 → axum 0.8 )
-axum = { version = "0.8", features = ["macros", "multipart"] }
+# v0.9.2: thêm feature "ws" cho Live Chat WebSocket trong nhóm
+axum = { version = "0.8", features = ["macros", "multipart", "ws"] }
 axum-extra = { version = "0.10", features = ["cookie", "cookie-signed"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["fs", "trace", "compression-gzip", "cors"] }

@@ -124,11 +124,24 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **10 endpoint** mới cho Cộng Đồng (xem routes bên dưới)
 - **Mục tiêu:** Cộng Đồng hoạt động đầy đủ — tạo nhóm, tham gia, tạo chủ đề, bình luận
 
-### Giai đoạn 7–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 7: Live Chat WebSocket trong Nhóm ✅ (v0.9.2)
+- **Live Chat real-time (WebSocket) trong Nhóm** — điểm khác biệt cốt lõi của Cộng Đồng Ứng Dụng Từ Bi so với Telegram/Zalo/Facebook Group
+- Theo thiết kế `HieuLouis/Giao Diện Cộng Đồng Trong Ứng Dụng.docx`: mỗi nhóm có Danh sách Chủ Đề (diễn đàn, ~65% chiều cao) + Live Chat (real-time, ~35% chiều cao)
+- **Triết lý**: Live Chat chỉ để giao lưu / kết bạn / tán gẫu / hỏi nhanh. Mọi nội dung có giá trị nên được chuyển thành Chủ Đề (lưu trữ tri thức lâu dài)
+- **WebSocket endpoint** `GET /ws/cong-dong/nhom/{slug}` (Axum 0.8 `WebSocketUpgrade`)
+  - Auth bằng session_id cookie, chỉ member active mới chat được
+  - ChatHub quản lý `broadcast::Sender` per-group, capacity 256
+  - Spawn 2 task song song: send (broadcast→client) + recv (client→DB→broadcast)
+- **REST endpoint** `GET /api/cong-dong/nhom/{slug}/chat-history?limit=50&before={iso8601}` — paginated history
+- **Migration 006**: bảng `group_chat_messages` (body VARCHAR(500), 2 index)
+- **Frontend**: Alpine.js `liveChat()` component — auto-reconnect exponential backoff, auto-scroll, formatTime vi-VN
+- **Mục tiêu:** Thành viên trong nhóm có thể chat real-time, kết nối cộng đồng
+
+### Giai đoạn 8–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 9 / v0.9.1)
+## Cấu Trúc Dự Án (Giai đoạn 7 / v0.9.2)
 
 ```
 ungdungtubi/
@@ -142,15 +155,16 @@ ungdungtubi/
 │   ├── handlers/
 │   │   ├── mod.rs           # Page handlers + session auth + profile update
 │   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
-│   │   ├── community.rs     # [v0.6] Groups + Topics + Comments handlers (10 endpoints)
+│   │   ├── chat.rs          # [v0.9.2] Live Chat WebSocket + chat-history REST + ChatHub
+│   │   ├── community.rs     # Groups + Topics + Comments handlers (10 endpoints)
 │   │   └── uploads.rs       # [v0.5] Upload ảnh API (5MB max, SHA-256, dimensions)
 │   ├── models/
 │   │   ├── mod.rs
 │   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
-│   │   └── community.rs     # [v0.6] Group, Topic, Comment, GroupMember, GroupCategory
+│   │   └── community.rs     # Group, Topic, Comment, GroupMember, GroupCategory, [v0.9.2] ChatMessage
 │   └── static/
 │       ├── css/app.css
-│       ├── js/app.js
+│       ├── js/app.js        # [v0.9.2] + liveChat() Alpine.js component
 │       └── uploads/         # [v0.5] Nơi lưu ảnh user upload
 ├── templates/                # Askama templates (Vietnamese)
 │   ├── layout.html
@@ -160,7 +174,7 @@ ungdungtubi/
 │   │   └── login.html
 │   └── community/            # [v0.6]
 │       ├── index.html        # Trang chính Cộng Đồng (Lướt Nhóm / Lướt Chủ Đề)
-│       ├── group.html        # Trang nhóm + topic list
+│       ├── group.html        # [v0.9.2] Trang nhóm + topic list + Live Chat panel
 │       ├── topic.html        # Trang chủ đề + bình luận
 │       ├── create_group.html # Form tạo nhóm
 │       └── create_topic.html # Form tạo chủ đề
@@ -169,10 +183,10 @@ ungdungtubi/
 │   ├── 002_google_oauth.sql
 │   ├── 003_member_profile_ranks.sql
 │   ├── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
-│   └── 005_community_groups_topics_comments.sql  # [v0.6] groups + group_members + topics + comments + triggers
-├── .github/workflows/   # (ĐÃ XÓA từ v0.9.1 — deploy thủ công qua Coolify)
+│   ├── 005_community_groups_topics_comments.sql  # [v0.6] groups + group_members + topics + comments + triggers
+│   └── 006_group_chat_messages.sql  # [v0.9.2] Live Chat messages table + indexes
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.9.1, Rust 1.97, release profile tối ưu
+├── Cargo.toml                # v0.9.2, Rust 1.97, axum ws feature, release profile tối ưu
 ├── Dockerfile                # Multi-stage Rust 1.97.1, ~30 MB (dùng cho local/dev; production dùng inline Dockerfile trên Coolify)
 ├── docker-compose.yml        # Dev environment (Postgres 17 + app)
 ├── .env.example              # Template cấu hình môi trường v0.9
@@ -264,7 +278,7 @@ Coolify app đã được cấu hình sẵn với inline Dockerfile (clone repo 
 **Bỏ GitHub Actions từ v0.9.1:** Workflow cũ `.github/workflows/docker.yml` đã bị xóa.
 Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, không gặp permission issues như `write_package`.
 
-## Routes (v0.6)
+## Routes (v0.9.2)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -279,13 +293,15 @@ Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, k
 | GET | `/cong-dong` | **[v0.6]** Trang chính Cộng Đồng (Lướt Nhóm / Lướt Chủ Đề) | Public |
 | GET | `/cong-dong/tao-nhom` | **[v0.6]** Form tạo nhóm | Auth |
 | POST | `/cong-dong/tao-nhom` | **[v0.6]** Tạo nhóm mới | Auth |
-| GET | `/cong-dong/nhom/{slug}` | **[v0.6]** Trang nhóm + danh sách chủ đề | Public |
+| GET | `/cong-dong/nhom/{slug}` | **[v0.6]** Trang nhóm + danh sách chủ đề + Live Chat panel | Public |
 | POST | `/cong-dong/nhom/{slug}/tham-gia` | **[v0.6]** Tham gia nhóm | Auth |
 | POST | `/cong-dong/nhom/{slug}/roi-khoi` | **[v0.6]** Rời nhóm (owner không được rời) | Auth |
 | GET | `/cong-dong/nhom/{slug}/tao-chu-de` | **[v0.6]** Form tạo chủ đề | Auth + member |
 | POST | `/cong-dong/nhom/{slug}/tao-chu-de` | **[v0.6]** Tạo chủ đề mới | Auth + member |
 | GET | `/cong-dong/chu-de/{id}` | **[v0.6]** Trang chủ đề + bình luận | Public |
 | POST | `/cong-dong/chu-de/{id}/binh-luan` | **[v0.6]** Đăng bình luận | Auth |
+| **WS** | `/ws/cong-dong/nhom/{slug}` | **[v0.9.2]** Live Chat WebSocket (upgrade) | Auth + member |
+| GET | `/api/cong-dong/nhom/{slug}/chat-history` | **[v0.9.2]** Lấy 50 tin nhắn gần nhất (`?limit=&before=`) | Public |
 | GET | `/khong-gian` | Không Gian (placeholder) | Public |
 | GET | `/ban-be` | Bạn Bè (placeholder) | Public |
 | GET | `/kinh-sach` | Kinh Sách (placeholder) | Public |
@@ -307,6 +323,7 @@ Lý do: deploy trực tiếp qua Coolify đơn giản hơn, không cần GHCR, k
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 - **v0.9** — Giai đoạn 9: Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 ổn định
 - **v0.9.1** — Giai đoạn 1 finalization: Fix UI mobile (bottom nav + x-cloak), bỏ GitHub Actions, deploy thủ công qua Coolify
+- **v0.9.2** — Giai đoạn 7: Live Chat WebSocket trong Nhóm (Axum 0.8 ws + ChatHub broadcast + Alpine.js liveChat component)
 
 ---
 

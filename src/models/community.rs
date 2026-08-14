@@ -164,6 +164,47 @@ pub struct CommentCreateForm {
     pub parent_id: Option<String>,
 }
 
+/// Một tin nhắn Live Chat trong nhóm (v0.9.2 — Giai đoạn 7).
+///
+/// Phân biệt với `Comment`: bình luận gắn trên Chủ Đề (lưu trữ tri thức),
+/// còn `ChatMessage` là chat real-time trong Nhóm (giao lưu, kết nối).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ChatMessage {
+    pub id: Uuid,
+    pub group_id: Uuid,
+    pub author_id: Uuid,
+    pub body: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// ChatMessage kèm thông tin author (join query) — dùng cho render + broadcast.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ChatMessageWithAuthor {
+    pub id: Uuid,
+    pub group_id: Uuid,
+    pub author_id: Uuid,
+    pub body: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    // Từ users
+    pub author_display_name: String,
+    pub author_avatar_url: Option<String>,
+    pub author_rank: String,
+}
+
+impl ChatMessageWithAuthor {
+    /// Hiển thị thời gian tương đối ("5 phút trước").
+    pub fn time_ago(&self) -> String {
+        crate::handlers::community::time_ago_display(&self.created_at)
+    }
+
+    /// Chữ cái đầu tên author (dùng làm avatar fallback).
+    pub fn author_initial(&self) -> char {
+        self.author_display_name.chars().next().unwrap_or('🪷')
+    }
+}
+
 impl Group {
     /// Hiển thị visibility tiếng Việt.
     pub fn visibility_display(&self) -> &str {

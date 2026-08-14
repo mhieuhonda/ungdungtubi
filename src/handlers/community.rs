@@ -66,6 +66,9 @@ pub struct GroupTemplate {
     pub group: GroupWithCategory,
     pub topics: Vec<TopicWithAuthor>,
     pub membership: Option<GroupMember>,
+    /// 20 tin nhắn chat gần nhất — JSON-serialised cho Alpine.js init.
+    /// [v0.9.2] Live Chat WebSocket
+    pub chat_messages_json: String,
 }
 
 #[derive(Template)]
@@ -409,12 +412,17 @@ pub async fn view_group(
         None
     };
 
+    // [v0.9.2] Lấy 20 tin nhắn chat gần nhất để render SSR
+    let chat_messages = crate::handlers::chat::recent_messages(&state.pool, group.id).await;
+    let chat_messages_json = serde_json::to_string(&chat_messages).unwrap_or_else(|_| "[]".into());
+
     let html = GroupTemplate {
         user,
         active_page: "community".into(),
         group,
         topics,
         membership,
+        chat_messages_json,
     }
     .render()
     .unwrap_or_else(|e| {

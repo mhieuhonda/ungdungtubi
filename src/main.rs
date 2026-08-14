@@ -15,12 +15,16 @@ mod handlers;
 mod models;
 
 use config::Config;
+use handlers::chat::ChatHub;
 
 /// Shared application state — replaces actix-web's `web::Data<T>`.
+///
+/// v0.9.2: thêm `chat_hub` để quản lý broadcast channels cho Live Chat.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
+    pub chat_hub: ChatHub,
 }
 
 #[tokio::main]
@@ -35,14 +39,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.1 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.2 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.1 — Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 + Cộng Đồng");
+    log::info!("📦 Phiên bản: v0.9.2 — Giai đoạn 7: Live Chat WebSocket trong Nhóm + Cộng Đồng Foundation");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -106,10 +110,11 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
-    // Build shared state
+    // Build shared state (v0.9.2: + chat_hub cho Live Chat WebSocket)
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
+        chat_hub: ChatHub::default(),
     };
 
     // Build router
@@ -175,6 +180,15 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/cong-dong/chu-de/{id}/binh-luan",
             post(handlers::community::create_comment),
         )
+        // Routes — Live Chat (v0.9.2 — Giai đoạn 7)
+        .route(
+            "/ws/cong-dong/nhom/{slug}",
+            get(handlers::chat::chat_ws_upgrade),
+        )
+        .route(
+            "/api/cong-dong/nhom/{slug}/chat-history",
+            get(handlers::chat::chat_history),
+        )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         .route("/thuong-thanh", get(handlers::thuong_thanh))
@@ -208,13 +222,20 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.1",
+        "version": "0.9.2",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 9,
-        "phase_name": "Ứng Dụng Từ Bi v0.9.1 — Codebase sạch lỗi, Axum 0.8 ổn định",
-        "framework": "axum 0.8 + tower-http",
+        "phase": 7,
+        "phase_name": "Giai đoạn 7 — Live Chat WebSocket trong Nhóm",
+        "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
+        "features": [
+            "google-oauth",
+            "profile-ranks",
+            "image-upload",
+            "community-groups-topics-comments",
+            "live-chat-websocket"
+        ],
         "database": {
             "status": db_status,
             "version": db_version,
