@@ -440,17 +440,44 @@ async fn upsert_google_user(
 ) -> Result<User, sqlx::Error> {
     let select_sql = format!("SELECT {USER_COLUMNS} FROM users WHERE google_sub = $1");
 
+    // v0.9.11: Thêm fallback cho SELECT đầu tiên — nếu SELECT với USER_COLUMNS
+    // thất bại (vd. column i_balance/role chưa tồn tại dù safety_schema đã chạy),
+    // thử SELECT với minimal columns rồi populate defaults.
+    // Điều này đảm bảo login KHÔNG BAO GIỜ bị block chỉ vì schema drift.
+
     // 1. Tìm theo google_sub.
-    if let Some(u) = sqlx::query_as::<_, User>(&select_sql)
+    //    Dùng match thay vì `?` để bắt lỗi ColumnNotFound → fallback minimal SELECT.
+    match sqlx::query_as::<_, User>(&select_sql)
         .bind(&info.sub)
         .fetch_optional(pool)
-        .await?
+        .await
     {
-        return Ok(u);
+        Ok(Some(u)) => return Ok(u),
+        Ok(None) => {} // chưa có user với google_sub này → tiếp tục
+        Err(e) => {
+            log::warn!("⚠️ SELECT user by google_sub fail ({e}), thử minimal SELECT fallback...");
+            // Thử minimal SELECT (không i_balance, không role) rồi populate defaults
+            let minimal_sql = "SELECT id, email, display_name, password_hash, rank, \
+                a_balance, k_balance, is_active, created_at, updated_at, \
+                google_sub, avatar_url, email_verified, \
+                phap_danh, phap_hieu, but_danh, gender, bio, \
+                avatar_upload_id \
+                FROM users WHERE google_sub = $1";
+            if let Some(u) = sqlx::query_as::<_, UserMinimal>(minimal_sql)
+                .bind(&info.sub)
+                .fetch_optional(pool)
+                .await?
+            {
+                log::info!("✅ Minimal SELECT fallback thành công (bước 1) — populate defaults");
+                return Ok(u.into_full_user());
+            }
+            // Nếu minimal SELECT cũng không tìm thấy user → tiếp tục tạo user mới
+        }
     }
 
     // 2. Nếu chưa có — tìm theo email (tài khoản cũ email/password).
     //    Nếu có, link google_sub + avatar_url vào.
+    //    v0.9.11: Cũng thêm fallback nếu RETURNING fail.
     let link_sql = format!(
         "UPDATE users
          SET google_sub = $1,
@@ -466,9 +493,29 @@ async fn upsert_google_user(
         .bind(info.email_verified)
         .bind(&info.email)
         .fetch_optional(pool)
-        .await?;
-    if let Some(u) = linked {
-        return Ok(u);
+        .await;
+    match linked {
+        Ok(Some(u)) => return Ok(u),
+        Ok(None) => {} // không có user email trùng → tiếp tục tạo mới
+        Err(e) => {
+            log::warn!("⚠️ UPDATE link by email fail ({e}) — thử minimal SELECT fallback");
+            // Có thể UPDATE đã thành công nhưng RETURNING fail → SELECT lại theo google_sub
+            let minimal_sql = "SELECT id, email, display_name, password_hash, rank, \
+                a_balance, k_balance, is_active, created_at, updated_at, \
+                google_sub, avatar_url, email_verified, \
+                phap_danh, phap_hieu, but_danh, gender, bio, \
+                avatar_upload_id \
+                FROM users WHERE google_sub = $1";
+            if let Some(u) = sqlx::query_as::<_, UserMinimal>(minimal_sql)
+                .bind(&info.sub)
+                .fetch_optional(pool)
+                .await?
+            {
+                log::info!("✅ Minimal SELECT fallback thành công (bước 2 link) — populate defaults");
+                return Ok(u.into_full_user());
+            }
+            // Vẫn không có → tiếp tục tạo user mới
+        }
     }
 
     // 3. Tạo user mới.
