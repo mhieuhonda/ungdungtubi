@@ -102,11 +102,33 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - Release profile tối ưu (LTO thin, strip symbols, panic=abort)
 - **Mục tiêu:** Web chạy production ổn định, deploy tự động, sẵn sàng cho giai đoạn 6+
 
-### Giai đoạn 6–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
+### Giai đoạn 6: Cộng Đồng Foundation — Nhóm + Chủ Đề + Bình luận ✅ (v0.6)
+- **Chuyên mục Cộng Đồng chính thức ra mắt** — không còn placeholder
+- **Hệ thống Nhóm (Groups)**:
+  - Tạo nhóm với tên, mô tả, phân loại (9 categories), visibility (public/private/hidden), require_approval
+  - Trang nhóm `/cong-dong/nhom/{slug}` hiển thị thông tin + danh sách chủ đề
+  - Tham gia / rời nhóm (POST-only, chống CSRF)
+  - Slug tự sinh từ tên, đảm bảo duy nhất (thêm hậu tố UUID nếu trùng)
+- **Hệ thống Chủ Đề (Topics)** — bài viết trong nhóm (diễn đàn):
+  - Tạo chủ đề với title (max 200) + body (multiline)
+  - Chỉ thành viên active mới được tạo chủ đề
+  - Hỗ trợ ghim (`is_pinned`) + khoá (`is_locked`) ở schema, UI giai đoạn sau
+  - Tự tăng `view_count` khi xem chủ đề
+- **Hệ thống Bình luận (Comments)** — bình luận trên chủ đề:
+  - Form bình luận nhanh ngay trên trang chủ đề
+  - Hỗ trợ reply (parent_id) ở schema, UI nested giai đoạn sau
+  - Validate body (không rỗng, tối đa 5000 ký tự)
+  - Không bình luận được nếu chủ đề bị khoá
+- **Migration 005**: 5 bảng mới (group_categories, groups, group_members, topics, comments) + 4 triggers + 9 seed categories
+- **Giao diện Lướt**: tabs "Lướt Nhóm" / "Lướt Chủ Đề" trên trang chính Cộng Đồng
+- **10 endpoint** mới cho Cộng Đồng (xem routes bên dưới)
+- **Mục tiêu:** Cộng Đồng hoạt động đầy đủ — tạo nhóm, tham gia, tạo chủ đề, bình luận
+
+### Giai đoạn 7–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 5 / v0.5)
+## Cấu Trúc Dự Án (Giai đoạn 6 / v0.6)
 
 ```
 ungdungtubi/
@@ -120,10 +142,12 @@ ungdungtubi/
 │   ├── handlers/
 │   │   ├── mod.rs           # Page handlers + session auth + profile update
 │   │   ├── auth.rs          # google_login, google_callback, logout (POST-only)
+│   │   ├── community.rs     # [v0.6] Groups + Topics + Comments handlers (10 endpoints)
 │   │   └── uploads.rs       # [v0.5] Upload ảnh API (5MB max, SHA-256, dimensions)
 │   ├── models/
 │   │   ├── mod.rs
-│   │   └── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
+│   │   ├── user.rs          # User, GoogleUserInfo, MemberRank, ProfileUpdate
+│   │   └── community.rs     # [v0.6] Group, Topic, Comment, GroupMember, GroupCategory
 │   └── static/
 │       ├── css/app.css
 │       ├── js/app.js
@@ -132,17 +156,24 @@ ungdungtubi/
 │   ├── layout.html
 │   ├── home.html
 │   ├── profile.html
-│   └── auth/
-│       └── login.html
+│   ├── auth/
+│   │   └── login.html
+│   └── community/            # [v0.6]
+│       ├── index.html        # Trang chính Cộng Đồng (Lướt Nhóm / Lướt Chủ Đề)
+│       ├── group.html        # Trang nhóm + topic list
+│       ├── topic.html        # Trang chủ đề + bình luận
+│       ├── create_group.html # Form tạo nhóm
+│       └── create_topic.html # Form tạo chủ đề
 ├── migrations/
 │   ├── 001_create_users_sessions.sql
 │   ├── 002_google_oauth.sql
 │   ├── 003_member_profile_ranks.sql
-│   └── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
+│   ├── 004_storage_images_audit.sql  # [v0.5] images + audit_log + trigger updated_at
+│   └── 005_community_groups_topics_comments.sql  # [v0.6] groups + group_members + topics + comments + triggers
 ├── .github/workflows/
 │   └── docker.yml            # [v0.5] Build + push + trigger Coolify
 ├── HieuLouis/                # Tài liệu dự án
-├── Cargo.toml                # v0.5.0, Rust 1.97, release profile tối ưu
+├── Cargo.toml                # v0.6.0, Rust 1.97, release profile tối ưu
 ├── Dockerfile                # [v0.5] Multi-stage Rust 1.97.1, ~30 MB
 ├── docker-compose.yml        # [v0.5] Dev environment (Postgres 17 + app)
 ├── .env.example              # Template cấu hình môi trường v0.5
@@ -215,7 +246,7 @@ Workflow deploy tự động:
 - Bind volume `/app/static/uploads` để giữ ảnh user
 - Cấu hình domain `tubi.louis.vangioitutien.com`
 
-## Routes (v0.5)
+## Routes (v0.6)
 
 | Method | Path | Mô tả | Auth |
 |--------|------|-------|------|
@@ -227,8 +258,17 @@ Workflow deploy tự động:
 | POST | `/dang-xuat` | Xoá session, redirect về `/` | Auth (POST-only để chống CSRF) |
 | GET | `/ca-nhan` | Hồ sơ cá nhân + form chỉnh sửa + danh sách cấp bậc | Auth |
 | POST | `/ca-nhan/cap-nhat` | Cập nhật hồ sơ | Auth |
+| GET | `/cong-dong` | **[v0.6]** Trang chính Cộng Đồng (Lướt Nhóm / Lướt Chủ Đề) | Public |
+| GET | `/cong-dong/tao-nhom` | **[v0.6]** Form tạo nhóm | Auth |
+| POST | `/cong-dong/tao-nhom` | **[v0.6]** Tạo nhóm mới | Auth |
+| GET | `/cong-dong/nhom/{slug}` | **[v0.6]** Trang nhóm + danh sách chủ đề | Public |
+| POST | `/cong-dong/nhom/{slug}/tham-gia` | **[v0.6]** Tham gia nhóm | Auth |
+| POST | `/cong-dong/nhom/{slug}/roi-khoi` | **[v0.6]** Rời nhóm (owner không được rời) | Auth |
+| GET | `/cong-dong/nhom/{slug}/tao-chu-de` | **[v0.6]** Form tạo chủ đề | Auth + member |
+| POST | `/cong-dong/nhom/{slug}/tao-chu-de` | **[v0.6]** Tạo chủ đề mới | Auth + member |
+| GET | `/cong-dong/chu-de/{id}` | **[v0.6]** Trang chủ đề + bình luận | Public |
+| POST | `/cong-dong/chu-de/{id}/binh-luan` | **[v0.6]** Đăng bình luận | Auth |
 | GET | `/khong-gian` | Không Gian (placeholder) | Public |
-| GET | `/cong-dong` | Cộng Đồng (placeholder) | Public |
 | GET | `/ban-be` | Bạn Bè (placeholder) | Public |
 | GET | `/kinh-sach` | Kinh Sách (placeholder) | Public |
 | GET | `/quy-tu-bi` | Quỹ Từ Bi (placeholder) | Public |
@@ -246,6 +286,7 @@ Workflow deploy tự động:
 - **v0.3** — Giai đoạn 3: Chuyển sang Google OAuth (đăng nhập duy nhất bằng Google)
 - **v0.4** — Giai đoạn 4: Hồ sơ thành viên & Hệ thống cấp bậc
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
+- **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 
 ---
 

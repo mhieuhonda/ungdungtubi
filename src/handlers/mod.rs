@@ -1,4 +1,5 @@
 pub mod auth;
+pub mod community;
 pub mod uploads;
 
 use actix_web::{web, HttpRequest, Responder};
@@ -296,8 +297,8 @@ pub async fn khong_gian(req: HttpRequest, pool: actix_web::web::Data<PgPool>) ->
 }
 
 pub async fn cong_dong(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
-    let user = get_user_from_session(pool.get_ref(), &req).await;
-    placeholder_page(user, "community", "Cộng Đồng", "👥", "Diễn đàn kết hợp mạng xã hội — Lướt nhóm, chủ đề, live chat", "Giai đoạn 12")
+    // [v0.6] Cộng Đồng đã có trang riêng — delegate cho community handler.
+    community::cong_dong_index(req, pool).await
 }
 
 pub async fn ban_be(req: HttpRequest, pool: actix_web::web::Data<PgPool>) -> impl Responder {
@@ -492,7 +493,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.5 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.6 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

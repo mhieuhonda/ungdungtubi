@@ -1,0 +1,108 @@
+{% extends "layout.html" %}
+{% block title %}Tạo Nhóm Mới — Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <nav class="text-sm text-gray-500 mb-4">
+    <a href="/cong-dong" class="hover:text-tubi-700">👥 Cộng Đồng</a>
+    <span class="mx-2">›</span>
+    <span class="text-gray-700">Tạo nhóm mới</span>
+  </nav>
+
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8">
+    <h1 class="text-2xl font-bold text-gray-900 mb-2">✨ Tạo Nhóm Mới</h1>
+    <p class="text-gray-500 text-sm mb-6">Tạo một không gian cộng đồng cho đạo hữu cùng chung chí hướng.</p>
+
+    {% if let Some(err) = error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
+      ⚠️ {{ err }}
+    </div>
+    {% endif %}
+
+    <form action="/cong-dong/tao-nhom" method="POST" class="space-y-5">
+      <!-- Tên nhóm -->
+      <div>
+        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+          Tên nhóm <span class="text-red-500">*</span>
+        </label>
+        <input type="text" id="name" name="name" required maxlength="100"
+               placeholder="VD: Đạo Tràng Niệm Phật Mỗi Ngày"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tubi-400 focus:border-transparent text-sm">
+        <p class="text-xs text-gray-400 mt-1">Tối đa 100 ký tự. Slug sẽ được tạo tự động.</p>
+      </div>
+
+      <!-- Mô tả -->
+      <div>
+        <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+          Mô tả nhóm
+        </label>
+        <textarea id="description" name="description" rows="4" maxlength="1000"
+                  placeholder="Mục tiêu, nội quy, định hướng nhóm..."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tubi-400 focus:border-transparent text-sm"></textarea>
+      </div>
+
+      <!-- Phân loại -->
+      <div>
+        <label for="category_id" class="block text-sm font-medium text-gray-700 mb-1">
+          Phân loại
+        </label>
+        <select id="category_id" name="category_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tubi-400 focus:border-transparent text-sm">
+          <option value="">— Chọn phân loại —</option>
+          {% for cat in &categories %}
+          <option value="{{ cat.id }}">{{ cat.icon }} {{ cat.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Visibility -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Hiển thị</label>
+        <div class="space-y-2">
+          <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <input type="radio" name="visibility" value="public" checked class="mt-1">
+            <div>
+              <div class="text-sm font-medium text-gray-900">🌍 Công khai</div>
+              <div class="text-xs text-gray-500">Bất kỳ ai cũng có thể thấy và tham gia nhóm.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <input type="radio" name="visibility" value="private" class="mt-1">
+            <div>
+              <div class="text-sm font-medium text-gray-900">🔒 Riêng tư</div>
+              <div class="text-xs text-gray-500">Nhóm hiển thị trong danh sách, nhưng cần duyệt để tham gia.</div>
+            </div>
+          </label>
+          <label class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+            <input type="radio" name="visibility" value="hidden" class="mt-1">
+            <div>
+              <div class="text-sm font-medium text-gray-900">🚫 Ẩn</div>
+              <div class="text-xs text-gray-500">Chỉ ai có link mới thấy được nhóm.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Require approval -->
+      <div>
+        <label class="flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+          <input type="checkbox" name="require_approval" value="true" class="rounded">
+          <div>
+            <div class="text-sm font-medium text-gray-900">📝 Yêu cầu duyệt khi tham gia</div>
+            <div class="text-xs text-gray-500">Nếu bỏ trống, ai cũng có thể tham gia ngay lập tức.</div>
+          </div>
+        </label>
+      </div>
+
+      <!-- Submit -->
+      <div class="pt-2 flex items-center gap-3">
+        <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-6 py-2.5 rounded-lg transition" style="background-color:#388E3C">
+          ✨ Tạo Nhóm
+        </button>
+        <a href="/cong-dong" class="text-sm text-gray-500 hover:text-gray-700">Huỷ</a>
+      </div>
+    </form>
+  </div>
+
+</section>
+{% endblock %}

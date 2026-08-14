@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block title %}{{ group.name }} — Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Breadcrumb -->
+  <nav class="text-sm text-gray-500 mb-4">
+    <a href="/cong-dong" class="hover:text-tubi-700">👥 Cộng Đồng</a>
+    <span class="mx-2">›</span>
+    <span class="text-gray-700">{{ group.name }}</span>
+  </nav>
+
+  <!-- Group Header -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-8 mb-6">
+    <div class="flex items-start gap-4 mb-4">
+      <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style="background-color:#E8F5E9">
+        {{ group.category_icon_or_lotus() }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap mb-1">
+          <h1 class="text-2xl md:text-3xl font-bold text-gray-900">{{ group.name }}</h1>
+          <span class="text-xs text-gray-500">{{ group.visibility_icon() }} {{ group.visibility_display() }}</span>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
+          <span class="px-2 py-0.5 rounded-full" style="background-color:#E8F5E9;color:#2E7D32">{{ group.category_name_or_other() }}</span>
+          <span title="Số thành viên">👥 {{ group.member_count }} thành viên</span>
+          <span title="Số chủ đề">📝 {{ group.topic_count }} chủ đề</span>
+        </div>
+      </div>
+    </div>
+
+    {% if let Some(desc) = &group.description %}
+    <p class="text-gray-700 leading-relaxed whitespace-pre-wrap">{{ desc }}</p>
+    {% else %}
+    <p class="text-gray-400 italic">Nhóm chưa có mô tả.</p>
+    {% endif %}
+
+    <!-- Action buttons -->
+    <div class="mt-6 flex items-center gap-3 flex-wrap">
+      {% if let Some(u) = user %}
+        {% if let Some(m) = &membership %}
+          {% if m.status == "active" %}
+          <span class="inline-flex items-center gap-2 text-sm text-tubi-700 font-medium" style="color:#2E7D32">
+            ✓ Đã tham gia · {{ m.role_icon() }} {{ m.role_display() }}
+          </span>
+          {% if m.role != "owner" %}
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/roi-khoi" 
+                onsubmit="return confirm('Bạn có chắc muốn rời nhóm?');" class="inline">
+            <button type="submit" class="text-sm text-red-500 hover:text-red-700 hover:underline">
+              Rời nhóm
+            </button>
+          </form>
+          {% endif %}
+          <a href="/cong-dong/nhom/{{ group.slug }}/tao-chu-de" 
+             class="ml-auto bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition" 
+             style="background-color:#388E3C">
+            ✍️ Tạo Chủ Đề
+          </a>
+          {% else %}
+          <span class="text-sm text-amber-600">⏳ Đang chờ duyệt</span>
+          {% endif %}
+        {% else %}
+        <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/tham-gia" class="inline">
+          <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition" style="background-color:#388E3C">
+            {% if group.require_approval %}📝 Yêu cầu tham gia{% else %}✓ Tham gia nhóm{% endif %}
+          </button>
+        </form>
+        {% endif %}
+      {% else %}
+      <a href="/auth/google" class="bg-amber-400 hover:bg-amber-500 text-gray-900 text-sm font-semibold px-5 py-2 rounded-lg transition">
+        🪷 Đăng nhập để tham gia
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Topics List -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <h2 class="text-lg font-bold text-gray-900">📚 Danh Sách Chủ Đề</h2>
+      {% if let Some(_u) = user %}
+        {% if let Some(m) = &membership %}
+          {% if m.status == "active" %}
+          <a href="/cong-dong/nhom/{{ group.slug }}/tao-chu-de" 
+             class="text-sm font-semibold text-tubi-700 hover:text-tubi-800" style="color:#2E7D32">
+            + Tạo chủ đề
+          </a>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if topics.is_empty() %}
+    <div class="px-6 py-12 text-center text-gray-500">
+      <span class="text-4xl block mb-2">📝</span>
+      <p>Chưa có chủ đề nào trong nhóm này.</p>
+      {% if let Some(_u) = user %}
+        {% if let Some(m) = &membership %}
+          {% if m.status == "active" %}
+          <a href="/cong-dong/nhom/{{ group.slug }}/tao-chu-de" 
+             class="inline-block mt-4 text-tubi-700 hover:text-tubi-800 font-medium" style="color:#2E7D32">
+            Hãy tạo chủ đề đầu tiên →
+          </a>
+          {% endif %}
+        {% endif %}
+      {% endif %}
+    </div>
+    {% else %}
+    <ul class="divide-y divide-gray-100">
+      {% for t in &topics %}
+      <li>
+        <a href="/cong-dong/chu-de/{{ t.id }}" class="block px-6 py-4 hover:bg-gray-50 transition-colors">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
+              {{ t.author_initial() }}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                {% if t.is_pinned %}<span class="text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">📌 Ghim</span>{% endif %}
+                {% if t.is_locked %}<span class="text-xs bg-red-100 text-red-800 px-1.5 py-0.5 rounded">🔒 Khoá</span>{% endif %}
+                <h3 class="font-semibold text-gray-900 truncate">{{ t.title }}</h3>
+              </div>
+              <p class="text-sm text-gray-500 mt-1">{{ t.body_excerpt() }}</p>
+              <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                <span>{{ t.author_display_name }}</span>
+                <span>·</span>
+                <span>{{ t.time_ago() }}</span>
+                <span>·</span>
+                <span>💬 {{ t.comment_count }}</span>
+                <span>·</span>
+                <span>👁 {{ t.view_count }}</span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <!-- Back link -->
+  <div class="mt-6">
+    <a href="/cong-dong" class="text-sm text-gray-500 hover:text-tubi-700">← Quay lại Cộng Đồng</a>
+  </div>
+
+</section>
+
+<style>
+  .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+{% endblock %}

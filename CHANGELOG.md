@@ -6,6 +6,97 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.6.0] — 2026-08-14 — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
+
+### Thêm
+- **Chuyên mục Cộng Đồng chính thức ra mắt** — `/cong-dong` giờ là trang thật (không còn placeholder).
+  - Trang chính hiển thị danh sách nhóm công khai + chủ đề mới nhất (Lướt Nhóm / Lướt Chủ Đề tabs)
+  - Hero banner với nút "Tạo Nhóm Mới" (auth) hoặc "Đăng nhập để tham gia" (guest)
+- **Hệ thống Nhóm (Groups)** — đơn vị tổ chức cộng đồng:
+  - Tạo nhóm: tên (bắt buộc), mô tả, phân loại, visibility (public/private/hidden), require_approval
+  - Trang nhóm `/cong-dong/nhom/{slug}` hiển thị thông tin + danh sách chủ đề
+  - Tham gia / rời nhóm (POST-only để chống CSRF)
+  - Slug tự sinh từ tên (loại bỏ dấu tiếng Việt, collapse dashes)
+  - Owner tự động trở thành `group_members.role = 'owner'`
+  - Owner không thể rời nhóm (phải chuyển quyền trước)
+- **Hệ thống Chủ Đề (Topics)** — bài viết trong nhóm (diễn đàn):
+  - Tạo chủ đề: title (bắt buộc, max 200 ký tự), body (bắt buộc, hỗ trợ multiline)
+  - Chỉ thành viên active của nhóm mới được tạo chủ đề
+  - Chủ đề hiển thị: tiêu đề, body, author (avatar + tên + cấp bậc), thời gian tương đối
+  - Hỗ trợ ghim (`is_pinned`) và khoá (`is_locked`) — schema sẵn sàng, UI ở giai đoạn sau
+  - Tự tăng `view_count` mỗi lần xem trang chủ đề
+- **Hệ thống Bình luận (Comments)** — bình luận trên chủ đề:
+  - Form bình luận nhanh ngay trên trang chủ đề
+  - Hỗ trợ reply (parent_id) — schema sẵn sàng, UI nested ở giai đoạn sau
+  - Validate body (không rỗng, tối đa 5000 ký tự)
+  - Không bình luận được nếu chủ đề bị khoá (`is_locked`)
+- **Phân loại nhóm (group_categories)** — 9 phân loại mặc định:
+  - Tu Học · Niệm Phật · Kinh Sách · Thiền Định · Pháp Thoại · Chia Sẻ · Thiện Nguyện · Âm Nhạc · Khác
+- **Migration 005**: 5 bảng mới + 4 triggers + 9 seed categories
+  - `group_categories` (slug, name, icon, sort_order)
+  - `groups` (id, slug, name, description, category_id, owner_id, cover_upload_id, visibility, require_approval, member_count, topic_count, is_active, timestamps)
+  - `group_members` (group_id, user_id, role, status, joined_at) — UNIQUE(group_id, user_id)
+  - `topics` (id, group_id, author_id, title, body, is_pinned, is_locked, comment_count, view_count, is_active, timestamps)
+  - `comments` (id, topic_id, author_id, parent_id, body, is_active, timestamps)
+  - Trigger `trg_*_set_updated_at` — tự cập nhật `updated_at` cho groups/topics/comments
+  - Trigger `trg_*_count` — tự cập nhật `member_count`, `topic_count`, `comment_count` khi INSERT/DELETE
+- **Models `community.rs`** — 8 struct:
+  - `Group`, `GroupWithCategory`, `Topic`, `TopicWithAuthor`, `Comment`, `CommentWithAuthor`, `GroupMember`, `GroupCategory`
+  - Form structs: `GroupCreateForm`, `TopicCreateForm`, `CommentCreateForm`
+  - Helper methods: `visibility_display()`, `visibility_icon()`, `category_icon_or_lotus()`, `category_name_or_other()`, `time_ago()`, `body_excerpt()`, `author_initial()`, `role_display()`, `role_icon()`, `is_staff()`
+- **Handlers `community.rs`** — 10 endpoint:
+  - `GET /cong-dong` — trang chính (list groups + hot topics)
+  - `GET /cong-dong/tao-nhom` — form tạo nhóm (auth)
+  - `POST /cong-dong/tao-nhom` — tạo nhóm mới (auth, transaction)
+  - `GET /cong-dong/nhom/{slug}` — xem nhóm + danh sách chủ đề
+  - `POST /cong-dong/nhom/{slug}/tham-gia` — tham gia nhóm (auth, ON CONFLICT DO NOTHING)
+  - `POST /cong-dong/nhom/{slug}/roi-khoi` — rời nhóm (auth, owner không được rời)
+  - `GET /cong-dong/nhom/{slug}/tao-chu-de` — form tạo chủ đề (auth + member)
+  - `POST /cong-dong/nhom/{slug}/tao-chu-de` — tạo chủ đề (auth + member)
+  - `GET /cong-dong/chu-de/{id}` — xem chủ đề + bình luận
+  - `POST /cong-dong/chu-de/{id}/binh-luan` — đăng bình luận (auth)
+- **Templates `templates/community/`** — 5 template Askama:
+  - `index.html` — trang chính với tabs Lướt Nhóm / Lướt Chủ Đề
+  - `group.html` — trang nhóm với topic list + action buttons (tham gia/rời/tạo chủ đề)
+  - `topic.html` — trang chủ đề với comment form + comment list
+  - `create_group.html` — form tạo nhóm với visibility radio + category select
+  - `create_topic.html` — form tạo chủ đề
+- **Helper `time_ago_display()`** — format thời gian tương đối tiếng Việt ("vừa xong", "5 phút trước", "2 ngày trước", ...)
+- **Helper `slugify()`** — tạo slug từ tên tiếng Việt (loại bỏ dấu, thay whitespace bằng `-`)
+- **Helper `ensure_unique_slug()`** — thêm hậu tố UUID 6 ký tự nếu slug trùng
+- **Helper `fetch_categories()`** — lấy danh sách category theo sort_order
+- **Helper `get_membership()`** — kiểm tra user có phải thành viên nhóm không
+
+### Sửa
+- **[REFACTOR] Handler `cong_dong` trong `handlers/mod.rs`** — không còn dùng `placeholder_page`. Nay delegate cho `community::cong_dong_index`.
+- **[DRY] `placeholder_page`** vẫn được dùng cho các chuyên mục chưa phát triển (Không Gian, Bạn Bè, Kinh Sách, Quỹ Từ Bi, Thương Thành, Bảng Xếp Hạng).
+
+### Đổi
+- **`Cargo.toml`**: version `0.5.0` → `0.6.0`
+- **`main.rs`**:
+  - Log khởi động: v0.5 → v0.6, đổi phase_name thành "Cộng Đồng Foundation"
+  - Health endpoint: `version: 0.6.0`, `phase: 6`, `phase_name: "Cộng Đồng Foundation — Nhóm + Chủ Đề + Bình luận"`
+  - Thêm 8 routes mới cho Cộng Đồng
+- **`templates/layout.html`**: footer v0.5 → v0.6
+- **`src/handlers/mod.rs`**: footer placeholder_page v0.5 → v0.6
+- **`src/models/mod.rs`**: export thêm `community` module
+- **`src/handlers/mod.rs`**: export thêm `community` module
+
+### Bump version
+- `Cargo.toml`: 0.5.0 → 0.6.0
+- `main.rs` health endpoint: 0.5.0 → 0.6.0, phase 5 → 6
+- `templates/layout.html` footer: v0.5 → v0.6
+- `README.md`: cập nhật routes + version v0.6
+
+### Lộ trình tiếp theo (v0.7+)
+- **v0.7**: Live Chat thời gian thực (WebSocket) trong nhóm
+- **v0.8**: Ghim/khoá chủ đề, sticky topics, pagination
+- **v0.9**: Nested comments (reply tree), vote/like chủ đề và bình luận
+- **v0.10**: Quỹ Từ Bi + Thương Thành
+- **v0.12**: Cộng Đồng hoàn thiện (theo placeholder): pagination, search, filter, mod tools
+
+---
+
 ## [0.5.0] — 2026-08-14 — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 
 ### Thêm

@@ -22,14 +22,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.5 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.6 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {}", bind_addr);
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {:?} (max {} bytes)", config.upload_dir, config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.5 — Hạ tầng deploy + Docker + Coolify + storage ảnh");
+    log::info!("📦 Phiên bản: v0.6 — Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -128,6 +128,16 @@ async fn main() -> std::io::Result<()> {
             .route("/cong-dong", web::get().to(handlers::cong_dong))
             .route("/ban-be", web::get().to(handlers::ban_be))
             .route("/kinh-sach", web::get().to(handlers::kinh_sach))
+            // Routes — Cộng Đồng (v0.6)
+            .route("/cong-dong/tao-nhom", web::get().to(handlers::community::create_group_form))
+            .route("/cong-dong/tao-nhom", web::post().to(handlers::community::create_group))
+            .route("/cong-dong/nhom/{slug}", web::get().to(handlers::community::view_group))
+            .route("/cong-dong/nhom/{slug}/tham-gia", web::post().to(handlers::community::join_group))
+            .route("/cong-dong/nhom/{slug}/roi-khoi", web::post().to(handlers::community::leave_group))
+            .route("/cong-dong/nhom/{slug}/tao-chu-de", web::get().to(handlers::community::create_topic_form))
+            .route("/cong-dong/nhom/{slug}/tao-chu-de", web::post().to(handlers::community::create_topic))
+            .route("/cong-dong/chu-de/{id}", web::get().to(handlers::community::view_topic))
+            .route("/cong-dong/chu-de/{id}/binh-luan", web::post().to(handlers::community::create_comment))
             // Routes — Hệ Thống
             .route("/quy-tu-bi", web::get().to(handlers::quy_tu_bi))
             .route("/thuong-thanh", web::get().to(handlers::thuong_thanh))
@@ -167,11 +177,11 @@ async fn health_check(
 
     actix_web::HttpResponse::Ok().json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 5,
-        "phase_name": "Hạ tầng deploy + Docker + Coolify + storage ảnh",
+        "phase": 6,
+        "phase_name": "Cộng Đồng Foundation — Nhóm + Chủ Đề + Bình luận",
         "status": "running",
         "database": {
             "status": db_status,

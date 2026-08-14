@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+{% block title %}Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Hero -->
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-bold mb-2">👥 Cộng Đồng Từ Bi</h1>
+        <p class="opacity-90 max-w-2xl">
+          Lướt nhóm · Lướt chủ đề · Kết nối đạo hữu.<br>
+          Nơi mọi người cùng tu học, chia sẻ và lan tỏa lòng từ bi.
+        </p>
+      </div>
+      {% if let Some(_u) = user %}
+      <a href="/cong-dong/tao-nhom" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-5 py-3 rounded-xl shadow-md transition-all hover:scale-105 whitespace-nowrap">
+        ✨ Tạo Nhóm Mới
+      </a>
+      {% else %}
+      <a href="/auth/google" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-5 py-3 rounded-xl shadow-md transition-all hover:scale-105 whitespace-nowrap">
+        🪷 Đăng nhập để tham gia
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tabs (Lướt Nhóm / Lướt Chủ Đề) -->
+  <div class="flex items-center gap-2 mb-6 border-b border-gray-200">
+    <button data-tab-btn="groups" class="px-4 py-3 text-sm font-semibold border-b-2 transition-colors border-tubi-700 text-tubi-800">
+      👥 Lướt Nhóm <span class="ml-1 text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">{{ groups.len() }}</span>
+    </button>
+    <button data-tab-btn="topics" class="px-4 py-3 text-sm font-semibold border-b-2 transition-colors border-transparent text-gray-500">
+      📝 Lướt Chủ Đề <span class="ml-1 text-xs bg-gray-100 text-gray-600 rounded-full px-2 py-0.5">{{ hot_topics.len() }}</span>
+    </button>
+  </div>
+
+  <!-- Panel: Lướt Nhóm -->
+  <div data-tab-panel="groups">
+    {% if groups.is_empty() %}
+    <div class="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
+      <span class="text-6xl">🪷</span>
+      <h2 class="text-xl font-semibold mt-4 mb-2 text-gray-700">Chưa có nhóm nào</h2>
+      <p class="text-gray-500 mb-6">Hãy là người đầu tiên tạo nhóm cộng đồng!</p>
+      {% if let Some(_u) = user %}
+      <a href="/cong-dong/tao-nhom" class="inline-block text-white px-6 py-3 rounded-xl hover:opacity-90 transition" style="background-color:#388E3C">
+        ✨ Tạo Nhóm Đầu Tiên
+      </a>
+      {% else %}
+      <a href="/auth/google" class="inline-block bg-amber-400 text-gray-900 px-6 py-3 rounded-xl hover:bg-amber-500 transition">
+        🪷 Đăng nhập bằng Google
+      </a>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for g in &groups %}
+      <a href="/cong-dong/nhom/{{ g.slug }}" class="bg-white rounded-2xl border border-gray-200 hover:border-tubi-400 hover:shadow-lg transition-all p-5 group">
+        <div class="flex items-start justify-between mb-3">
+          <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style="background-color:#E8F5E9">
+            {{ g.category_icon_or_lotus() }}
+          </div>
+          <span class="text-xs text-gray-500">{{ g.visibility_icon() }} {{ g.visibility_display() }}</span>
+        </div>
+        <h3 class="text-lg font-bold text-gray-900 mb-1 group-hover:text-tubi-700">{{ g.name }}</h3>
+        {% if let Some(desc) = &g.description %}
+        {% if desc.chars().count() > 140 %}
+        <p class="text-sm text-gray-500 mb-3">{{ desc.chars().take(140).collect::<String>() }}…</p>
+        {% else %}
+        <p class="text-sm text-gray-500 mb-3">{{ desc }}</p>
+        {% endif %}
+        {% else %}
+        <p class="text-sm text-gray-400 italic mb-3">Chưa có mô tả</p>
+        {% endif %}
+        <div class="flex items-center justify-between text-xs text-gray-500">
+          <span class="px-2 py-0.5 rounded-full" style="background-color:#E8F5E9;color:#2E7D32">{{ g.category_name_or_other() }}</span>
+          <span class="flex items-center gap-3">
+            <span title="Số thành viên">👥 {{ g.member_count }}</span>
+            <span title="Số chủ đề">📝 {{ g.topic_count }}</span>
+          </span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Panel: Lướt Chủ Đề -->
+  <div data-tab-panel="topics" style="display:none">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">📝 Chủ Đề Mới Nhất</h2>
+    {% if hot_topics.is_empty() %}
+    <div class="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+      <span class="text-5xl">📝</span>
+      <p class="text-gray-500 mt-3">Chưa có chủ đề nào trong cộng đồng.</p>
+    </div>
+    {% else %}
+    <div class="space-y-3">
+      {% for t in &hot_topics %}
+      <a href="/cong-dong/chu-de/{{ t.id }}" class="block bg-white rounded-xl border border-gray-200 hover:border-tubi-400 hover:shadow-md transition-all p-4">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
+            {{ t.author_initial() }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <h3 class="font-semibold text-gray-900 truncate">{{ t.title }}</h3>
+            <p class="text-sm text-gray-500 mt-1">{{ t.body_excerpt() }}</p>
+            <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
+              <span>{{ t.author_display_name }}</span>
+              <span>·</span>
+              <span title="{{ t.created_at }}">{{ t.time_ago() }}</span>
+              <span>·</span>
+              <span title="Số bình luận">💬 {{ t.comment_count }}</span>
+              <span>·</span>
+              <span title="Số lượt xem">👁 {{ t.view_count }}</span>
+            </div>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+</section>
+
+<script>
+  // Toggle giữa 2 tab Lướt Nhóm / Lướt Chủ Đề.
+  document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('[data-tab-btn]');
+    const panels = document.querySelectorAll('[data-tab-panel]');
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = btn.getAttribute('data-tab-btn');
+        tabs.forEach(b => {
+          b.classList.remove('border-tubi-700','text-tubi-800');
+          b.classList.add('border-transparent','text-gray-500');
+        });
+        btn.classList.add('border-tubi-700','text-tubi-800');
+        btn.classList.remove('border-transparent','text-gray-500');
+        panels.forEach(p => {
+          p.style.display = p.getAttribute('data-tab-panel') === name ? '' : 'none';
+        });
+      });
+    });
+  });
+</script>
+
+<style>
+  .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+{% endblock %}
