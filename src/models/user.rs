@@ -193,17 +193,20 @@ impl User {
 
     /// Cấp độ vai trò (dùng để so sánh quyền):
     ///   - member          → 1
-    ///   - admin_ky_thuat  → 2
-    ///   - admin_cong_dong → 3
-    ///   - admin_quan_li   → 4
+    ///   - admin_cong_dong → 2
+    ///   - admin_quan_li   → 3
+    ///   - admin_ky_thuat  → 4 (CAO NHẤT — v0.9.8)
+    ///
+    /// v0.9.8: Nâng Admin Kỹ Thuật lên chức vụ cao nhất với toàn bộ 50 quyền.
+    /// Hierarchy mới: admin_ky_thuat > admin_quan_li > admin_cong_dong > member
     ///
     /// (Không thể là `const fn` vì Rust 1.97 chưa ổn định `PartialEq` cho `&str`
     /// trong const context — xem issue rust-lang/rust#143874.)
     pub fn role_level(&self) -> u8 {
         match self.role.as_str() {
-            "admin_ky_thuat" => 2,
-            "admin_cong_dong" => 3,
-            "admin_quan_li" => 4,
+            "admin_cong_dong" => 2,
+            "admin_quan_li" => 3,
+            "admin_ky_thuat" => 4,  // CAO NHẤT — v0.9.8
             _ => 1,
         }
     }
@@ -237,6 +240,79 @@ impl User {
     /// True nếu user có quyền cộng đồng (Admin Cộng Đồng trở lên).
     /// Dùng cho duyệt cảm ngộ, ghim/khoá chủ đề, mod comment.
     pub fn can_manage_community(&self) -> bool {
+        self.role_level() >= 2
+    }
+
+    /// True nếu user có quyền quản trị (Admin Quản Lý trở lên).
+    /// Dùng cho đổi role, quản lý users, cấu hình hệ thống.
+    pub fn can_manage_admin(&self) -> bool {
         self.role_level() >= 3
+    }
+
+    // ─── Hệ thống 50 quyền chi tiết (v0.9.8 — Giai đoạn 12) ──────────────
+
+    /// Kiểm tra user có quyền cụ thể không.
+    /// Dùng cho permission gate trong handlers.
+    /// Note: Kiểm tra thực tế nên query DB qua `user_has_permission()` SQL function,
+    /// nhưng method này cho phép kiểm tra nhanh ở template logic.
+    pub fn has_permission_code(&self, code: &str) -> bool {
+        // Admin Kỹ Thuật có TẤT CẢ 50 quyền
+        if self.is_admin_ky_thuat() {
+            return true;
+        }
+        // Các role khác — kiểm tra theo nhóm quyền đã gán
+        match self.role.as_str() {
+            "admin_quan_li" => {
+                // 30 quyền: users(10) + content(10) + community(10)
+                matches!(code,
+                    // Users
+                    "users_view_list" | "users_view_detail" | "users_edit_profile" |
+                    "users_change_role" | "users_activate" | "users_delete" |
+                    "users_ban" | "users_view_sessions" | "users_manage_oauth" | "users_export_data" |
+                    // Content
+                    "content_view_pending" | "content_approve" | "content_edit_any" |
+                    "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
+                    "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
+                    // Community
+                    "community_view_stats" | "community_manage_grp" | "community_create_off" |
+                    "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
+                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge"
+                )
+            }
+            "admin_cong_dong" => {
+                // 20 quyền: content(10) + community(10)
+                matches!(code,
+                    // Content
+                    "content_view_pending" | "content_approve" | "content_edit_any" |
+                    "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
+                    "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
+                    // Community
+                    "community_view_stats" | "community_manage_grp" | "community_create_off" |
+                    "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
+                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge"
+                )
+            }
+            _ => false,
+        }
+    }
+
+    /// Tổng số quyền của role hiện tại (cho badge/hiển thị).
+    pub fn permission_count(&self) -> u8 {
+        match self.role.as_str() {
+            "admin_ky_thuat" => 50,
+            "admin_quan_li" => 30,
+            "admin_cong_dong" => 20,
+            _ => 0,
+        }
+    }
+
+    /// Tên trang admin dashboard tương ứng với role.
+    pub fn admin_dashboard_path(&self) -> &str {
+        match self.role.as_str() {
+            "admin_ky_thuat" => "/admin/ky-thuat",
+            "admin_cong_dong" => "/admin/cong-dong",
+            "admin_quan_li" => "/admin/quan-li",
+            _ => "/admin",
+        }
     }
 }

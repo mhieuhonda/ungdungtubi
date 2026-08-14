@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🛡️ Admin Cộng Đồng — Ứng Dụng Từ Bi</title>
+    <!-- Community moderator theme — warm, social, blue -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'comm': { 50:'#EBF5FB', 100:'#D6EAF8', 200:'#AED6F1', 300:'#85C1E9', 400:'#5DADE2', 500:'#3498DB', 600:'#2E86C1', 700:'#2874A6', 800:'#21618C', 900:'#1B4F72' },
+                        'warm': '#F39C12',
+                        'safe': '#27AE60',
+                        'alert': '#E74C3C'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .card-hover { transition: all 0.2s; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(41,128,185,0.15); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ activeTab: 'overview' }">
+
+    <!-- Top Bar — Community Moderator style -->
+    <header class="bg-comm-800 text-white shadow-lg sticky top-0 z-50">
+        <div class="flex items-center justify-between h-14 px-6">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">🛡️</span>
+                <div>
+                    <h1 class="text-base font-bold tracking-wide">Admin Cộng Đồng</h1>
+                    <p class="text-[10px] text-comm-300">Duyệt nội dung · Quản lý nhóm · Kiểm duyệt diễn đàn</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-sm">
+                {% if let Some(u) = user %}
+                <span class="px-2 py-1 bg-comm-900 rounded text-[10px] font-bold">
+                    🛡️ {{ u.role_display() }} · 20 quyền
+                </span>
+                {% endif %}
+                <a href="/" class="text-comm-300 hover:text-white transition text-sm">← Về trang chủ</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="bg-white border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-6">
+            <nav class="flex gap-1 overflow-x-auto">
+                <a href="/admin/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-comm-500 text-comm-700">
+                    📊 Tổng quan
+                </a>
+                <a href="/admin/cong-dong/nhom" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                    👥 Quản lý Nhóm
+                </a>
+                <a href="/admin/cong-dong/noi-dung" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                    📝 Kiểm duyệt Nội dung
+                </a>
+                <a href="/admin/cong-dong/cam-ngo" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                    🪷 Cảm ngộ chờ duyệt
+                    {% if stats.pending_reviews > 0 %}
+                    <span class="ml-1 px-1.5 py-0.5 bg-alert text-white text-[10px] rounded-full">{{ stats.pending_reviews }}</span>
+                    {% endif %}
+                </a>
+                <a href="/admin/cong-dong/thanh-vien" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                    👤 Thành viên
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-lg bg-comm-100 flex items-center justify-center text-xl">👥</div>
+                    <div>
+                        <div class="text-2xl font-bold text-comm-800">{{ stats.total_groups }}</div>
+                        <div class="text-xs text-gray-500">Nhóm cộng đồng</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-lg bg-comm-100 flex items-center justify-center text-xl">📝</div>
+                    <div>
+                        <div class="text-2xl font-bold text-comm-800">{{ stats.total_topics }}</div>
+                        <div class="text-xs text-gray-500">Chủ đề</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-lg bg-comm-100 flex items-center justify-center text-xl">💬</div>
+                    <div>
+                        <div class="text-2xl font-bold text-comm-800">{{ stats.total_comments }}</div>
+                        <div class="text-xs text-gray-500">Bình luận</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-100 card-hover">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-lg {% if stats.pending_reviews > 0 %}bg-alert/10{% else %}bg-safe/10{% endif %} flex items-center justify-center text-xl">🪷</div>
+                    <div>
+                        <div class="text-2xl font-bold {% if stats.pending_reviews > 0 %}text-alert{% else %}text-safe{% endif %}">{{ stats.pending_reviews }}</div>
+                        <div class="text-xs text-gray-500">Cảm ngộ chờ duyệt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <a href="/admin/cong-dong/cam-ngo" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-warm/10 flex items-center justify-center text-2xl group-hover:bg-warm/20 transition">🔍</div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">Kiểm duyệt Cảm ngộ</h3>
+                        <p class="text-xs text-gray-500">{{ stats.pending_reviews }} đang chờ phê duyệt</p>
+                    </div>
+                </div>
+            </a>
+            <a href="/admin/cong-dong/nhom" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-comm-100 flex items-center justify-center text-2xl group-hover:bg-comm-200 transition">🏛️</div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">Quản lý Nhóm</h3>
+                        <p class="text-xs text-gray-500">{{ stats.total_groups }} nhóm đang hoạt động</p>
+                    </div>
+                </div>
+            </a>
+            <a href="/admin/cong-dong/noi-dung" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl bg-comm-100 flex items-center justify-center text-2xl group-hover:bg-comm-200 transition">📝</div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">Nội dung Báo cáo</h3>
+                        <p class="text-xs text-gray-500">Bình luận &amp; chủ đề cần mod</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Permission Summary -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h3 class="font-bold text-comm-800 mb-4">🛡️ Quyền của bạn — 20/50 permissions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">📝 Content (10 quyền)</h4>
+                    <ul class="space-y-1 text-gray-600">
+                        <li>✅ Kiểm duyệt nội dung — duyệt/từ chối</li>
+                        <li>✅ Ghim/khoá chủ đề</li>
+                        <li>✅ Quản lý danh mục &amp; tags</li>
+                        <li>✅ Mod bình luận &amp; cảm ngộ</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700 mb-2">👥 Community (10 quyền)</h4>
+                    <ul class="space-y-1 text-gray-600">
+                        <li>✅ Quản lý nhóm &amp; sự kiện</li>
+                        <li>✅ Quản lý live chat</li>
+                        <li>✅ Broadcast &amp; archive</li>
+                        <li>✅ Gộp chủ đề &amp; lời mời</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="mt-4 p-3 bg-comm-50 rounded-lg text-xs text-comm-700">
+                💡 <strong>Không có quyền:</strong> system (10) · users (10) · kinh_sach (10) — đây là quyền của Admin Kỹ Thuật &amp; Admin Quản Lý
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

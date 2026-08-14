@@ -1,15 +1,23 @@
-//! Handlers cho trang Quản Trị (Giai đoạn 11 — v0.9.7).
+//! Handlers cho trang Quản Trị (Giai đoạn 12 — v0.9.8).
 //!
-//! Hệ thống vai trò:
-//!   - `member`          — Thành Viên (mặc định)
-//!   - `admin_ky_thuat`  — Admin Kỹ Thuật
-//!   - `admin_cong_dong` — Admin Cộng Đồng
-//!   - `admin_quan_li`   — Admin Quản Lý (super admin — quyền cao nhất)
+//! Hệ thống vai trò (v0.9.8 — hierarchy mới):
+//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (CAO NHẤT — 50 quyền, toàn quyền hệ thống)
+//!   - `admin_quan_li`   — Admin Quản Lý (30 quyền — users + content + community)
+//!   - `admin_cong_dong` — Admin Cộng Đồng (20 quyền — content + community)
+//!   - `member`          — Thành Viên (mặc định, 0 quyền admin)
+//!
+//! 3 giao diện admin riêng biệt:
+//!   - /admin/ky-thuat    — Phong cách coder/terminal (tối, ngầu, Matrix)
+//!   - /admin/cong-dong   — Phong cách community mod (xanh, social)
+//!   - /admin/quan-li     — Phong cách executive (vàng, premium)
 //!
 //! Routes:
-//!   - GET  /admin                       — Dashboard (stats + quick links)
-//!   - GET  /admin/thanh-vien            — List users + roles
-//!   - POST /admin/thanh-vien/{id}/role  — Đổi role user (chỉ admin_quan_li)
+//!   - GET  /admin                       — Redirect đến dashboard tương ứng role
+//!   - GET  /admin/ky-thuat             — Dashboard Admin Kỹ Thuật (terminal style)
+//!   - GET  /admin/cong-dong            — Dashboard Admin Cộng Đồng (mod style)
+//!   - GET  /admin/quan-li              — Dashboard Admin Quản Lý (exec style)
+//!   - GET  /admin/thanh-vien           — List users + roles (shared)
+//!   - POST /admin/thanh-vien/{id}/role — Đổi role user (admin_ky_thuat + admin_quan_li)
 
 use axum::{
     extract::{Path, State},
@@ -42,7 +50,7 @@ pub struct AdminUserRow {
     pub a_balance: i64,
 }
 
-/// Stats cho dashboard /admin.
+/// Stats cho dashboard /admin (chung cho cả 3 kiểu).
 #[derive(Debug, Clone, Default, FromRow)]
 pub struct AdminStats {
     pub total_users: i64,
@@ -57,14 +65,32 @@ pub struct AdminStats {
 }
 
 /// Template structs (Askama).
+
+/// Admin Kỹ Thuật dashboard — terminal/coder style (KHÔNG extends layout.html)
 #[derive(Template)]
-#[template(path = "admin/index.html")]
-pub struct AdminIndexTemplate {
+#[template(path = "admin/ky-thuat/index.html")]
+pub struct AdminKyThuatTemplate {
     pub user: Option<User>,
     pub stats: AdminStats,
-    pub active_page: String,
 }
 
+/// Admin Cộng Đồng dashboard — community mod style
+#[derive(Template)]
+#[template(path = "admin/cong-dong/index.html")]
+pub struct AdminCongDongTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+}
+
+/// Admin Quản Lý dashboard — executive/premium style
+#[derive(Template)]
+#[template(path = "admin/quan-li/index.html")]
+pub struct AdminQuanLiTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+}
+
+/// Shared users list template (extends layout.html — phong cách web chính)
 #[derive(Template)]
 #[template(path = "admin/users.html")]
 pub struct AdminUsersTemplate {
@@ -83,35 +109,105 @@ pub struct RoleChangeForm {
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
 
-/// GET /admin — Dashboard quản trị.
+/// GET /admin — Redirect đến dashboard tương ứng với role.
 ///
-/// Yêu cầu: user đã đăng nhập và có role admin (kỹ thuật / cộng đồng / quản lý).
+/// - admin_ky_thuat → /admin/ky-thuat
+/// - admin_cong_dong → /admin/cong-dong
+/// - admin_quan_li → /admin/quan-li
 pub async fn admin_index(State(state): State<AppState>, jar: CookieJar) -> Response {
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    // Permission check — chỉ admin mới vào được
     if !user.is_admin() {
         return render_forbidden(&user);
     }
 
-    let stats = match fetch_admin_stats(&state.pool).await {
-        Ok(s) => s,
-        Err(e) => {
-            log::error!("❌ Lỗi fetch admin stats: {e}");
-            AdminStats::default()
-        }
+    // Redirect đến dashboard riêng của role
+    Redirect::to(user.admin_dashboard_path()).into_response()
+}
+
+/// GET /admin/ky-thuat — Dashboard Admin Kỹ Thuật (terminal/coder style).
+///
+/// Chỉ admin_ky_thuat mới vào được trang này.
+/// Phong cách: tối, terminal, Matrix-like, cực ngầu.
+pub async fn admin_ky_thuat_dashboard(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
     };
 
-    let html = AdminIndexTemplate {
+    // Permission check — chỉ admin_ky_thuat
+    if !user.is_admin_ky_thuat() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+
+    let html = AdminKyThuatTemplate {
         user: Some(user),
         stats,
-        active_page: "admin".into(),
     }
     .render()
     .unwrap_or_else(|e| {
-        log::error!("Template render error (admin index): {e}");
+        log::error!("Template render error (admin ky-thuat): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// GET /admin/cong-dong — Dashboard Admin Cộng Đồng (community mod style).
+///
+/// Chỉ admin_cong_dong mới vào được trang này.
+/// Phong cách: xanh dương, social, ấm áp.
+pub async fn admin_cong_dong_dashboard(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Permission check — chỉ admin_cong_dong
+    if !user.is_admin_cong_dong() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+
+    let html = AdminCongDongTemplate {
+        user: Some(user),
+        stats,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin cong-dong): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// GET /admin/quan-li — Dashboard Admin Quản Lý (executive/premium style).
+///
+/// Chỉ admin_quan_li mới vào được trang này.
+/// Phong cách: vàng, premium, executive dashboard.
+pub async fn admin_quan_li_dashboard(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Permission check — chỉ admin_quan_li
+    if !user.is_admin_quan_li() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+
+    let html = AdminQuanLiTemplate {
+        user: Some(user),
+        stats,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin quan-li): {e}");
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
@@ -119,6 +215,8 @@ pub async fn admin_index(State(state): State<AppState>, jar: CookieJar) -> Respo
 }
 
 /// GET /admin/thanh-vien — Danh sách thành viên + role.
+///
+/// Chỉ admin mới xem được. Chỉ admin_ky_thuat và admin_quan_li mới đổi role được.
 pub async fn admin_users_list(State(state): State<AppState>, jar: CookieJar) -> Response {
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
@@ -128,25 +226,7 @@ pub async fn admin_users_list(State(state): State<AppState>, jar: CookieJar) -> 
         return render_forbidden(&user);
     }
 
-    let users = sqlx::query_as::<_, AdminUserRow>(
-        "SELECT id, email, display_name, role, rank, is_active, email_verified, created_at,
-                k_balance, a_balance
-         FROM users
-         ORDER BY
-            CASE role
-                WHEN 'admin_quan_li'   THEN 1
-                WHEN 'admin_cong_dong' THEN 2
-                WHEN 'admin_ky_thuat'  THEN 3
-                ELSE 4
-            END,
-            created_at DESC"
-    )
-    .fetch_all(&state.pool)
-    .await
-    .unwrap_or_else(|e| {
-        log::error!("❌ Lỗi fetch users list: {e}");
-        vec![]
-    });
+    let users = fetch_users_list(&state.pool).await;
 
     let html = AdminUsersTemplate {
         user: Some(user),
@@ -166,8 +246,8 @@ pub async fn admin_users_list(State(state): State<AppState>, jar: CookieJar) -> 
 
 /// POST /admin/thanh-vien/{id}/role — Đổi role của một user.
 ///
-/// **Chỉ Admin Quản Lý (super admin) mới được phép đổi role user khác.**
-/// Admin kỹ thuật / cộng đồng có thể xem nhưng không thể đổi.
+/// **v0.9.8**: Admin Kỹ Thuật (cao nhất) + Admin Quản Lý mới được đổi role.
+/// Admin Cộng Đồng có thể xem nhưng không thể đổi.
 pub async fn admin_change_role(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -178,8 +258,8 @@ pub async fn admin_change_role(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    // Permission: chỉ admin_quan_li mới đổi role được
-    if !actor.is_admin_quan_li() {
+    // Permission: admin_ky_thuat (level 4) + admin_quan_li (level 3) mới đổi role được
+    if !actor.can_manage_admin() {
         return render_forbidden(&actor);
     }
 
@@ -198,11 +278,21 @@ pub async fn admin_change_role(
     }
 
     // Không cho admin tự demote chính mình (tránh khoá mình ra khỏi hệ thống)
-    if actor.id == user_id && new_role != "admin_quan_li" {
+    if actor.id == user_id && actor.role != new_role {
         return render_users_error(
             &state.pool,
             &actor,
-            "Bạn không thể tự hạ cấp vai trò của chính mình khi đang là Admin Quản Lý.",
+            "Bạn không thể tự đổi vai trò của chính mình.",
+        )
+        .await;
+    }
+
+    // Admin Quản Lý không được nâng ai lên admin_ky_thuat (chỉ admin_ky_thuat mới được)
+    if actor.is_admin_quan_li() && new_role == "admin_ky_thuat" {
+        return render_users_error(
+            &state.pool,
+            &actor,
+            "Admin Quản Lý không thể nâng ai lên Admin Kỹ Thuật. Chỉ Admin Kỹ Thuật mới có quyền này.",
         )
         .await;
     }
@@ -248,9 +338,19 @@ pub async fn admin_change_role(
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+/// Lấy admin stats, trả về default nếu lỗi.
+async fn fetch_admin_stats_or_default(pool: &sqlx::PgPool) -> AdminStats {
+    match fetch_admin_stats(pool).await {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("❌ Lỗi fetch admin stats: {e}");
+            AdminStats::default()
+        }
+    }
+}
+
 /// Lấy các thống kê cho dashboard admin.
 async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Error> {
-    // total_users + active_users + admin_count trong 1 query
     let row: (i64, i64, i64) = sqlx::query_as(
         "SELECT
             COUNT(*)::BIGINT AS total_users,
@@ -305,6 +405,29 @@ async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Erro
     })
 }
 
+/// Fetch users list — hierarchy mới (v0.9.8): admin_ky_thuat cao nhất.
+async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
+    sqlx::query_as::<_, AdminUserRow>(
+        "SELECT id, email, display_name, role, rank, is_active, email_verified, created_at,
+                k_balance, a_balance
+         FROM users
+         ORDER BY
+            CASE role
+                WHEN 'admin_ky_thuat'  THEN 1
+                WHEN 'admin_quan_li'   THEN 2
+                WHEN 'admin_cong_dong' THEN 3
+                ELSE 4
+            END,
+            created_at DESC",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::error!("❌ Lỗi fetch users list: {e}");
+        vec![]
+    })
+}
+
 /// Render trang 403 Forbidden — user không có quyền.
 fn render_forbidden(user: &User) -> Response {
     let html = format!(
@@ -319,35 +442,22 @@ fn render_forbidden(user: &User) -> Response {
 <div class="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg text-center">
   <div class="text-5xl mb-4">🚫</div>
   <h1 class="text-xl font-bold text-red-600 mb-2">403 — Không có quyền truy cập</h1>
-  <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin (Kỹ Thuật / Cộng Đồng / Quản Lý).</p>
-  <p class="text-gray-500 text-xs mb-6">Vai trò hiện tại của bạn: <strong>{role_icon} {role_display}</strong></p>
-  <a href="/" class="inline-block bg-tubi-800 text-white px-6 py-2 rounded-xl hover:bg-tubi-900 transition" style="background-color:#2E7D32">← Về trang chủ</a>
+  <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin.</p>
+  <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền)</p>
+  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (50) &gt; Admin Quản Lý (30) &gt; Admin Cộng Đồng (20) &gt; Thành Viên (0)</p>
+  <a href="/" class="inline-block text-white px-6 py-2 rounded-xl transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </div>
 </body></html>"#,
         role_icon = user.role_icon(),
         role_display = user.role_display(),
+        perm_count = user.permission_count(),
     );
     Html(html).into_response()
 }
 
 /// Render trang /admin/thanh-vien với error message.
 async fn render_users_error(pool: &sqlx::PgPool, actor: &User, error: &str) -> Response {
-    let users = sqlx::query_as::<_, AdminUserRow>(
-        "SELECT id, email, display_name, role, rank, is_active, email_verified, created_at,
-                k_balance, a_balance
-         FROM users
-         ORDER BY
-            CASE role
-                WHEN 'admin_quan_li'   THEN 1
-                WHEN 'admin_cong_dong' THEN 2
-                WHEN 'admin_ky_thuat'  THEN 3
-                ELSE 4
-            END,
-            created_at DESC",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let users = fetch_users_list(pool).await;
 
     let html = AdminUsersTemplate {
         user: Some(actor.clone()),
@@ -367,22 +477,7 @@ async fn render_users_error(pool: &sqlx::PgPool, actor: &User, error: &str) -> R
 
 /// Render trang /admin/thanh-vien với success message.
 async fn render_users_success(pool: &sqlx::PgPool, actor: &User, success: &str) -> Response {
-    let users = sqlx::query_as::<_, AdminUserRow>(
-        "SELECT id, email, display_name, role, rank, is_active, email_verified, created_at,
-                k_balance, a_balance
-         FROM users
-         ORDER BY
-            CASE role
-                WHEN 'admin_quan_li'   THEN 1
-                WHEN 'admin_cong_dong' THEN 2
-                WHEN 'admin_ky_thuat'  THEN 3
-                ELSE 4
-            END,
-            created_at DESC",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    let users = fetch_users_list(pool).await;
 
     let html = AdminUsersTemplate {
         user: Some(actor.clone()),

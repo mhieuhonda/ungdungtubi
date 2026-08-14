@@ -6,6 +6,75 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.8] — 2026-08-14 — Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt
+
+### Thêm (Features)
+
+- **[FEAT-1] Hệ thống 50 quyền chi tiết (Granular Permissions)**
+  - Bảng `permissions` — 50 quyền chia 5 nhóm x 10 quyền:
+    - `system` (10): system_view_status, system_manage_config, system_manage_migrate, system_view_logs, system_manage_cache, system_restart_server, system_manage_cron, system_view_metrics, system_manage_backup, system_debug_mode
+    - `users` (10): users_view_list, users_view_detail, users_edit_profile, users_change_role, users_activate, users_delete, users_ban, users_view_sessions, users_manage_oauth, users_export_data
+    - `content` (10): content_view_pending, content_approve, content_edit_any, content_delete_any, content_pin_lock, content_manage_cat, content_manage_tags, content_mod_comments, content_mod_reviews, content_feature
+    - `community` (10): community_view_stats, community_manage_grp, community_create_off, community_manage_evt, community_manage_chat, community_manage_mem, community_broadcast, community_manage_inv, community_archive, community_merge
+    - `kinh_sach` (10): ksach_manage_books, ksach_manage_chap, ksach_upload, ksach_manage_cat, ksach_review_mod, ksach_donation_mgr, mail_view_all, notif_send_all, analytics_view, api_manage_keys
+
+- **[FEAT-2] Bảng role_permissions — gán quyền cho role**
+  - `admin_ky_thuat` → 50/50 quyền (TẤT CẢ — toàn quyền hệ thống)
+  - `admin_quan_li` → 30/50 quyền (users + content + community)
+  - `admin_cong_dong` → 20/50 quyền (content + community)
+  - `member` → 0 quyền admin
+
+- **[FEAT-3] Nâng Admin Kỹ Thuật lên chức vụ CAO NHẤT**
+  - Hierarchy mới: admin_ky_thuat (level 4) > admin_quan_li (level 3) > admin_cong_dong (level 2) > member (level 1)
+  - Admin Kỹ Thuật có toàn bộ 50 quyền — quyền cao nhất trong hệ thống
+  - Admin Quản Lý không thể nâng ai lên Admin Kỹ Thuật (chỉ Admin Kỹ Thuật mới được)
+
+- **[FEAT-4] 3 giao diện bảng quản trị riêng biệt**
+  - `/admin/ky-thuat` — Phong cách Coder/Terminal — tối, Matrix-like, cực ngầu
+    - JetBrains Mono font, terminal-style layout, scanline effects, green glow
+    - Permission matrix table, terminal commands sidebar, uptime counter
+    - KHÔNG dùng layout.html — standalone dark theme hoàn toàn khác web
+  - `/admin/cong-dong` — Phong cách Community Moderator — xanh dương, social, ấm áp
+    - Tab navigation, pending content badges, warm color palette
+    - Content moderation cards, community stats overview
+    - KHÔNG dùng layout.html — standalone blue theme
+  - `/admin/quan-li` — Phong cách Executive/Premium — vàng, luxury dashboard
+    - Gold gradient header, premium stat cards, executive navigation
+    - Permission summary per category, user management quick links
+    - KHÔNG dùng layout.html — standalone premium theme
+  - `/admin` — Redirect tự động đến dashboard tương ứng role
+
+- **[FEAT-5] Migration 014**: `014_granular_permissions.sql`
+  - Bảng `permissions` (50 rows seed) + bảng `role_permissions` + view `v_user_permissions`
+  - Function `user_has_permission(UUID, VARCHAR)` cho permission check nhanh
+  - Indexes cho truy vấn nhanh
+
+- **[FEAT-6] User model mở rộng** (v0.9.8):
+  - `role_level()` cập nhật: admin_ky_thuat → 4 (cao nhất)
+  - `has_permission_code(code)` — kiểm tra quyền chi tiết
+  - `permission_count()` — tổng số quyền (50/30/20/0)
+  - `admin_dashboard_path()` — path dashboard riêng theo role
+  - `can_manage_admin()` — quyền quản trị (level ≥ 3)
+
+### Sửa (Bug Fixes)
+
+- **[FIX-1] CRITICAL**: `USER_COLUMNS` trong `auth.rs` thiếu cột `role` — Google OAuth login bị hỏng hoàn toàn
+  - Thêm `, role` vào USER_COLUMNS trong auth.rs
+  - Bug này tồn tại từ v0.9.7 khi migration 013 thêm cột role nhưng quên cập nhật auth.rs
+- **[FIX-2]**: Migration 007 `CREATE TABLE` thiếu `IF NOT EXISTS` — không idempotent
+- **[FIX-3]**: Role change permission mở rộng — admin_ky_thuat + admin_quan_li đều đổi role được
+- **[FIX-4]**: Admin tự đổi role protection — không cho admin tự hạ/thăng cấp chính mình
+
+### Thay đổi (Changed)
+
+- Hierarchy đổi từ: quan_li > cong_dong > ky_thuat → **ky_thuat > quan_li > cong_dong**
+- Admin change role: chỉ admin_ky_thuat được nâng ai lên admin_ky_thuat
+- `/admin` route giờ redirect đến dashboard role-specific thay vì render template chung
+- Health check `/api/health` thêm `permission_counts` và dashboard paths
+- Version: 0.9.7 → 0.9.8
+
+---
+
 ## [0.9.7] — 2026-08-14 — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng
 
 ### Thêm (Features)

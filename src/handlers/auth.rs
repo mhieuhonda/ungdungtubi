@@ -11,11 +11,12 @@ use crate::config::Config;
 use crate::models::user::{GoogleUserInfo, User};
 
 /// Danh sách cột users đầy đủ (đồng bộ với `handlers::USER_COLUMNS` và model User).
+/// v0.9.8: thêm `role` (fix bug CRITICAL — Google OAuth login bị hỏng vì thiếu cột role).
 const USER_COLUMNS: &str = "id, email, display_name, password_hash, rank, \
     a_balance, k_balance, is_active, created_at, updated_at, \
     google_sub, avatar_url, email_verified, \
     phap_danh, phap_hieu, but_danh, gender, bio, \
-    avatar_upload_id";
+    avatar_upload_id, role";
 
 /// Tên cookie lưu OAuth state (chống CSRF).
 const OAUTH_STATE_COOKIE: &str = "oauth_state";

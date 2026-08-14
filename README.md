@@ -165,6 +165,23 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 - **Bug fixes**: Fix live chat tổng luôn báo "đang kết nối..." (bỏ check `document.cookie.includes('session_id')` vì cookie HttpOnly không đọc được qua `document.cookie`); thêm server-side logging cho WS errors; fix version strings v0.9.3 → v0.9.5
 - **Mục tiêu:** Thành viên có thể kết bạn, nhắn tin realtime 1-1, gửi thư dài, nhận thông báo — bù lỗ hổng social của v0.9.4
 
+### Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt ✅ (v0.9.8)
+- **Hệ thống 50 quyền chi tiết (Granular Permissions)** — 5 nhóm x 10 quyền:
+  - `system` (10) — hệ thống, server, DB, config, logs, metrics, backup, debug
+  - `users` (10) — xem, sửa, đổi role, ban, xóa, sessions, OAuth, export
+  - `content` (10) — duyệt, sửa, xóa, ghim, khoá, danh mục, tags, mod comments/reviews
+  - `community` (10) — nhóm, events, chat, members, broadcast, invites, archive, merge
+  - `kinh_sach` (10) — sách, chương, upload, danh mục, reviews, donations, mail, notif, analytics, API
+- **Nâng Admin Kỹ Thuật lên CHỨC VỤ CAO NHẤT** — toàn bộ 50 quyền
+  - Hierarchy mới: Admin Kỹ Thuật (50 quyền) > Admin Quản Lý (30 quyền) > Admin Cộng Đồng (20 quyền) > Thành Viên (0)
+- **3 giao diện bảng quản trị hoàn toàn khác nhau**:
+  - ⚙️ `/admin/ky-thuat` — Phong cách Coder/Terminal — tối, Matrix-like, cực ngầu
+  - 🛡️ `/admin/cong-dong` — Phong cách Community Mod — xanh dương, social, ấm áp
+  - 👑 `/admin/quan-li` — Phong cách Executive/Premium — vàng, luxury dashboard
+- **Migration 014**: bảng `permissions` + `role_permissions` + view `v_user_permissions` + function `user_has_permission()`
+- **Bug fix CRITICAL**: `USER_COLUMNS` trong auth.rs thiếu cột `role` — Google OAuth login bị hỏng
+- **Mục tiêu:** Admin Kỹ Thuật có toàn quyền, 3 kiểu admin có giao diện riêng, hệ thống phân quyền chi tiết
+
 ### Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng ✅ (v0.9.7)
 - **Lần đầu tiên app có hệ thống phân quyền rõ ràng** — 4 vai trò:
   - `member` — Thành Viên (mặc định)
@@ -225,7 +242,7 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 
 ---
 
-## Cấu Trúc Dự Án (Giai đoạn 11 / v0.9.7)
+## Cấu Trúc Dự Án (Giai đoạn 12 / v0.9.8)
 
 ```
 ungdungtubi/
@@ -448,6 +465,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.5** — Giai đoạn 9: Module Bạn Bè (Friends + DM 1-1 WebSocket + Mail + Notifications) + Fix live chat bugs (HttpOnly cookie check)
 - **v0.9.6** — Giai đoạn 10: Kinh Sách (Thư viện kinh sách Phật giáo & Đạo giáo — 5 thư viện + Books + Chapters + Reviews + Flowers + Search)
 - **v0.9.7** — Giai đoạn 11: Hệ thống vai trò Admin & Phân quyền cộng đồng (4 roles + admin panel + role display trên profile/header)
+- **v0.9.8** — Giai đoạn 12: 50 quyền chi tiết + 3 giao diện admin riêng biệt (Admin Kỹ Thuật 50 quyền cao nhất + terminal/mod/executive dashboards)
 
 ---
 

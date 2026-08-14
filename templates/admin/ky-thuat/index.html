@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi</title>
+    <!-- Dark coder theme — không dùng layout.html -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'term': { bg: '#0a0e14', panel: '#131820', border: '#1e2a3a', accent: '#00ff9c', red: '#ff6b6b', amber: '#ffb86c', blue: '#7aa2f7', purple: '#bb9af7', cyan: '#7dcfff' },
+                        'matrix': '#00ff41'
+                    },
+                    fontFamily: { mono: ['"JetBrains Mono"', '"Fira Code"', '"Cascadia Code"', 'monospace'] }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <style>
+        body { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+        .glow { text-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
+        .matrix-bg { background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px); }
+        .terminal-border { border: 1px solid #1e2a3a; box-shadow: 0 0 15px rgba(0,255,156,0.05), inset 0 0 15px rgba(0,255,156,0.02); }
+        .scanline::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(transparent 50%, rgba(0,0,0,0.03) 50%); background-size: 100% 4px; pointer-events: none; }
+        @keyframes blink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
+        .cursor-blink { animation: blink 1s infinite; }
+        @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 5px #00ff9c; } 50% { box-shadow: 0 0 20px #00ff9c, 0 0 40px #00ff9c33; } }
+        .pulse-glow { animation: pulse-glow 2s infinite; }
+        .cmd-prompt::before { content: 'root@tubi:~# '; color: #00ff9c; font-weight: 700; }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-term-bg text-gray-300 min-h-screen matrix-bg" x-data="{ sidebarOpen: true, activeSection: 'dashboard' }">
+
+    <!-- Top Bar — Terminal header -->
+    <header class="bg-term-panel border-b border-term-border sticky top-0 z-50">
+        <div class="flex items-center justify-between h-12 px-4">
+            <div class="flex items-center gap-3">
+                <span class="text-matrix glow text-lg font-bold">⚙️</span>
+                <span class="text-term-accent font-bold text-sm tracking-wider">ADMIN_KY_THUAT@TUBI</span>
+                <span class="text-term-border">|</span>
+                <span class="text-gray-500 text-xs">v0.9.8</span>
+                <span class="text-term-border">|</span>
+                <span class="text-term-amber text-xs">50 PERMISSIONS</span>
+                <span class="text-term-accent cursor-blink">█</span>
+            </div>
+            <div class="flex items-center gap-4 text-xs">
+                <span class="text-term-cyan">UPTIME: <span id="uptime">00:00:00</span></span>
+                <span class="text-term-green">● ONLINE</span>
+                <a href="/" class="text-gray-500 hover:text-term-accent transition">[EXIT]</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex">
+        <!-- Sidebar — File tree style -->
+        <nav class="w-56 bg-term-panel border-r border-term-border min-h-[calc(100vh-48px)] flex-shrink-0"
+             :class="sidebarOpen ? '' : 'hidden'">
+            <div class="p-3 text-xs">
+                <div class="text-term-accent font-bold mb-2 cmd-prompt">ls admin/</div>
+                <div class="space-y-0.5">
+                    <a href="/admin/ky-thuat" class="block px-3 py-1.5 rounded text-term-accent bg-term-border/30 font-bold">
+                        <span class="text-term-amber">▸</span> dashboard
+                    </a>
+                    <a href="/admin/ky-thuat/system" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
+                        <span class="text-term-red">▸</span> system/
+                    </a>
+                    <a href="/admin/ky-thuat/users" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
+                        <span class="text-term-blue">▸</span> users/
+                    </a>
+                    <a href="/admin/ky-thuat/migrations" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
+                        <span class="text-term-purple">▸</span> migrations/
+                    </a>
+                    <a href="/admin/ky-thuat/permissions" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
+                        <span class="text-term-amber">▸</span> permissions/
+                    </a>
+                    <a href="/admin/ky-thuat/logs" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
+                        <span class="text-term-cyan">▸</span> logs/
+                    </a>
+                </div>
+
+                <div class="mt-6 text-term-accent font-bold mb-2 cmd-prompt">whoami</div>
+                {% if let Some(u) = user %}
+                <div class="text-gray-500 px-3 py-1">{{ u.display_name }}</div>
+                <div class="text-term-purple px-3 py-1 text-[10px]">{{ u.email }}</div>
+                <div class="text-term-accent px-3 py-1 text-[10px] font-bold">ROLE: {{ u.role }} (level 4)</div>
+                {% endif %}
+
+                <div class="mt-6 text-term-accent font-bold mb-2 cmd-prompt">env</div>
+                <div class="text-gray-600 px-3 py-0.5 text-[10px]">RUST=1.97.1</div>
+                <div class="text-gray-600 px-3 py-0.5 text-[10px]">AXUM=0.8</div>
+                <div class="text-gray-600 px-3 py-0.5 text-[10px]">PG=17</div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 p-6">
+            <!-- Terminal-style dashboard -->
+            <div class="terminal-border rounded-lg bg-term-panel/50 p-6 scanline relative">
+                <!-- System Status -->
+                <div class="mb-6">
+                    <div class="cmd-prompt text-term-accent font-bold mb-3">cat /proc/tubi/status</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="terminal-border rounded bg-term-bg/50 p-3">
+                            <div class="text-[10px] text-gray-500 mb-1">USERS</div>
+                            <div class="text-xl font-bold text-term-accent">{{ stats.total_users }}</div>
+                            <div class="text-[10px] text-term-green">{{ stats.active_users }} active</div>
+                        </div>
+                        <div class="terminal-border rounded bg-term-bg/50 p-3">
+                            <div class="text-[10px] text-gray-500 mb-1">ADMIN</div>
+                            <div class="text-xl font-bold text-term-purple">{{ stats.admin_count }}</div>
+                            <div class="text-[10px] text-term-amber">50 permissions</div>
+                        </div>
+                        <div class="terminal-border rounded bg-term-bg/50 p-3">
+                            <div class="text-[10px] text-gray-500 mb-1">GROUPS</div>
+                            <div class="text-xl font-bold text-term-blue">{{ stats.total_groups }}</div>
+                            <div class="text-[10px] text-gray-500">{{ stats.total_topics }} topics · {{ stats.total_comments }} comments</div>
+                        </div>
+                        <div class="terminal-border rounded bg-term-bg/50 p-3">
+                            <div class="text-[10px] text-gray-500 mb-1">BOOKS</div>
+                            <div class="text-xl font-bold text-term-amber">{{ stats.total_books }}</div>
+                            <div class="text-[10px] text-term-red">{{ stats.pending_reviews }} pending reviews</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Permission Matrix -->
+                <div class="mb-6">
+                    <div class="cmd-prompt text-term-accent font-bold mb-3">cat /etc/tubi/permissions.conf</div>
+                    <div class="terminal-border rounded bg-term-bg/30 p-4 overflow-x-auto">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="text-term-accent">
+                                    <th class="text-left py-1 pr-4">CATEGORY</th>
+                                    <th class="text-left py-1 pr-4">PERMISSION</th>
+                                    <th class="text-center py-1">KY_THUAT</th>
+                                    <th class="text-center py-1">QUAN_LI</th>
+                                    <th class="text-center py-1">CONG_DONG</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-gray-400">
+                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-red" colspan="5">▸ system/ (10 permissions)</td></tr>
+                                <tr><td></td><td class="text-gray-500">system_view_status</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr><td></td><td class="text-gray-500">system_manage_config</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr><td></td><td class="text-gray-500">system_manage_migrate</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr><td></td><td class="text-gray-500">... (7 more)</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-blue" colspan="5">▸ users/ (10 permissions)</td></tr>
+                                <tr><td></td><td class="text-gray-500">users_view_list</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr><td></td><td class="text-gray-500">users_change_role</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr><td></td><td class="text-gray-500">... (8 more)</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
+                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-amber" colspan="5">▸ content/ (10 permissions)</td></tr>
+                                <tr><td></td><td class="text-gray-500">content_approve</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
+                                <tr><td></td><td class="text-gray-500">content_mod_comments</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
+                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-cyan" colspan="5">▸ community/ (10 permissions)</td></tr>
+                                <tr><td></td><td class="text-gray-500">community_manage_grp</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
+                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-purple" colspan="5">▸ kinh_sach/ (10 permissions)</td></tr>
+                                <tr><td></td><td class="text-gray-500">ksach_manage_books</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
+                            </tbody>
+                            <tfoot class="text-term-accent font-bold border-t border-term-border">
+                                <tr><td colspan="2" class="py-2">TOTAL</td><td class="text-center">50</td><td class="text-center">30</td><td class="text-center">20</td></tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Quick Terminal Commands -->
+                <div>
+                    <div class="cmd-prompt text-term-accent font-bold mb-3">history | tail -8</div>
+                    <div class="space-y-1 text-xs text-gray-500">
+                        <div><span class="text-term-accent">[system]</span> <a href="/admin/ky-thuat/users" class="text-term-blue hover:underline">vim /etc/tubi/users.toml</a> <span class="text-gray-600">— Quản lý thành viên &amp; role</span></div>
+                        <div><span class="text-term-accent">[system]</span> <a href="/api/health" class="text-term-blue hover:underline">curl /api/health</a> <span class="text-gray-600">— Health check JSON</span></div>
+                        <div><span class="text-term-accent">[system]</span> <a href="/admin/ky-thuat/permissions" class="text-term-blue hover:underline">chmod 755 /etc/tubi/permissions</a> <span class="text-gray-600">— Xem 50 quyền chi tiết</span></div>
+                        <div><span class="text-term-accent">[system]</span> <span class="text-term-red">sudo systemctl restart tubi</span> <span class="text-gray-600">— Restart server (requires permission)</span></div>
+                        <div><span class="text-term-accent">[system]</span> <span class="text-term-amber">tail -f /var/log/tubi/app.log</span> <span class="text-gray-600">— View logs</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer terminal -->
+            <div class="mt-4 text-[10px] text-gray-600 flex items-center gap-2">
+                <span class="text-matrix">🪷</span>
+                <span>Ứng Dụng Từ Bi v0.9.8 · Admin Kỹ Thuật · 50/50 permissions · Rust 1.97.1</span>
+                <span class="text-term-accent cursor-blink">█</span>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Uptime counter
+        let seconds = 0;
+        setInterval(() => {
+            seconds++;
+            const h = String(Math.floor(seconds/3600)).padStart(2,'0');
+            const m = String(Math.floor((seconds%3600)/60)).padStart(2,'0');
+            const s = String(seconds%60).padStart(2,'0');
+            document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
+        }, 1000);
+    </script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -126,7 +126,7 @@
                         </a>
                         {% if u.is_admin() %}
                         <a href="/admin" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Quản Trị">
-                            ⚙️ Quản Trị
+                            {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% else %}⚙️{% endif %} Quản Trị
                         </a>
                         {% endif %}
                         <a href="/ban-be" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Bạn Bè">
@@ -174,7 +174,7 @@
                     {% if let Some(u) = user %}
                     {% if u.is_admin() %}
                     <a href="/admin" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">
-                        {{ u.role_icon() }} Quản Trị
+                        {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% else %}⚙️{% endif %} Quản Trị
                         <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
                               style="background-color: {{ u.role_color() }}; color: white">
                             {{ u.role_display() }}
@@ -268,7 +268,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.8 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

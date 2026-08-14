@@ -486,7 +486,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.7 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.8 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -564,7 +564,11 @@ fn render_user_menu_html(user: Option<&User>) -> String {
         html.push_str("</span>");
         html.push_str("<a href=\"/ca-nhan\" class=\"text-tubi-200 hover:text-white text-sm transition-colors\">Hồ sơ</a>");
         if u.is_admin() {
-            html.push_str("<a href=\"/admin\" class=\"text-tubi-200 hover:text-white text-sm transition-colors\" title=\"Quản Trị\">⚙️ Quản Trị</a>");
+            html.push_str(&format!(
+                r#"<a href="{}" class="text-tubi-200 hover:text-white text-sm transition-colors" title="Quản Trị">{} Quản Trị</a>"#,
+                u.admin_dashboard_path(),
+                u.role_icon()
+            ));
         }
         html.push_str("<a href=\"#\" onclick=\"event.preventDefault(); document.getElementById(&#39;logout-form-desktop&#39;).submit();\" \
                        class=\"bg-tubi-600 hover:bg-tubi-500 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer\">Thoát</a>");
@@ -590,7 +594,8 @@ fn render_mobile_user_menu_html(user: Option<&User>) -> String {
             html.push_str(r#"<a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Hồ sơ cá nhân</a>"#);
             if u.is_admin() {
                 html.push_str(&format!(
-                    r#"<a href="/admin" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">{} Quản Trị <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold" style="background-color:{}; color:white">{}</span></a>"#,
+                    r#"<a href="{}" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">{} Quản Trị <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold" style="background-color:{}; color:white">{}</span></a>"#,
+                    u.admin_dashboard_path(),
                     u.role_icon(),
                     u.role_color(),
                     u.role_display()

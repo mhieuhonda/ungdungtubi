@@ -2,7 +2,7 @@
 -- Platform-wide chat that works across the entire app
 -- Only store the 500 most recent messages (auto-prune via application logic)
 
-CREATE TABLE global_chat_messages (
+CREATE TABLE IF NOT EXISTS global_chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     author_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     body VARCHAR(500) NOT NULL,
