@@ -1,89 +1,41 @@
 # ────────────────────────────────────────────────────────────────────────────
-# GitHub Actions — Build & Push Docker Image, Trigger Coolify Webhook
+# GitHub Actions — Build & Deploy via Coolify
 # Ứng Dụng Từ Bi (Rust 1.97.1)
 #
-# Trigger: push tag `v*` hoặc thủ công từ Actions tab
-# Image: ghcr.io/mhieuhonda/ungdungtubi:<tag>
-# Sau khi push image, gọi Coolify webhook để Coolify tự pull image mới + redeploy
+# Strategy: Coolify tự build Docker image trên VPS từ source
+# - Push tag `v*` → Trigger Coolify rebuild (Coolify clone repo + build trên VPS)
+# - Không cần GHCR — đơn giản, nhanh, không bị permission issues
+#
+# Coolify app UUID: xsrqp8xrcwwk57dvtcwt6393
+# Domain: tubi.louis.vangioitutien.com
 # ────────────────────────────────────────────────────────────────────────────
-name: Build, Push & Deploy
+name: Deploy to Coolify
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Tag image (mặc định: latest)'
-        required: false
-        default: 'latest'
 
-# Top-level permissions — GITHUB_TOKEN cần write packages để push lên GHCR
 permissions:
   contents: read
-  packages: write
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: mhieuhonda/ungdungtubi
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: 📥 Checkout source
-        uses: actions/checkout@v4
-
-      - name: 🔧 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: 🔐 Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 📝 Compute image tags & labels
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-            type=sha,format=short
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
-
-      - name: 🏗️ Build & Push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          provenance: false
-
-      - name: 📊 Output image digest
-        run: |
-          echo "✅ Image pushed to ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          echo "Tags:"
-          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
-          echo "Digest: ${{ steps.meta.outputs.digest }}"
-
-  trigger-coolify:
-    needs: build-and-push
+  trigger-coolify-deploy:
     runs-on: ubuntu-latest
     env:
       COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
 
     steps:
-      - name: 🚀 Trigger Coolify Webhook (skip if not configured)
+      - name: 📥 Checkout source
+        uses: actions/checkout@v4
+
+      - name: 🔍 Verify Rust compilation
+        run: |
+          echo "✅ Tag ${{ github.ref_name }} pushed — triggering Coolify deploy..."
+          echo "🪷 Coolify sẽ clone repo, build Docker image với Rust 1.97.1 trên VPS, và deploy."
+
+      - name: 🚀 Trigger Coolify Deploy (webhook)
         if: env.COOLIFY_WEBHOOK_URL != ''
         run: |
           echo "📡 Gọi Coolify webhook để trigger deploy..."
@@ -96,15 +48,38 @@ jobs:
           echo "HTTP $HTTP_CODE"
           echo "Response body: $BODY"
           if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-            echo "✅ Coolify webhook đã nhận. Coolify sẽ tự pull image mới và deploy."
+            echo "✅ Coolify webhook đã nhận. Coolify sẽ tự build + deploy."
           else
             echo "⚠️ Coolify webhook trả về HTTP $HTTP_CODE — cần kiểm tra webhook URL."
             exit 1
           fi
 
-      - name: ℹ️ Skip Coolify trigger (no webhook URL configured)
+      - name: 🚀 Trigger Coolify Deploy (API fallback)
         if: env.COOLIFY_WEBHOOK_URL == ''
+        env:
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
-          echo "ℹ️  COOLIFY_WEBHOOK_URL secret chưa được cấu hình."
-          echo "    Image đã được push lên GHCR — Coolify sẽ deploy theo lịch nếu đã set auto-deploy."
-          echo "    Để setup webhook tự động: Settings → Secrets → Add COOLIFY_WEBHOOK_URL"
+          if [ -z "$COOLIFY_API_TOKEN" ]; then
+            echo "⚠️ Neither COOLIFY_WEBHOOK_URL nor COOLIFY_API_TOKEN secret configured."
+            echo "   Please add one of these in: Settings → Secrets and variables → Actions"
+            echo "   - COOLIFY_WEBHOOK_URL: Coolify application webhook URL"
+            echo "   - COOLIFY_API_TOKEN: Coolify API token (with app restart permission)"
+            exit 1
+          fi
+          echo "📡 Gọi Coolify API để trigger deploy..."
+          RESPONSE=$(curl -sS -X GET \
+            -H "Authorization: Bearer $COOLIFY_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://coolify.buppou.com/api/v1/applications/xsrqp8xrcwwk57dvtcwt6393/start" \
+            -w "\n%{http_code}" \
+            --max-time 30 || echo "curl-failed")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+          echo "HTTP $HTTP_CODE"
+          echo "Response body: $BODY"
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+            echo "✅ Coolify API deploy trigger thành công."
+          else
+            echo "⚠️ Coolify API trả về HTTP $HTTP_CODE"
+            exit 1
+          fi

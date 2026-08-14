@@ -35,14 +35,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.1 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9 — Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 + Cộng Đồng");
+    log::info!("📦 Phiên bản: v0.9.1 — Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 + Cộng Đồng");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -208,11 +208,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.0",
+        "version": "0.9.1",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
         "phase": 9,
-        "phase_name": "Ứng Dụng Từ Bi v0.9 — Codebase sạch lỗi, Axum 0.8 ổn định",
+        "phase_name": "Ứng Dụng Từ Bi v0.9.1 — Codebase sạch lỗi, Axum 0.8 ổn định",
         "framework": "axum 0.8 + tower-http",
         "status": "running",
         "database": {

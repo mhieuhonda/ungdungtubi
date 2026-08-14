@@ -6,6 +6,24 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.1] — 2026-08-14 — Fix GitHub Actions CI/CD + Deploy thủ công qua Coolify
+
+### Sửa
+- **Fix GitHub Actions CI/CD**: Workflow cũ bị lỗi `permission_denied: write_package` khi push Docker image lên GHCR
+  - Thêm top-level `permissions` (contents:read, packages:write) cho GITHUB_TOKEN
+  - Bỏ trigger `push branches:main` — chỉ giữ tag trigger để tránh double run
+  - Sửa secrets syntax trong `trigger-coolify` job (dùng `env.` thay vì `secrets.` trong if condition)
+  - Thêm `provenance: false` cho docker/build-push-action
+- **Chuyển sang Coolify-native deploy strategy**: Thay vì build image trên GitHub Actions → push GHCR → Coolify pull, giờ Coolify tự build trên VPS từ source
+  - Đơn giản hơn, không bị GHCR permission issues
+  - Coolify clone repo → build Docker image với Rust 1.97.1 trên VPS → deploy
+  - Workflow chỉ cần trigger Coolify deploy (webhook hoặc API)
+- **Thêm COOLIFY_API_TOKEN secret** cho Coolify API fallback trong workflow
+- **Cập nhật RUST_LOG** trên Coolify: `actix_web=info` → `axum=info,tower_http=info` (Axum 0.8 migration)
+- **Deploy thủ công** lên `tubi.louis.vangioitutien.com` thành công qua Coolify API
+
+---
+
 ## [0.9.0] — 2026-08-14 — Ứng Dụng Từ Bi v0.9: Codebase sạch lỗi, Axum 0.8 ổn định
 
 ### Sửa
