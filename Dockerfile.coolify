@@ -27,7 +27,7 @@
 #   - [v0.9.11] Tránh Docker cache stale digest bằng tag semver unique
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.11 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập
-# Tag `:0.9.11` được GitHub Actions push lên GHCR khi tạo tag `v0.9.11`.
+# v0.9.12 — Giai đoạn 16: Mobile UX + Admin Kỹ Thuật Redesign
+# Tag `:0.9.12` được GitHub Actions push lên GHCR khi tạo tag `v0.9.12`.
 # Sử dụng tag semver thay vì `:latest` để tránh Docker cache stale digest.
-FROM ghcr.io/mhieuhonda/tubi-app:0.9.11
+FROM ghcr.io/mhieuhonda/tubi-app:0.9.12

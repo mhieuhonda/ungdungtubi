@@ -406,6 +406,10 @@ pub struct ConversationTemplate {
     pub other_avatar_url: Option<String>,
     pub other_rank: String,
     pub messages_json: String,
+    /// v0.9.12: JSON-encoded init object cho Alpine.js `dmChat({...})`.
+    /// Dùng `serde_json::to_string` để escape đúng JS string context —
+    /// tránh stored XSS qua `other_display_name` do người dùng kiểm soát.
+    pub init_json: String,
 }
 
 /// GET /ban-be/tin-nhan/{conversation_id} — Xem conversation + chat realtime.
@@ -474,6 +478,19 @@ pub async fn dm_view(
 
     let messages_json = serde_json::to_string(&messages).unwrap_or_else(|_| "[]".into());
 
+    // v0.9.12: Serialize toàn bộ init object cho Alpine.js bằng serde_json.
+    // Tránh stored XSS qua `other_display_name` (người dùng kiểm soát) khi inject
+    // trực tiếp vào x-data="dmChat({...})" — serde_json escape đúng JS string.
+    let messages_init: serde_json::Value = serde_json::from_str(&messages_json)
+        .unwrap_or(serde_json::json!([]));
+    let init_json = serde_json::to_string(&serde_json::json!({
+        "conversationId": conversation_id.to_string(),
+        "otherUserId": other_user_id.to_string(),
+        "otherDisplayName": &other_display_name,
+        "initialMessages": messages_init,
+    }))
+    .unwrap_or_else(|_| "{}".into());
+
     // Update last_read_at
     let _ = sqlx::query(
         "UPDATE conversation_participants SET last_read_at = NOW()
@@ -493,6 +510,7 @@ pub async fn dm_view(
         other_avatar_url,
         other_rank,
         messages_json,
+        init_json,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -909,6 +927,32 @@ pub async fn mail_send(
         return Html(
             r#"<div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
                 Không thể gửi thư cho chính mình. <a href="/ban-be/thu/gui" class="underline">← Thử lại</a>
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // v0.9.12: Security — chỉ cho phép gửi thư cho bạn bè đã chấp nhận kết bạn.
+    // Tránh spam chéo toàn userbase qua việc craft POST với recipient_id bất kỳ.
+    let is_friend: Option<bool> = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM friendships
+            WHERE ((requester_id = $1 AND addressee_id = $2)
+                OR (requester_id = $2 AND addressee_id = $1))
+              AND status = 'accepted'
+        )",
+    )
+    .bind(user.id)
+    .bind(recipient_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    if is_friend != Some(true) {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                Bạn chỉ có thể gửi thư cho bạn bè đã kết bạn. <a href="/ban-be/thu/gui" class="underline">← Thử lại</a>
             </div>"#,
         )
         .into_response();

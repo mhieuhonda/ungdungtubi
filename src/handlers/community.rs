@@ -826,6 +826,30 @@ pub async fn create_comment(
         .filter(|s| !s.is_empty())
         .and_then(|s| Uuid::parse_str(s).ok());
 
+    // v0.9.12: Security — validate parent_id thuộc cùng topic_id, tránh cross-topic reply.
+    if let Some(pid) = parent_id {
+        let parent_in_topic: Option<bool> = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM comments
+                WHERE id = $1 AND topic_id = $2 AND is_active = true
+            )",
+        )
+        .bind(pid)
+        .bind(topic_id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+
+        if parent_in_topic != Some(true) {
+            return (
+                axum::http::StatusCode::BAD_REQUEST,
+                "Bình luận cha không hợp lệ hoặc không thuộc chủ đề này.",
+            )
+                .into_response();
+        }
+    }
+
     let locked: Option<bool> = sqlx::query_scalar(
         "SELECT is_locked FROM topics WHERE id = $1 AND is_active = true",
     )

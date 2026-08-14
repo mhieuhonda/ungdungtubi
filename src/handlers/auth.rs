@@ -574,7 +574,7 @@ async fn upsert_google_user(
             }
             // Tất cả đều thất bại → trả lỗi gốc
             let _ = e; // suppress unused
-            return Err(sqlx::Error::RowNotFound);
+            Err(sqlx::Error::RowNotFound)
         }
     }
 }

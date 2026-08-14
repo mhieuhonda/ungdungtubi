@@ -3,8 +3,9 @@
 
 {% block head %}
 <style>
+  /* DM panel — dùng dvh để input không bị bàn phím ảo che */
   .dm-panel {
-    height: calc(100vh - 200px);
+    height: calc(100dvh - 200px);
     min-height: 400px;
     display: flex;
     flex-direction: column;
@@ -22,7 +23,7 @@
     overflow-wrap: anywhere;
   }
   @media (max-width: 768px) {
-    .dm-panel { height: calc(100vh - 180px); min-height: 350px; }
+    .dm-panel { height: calc(100dvh - 160px); min-height: 350px; }
   }
 </style>
 {% endblock %}
@@ -41,12 +42,7 @@
 
   <!-- Conversation header -->
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
-       x-data="dmChat({
-         conversationId: '{{ conversation_id }}',
-         otherUserId: '{{ other_user_id }}',
-         otherDisplayName: {{ '"' }}{{ other_display_name }}{{ '"' }},
-         initialMessages: {{ messages_json|safe }}
-       })"
+       x-data="dmChat({{ init_json|safe }})"
        x-init="init()">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
       {% if let Some(avatar) = &other_avatar_url %}
@@ -106,8 +102,11 @@
         <input type="text"
                x-model="draft"
                @keydown.enter.prevent="send()"
-               :disabled="!connected"
                maxlength="1000"
+               enterkeyhint="send"
+               inputmode="text"
+               autocomplete="off"
+               autocapitalize="sentences"
                placeholder="Nhập tin nhắn… (Enter để gửi)"
                class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-300 focus:border-transparent">
         <button type="submit"

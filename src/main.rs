@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.11 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.12 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.11 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập");
+    log::info!("📦 Phiên bản: v0.9.12 — Giai đoạn 16: Mobile UX + Admin Kỹ Thuật Redesign");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -250,6 +250,7 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Admin (v0.9.8 — Giai đoạn 12: 3 giao diện admin riêng biệt)
         .route("/admin", get(handlers::admin))
         .route("/admin/ky-thuat", get(handlers::admin::admin_ky_thuat_dashboard))
+        .route("/admin/ky-thuat/users", get(handlers::admin::admin_ky_thuat_users_redirect))
         .route("/admin/cong-dong", get(handlers::admin::admin_cong_dong_dashboard))
         .route("/admin/quan-li", get(handlers::admin::admin_quan_li_dashboard))
         .route("/admin/thanh-vien", get(handlers::admin::admin_users_list))
@@ -315,11 +316,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.11",
+        "version": "0.9.12",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 15,
-        "phase_name": "Giai đoạn 15 — Quỹ Từ Bi & Fix lỗi đăng nhập triệt để",
+        "phase": 16,
+        "phase_name": "Giai đoạn 16 — Mobile UX + Admin Kỹ Thuật Redesign",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -346,6 +347,10 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "admin-ky-thuat-dashboard",
             "admin-cong-dong-dashboard",
             "admin-quan-li-dashboard",
+            "admin-ky-thuat-mobile-ux-redesign",
+            "admin-ky-thuat-users-redirect",
+            "mobile-chat-keyboard-fix",
+            "mobile-viewport-interactive-widget",
             "khong-gian-personal-space",
             "niem-phat-counter",
             "tuong-phat-vows",

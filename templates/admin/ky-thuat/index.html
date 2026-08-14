@@ -2,207 +2,721 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi</title>
-    <!-- Dark coder theme — không dùng layout.html -->
+    <!-- v0.9.12: Redesign — coder dark theme, mobile-first, Vietnamese plain language -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        'term': { bg: '#0a0e14', panel: '#131820', border: '#1e2a3a', accent: '#00ff9c', red: '#ff6b6b', amber: '#ffb86c', blue: '#7aa2f7', purple: '#bb9af7', cyan: '#7dcfff' },
-                        'matrix': '#00ff41'
+                        // Bảng màu tối hiện đại — không phải neon terminal
+                        'code': {
+                            bg:    '#0f172a',   // slate-900 — nền chính
+                            panel: '#1e293b',   // slate-800 — panel
+                            card:  '#1e293b',
+                            border:'#334155',   // slate-700
+                            muted: '#64748b',   // slate-500
+                            text:  '#e2e8f0',   // slate-200
+                            soft:  '#94a3b8',   // slate-400
+                            accent:'#10b981',   // emerald-500 — green dịu, không neon
+                            amber: '#f59e0b',
+                            blue:  '#3b82f6',
+                            purple:'#a855f7',
+                            pink:  '#ec4899',
+                            red:   '#ef4444',
+                            cyan:  '#06b6d4',
+                        },
                     },
-                    fontFamily: { mono: ['"JetBrains Mono"', '"Fira Code"', '"Cascadia Code"', 'monospace'] }
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', '"Fira Code"', 'ui-monospace', 'monospace'],
+                    },
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <style>
-        body { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
-        .glow { text-shadow: 0 0 10px currentColor, 0 0 20px currentColor; }
-        .matrix-bg { background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px); }
-        .terminal-border { border: 1px solid #1e2a3a; box-shadow: 0 0 15px rgba(0,255,156,0.05), inset 0 0 15px rgba(0,255,156,0.02); }
-        .scanline::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(transparent 50%, rgba(0,0,0,0.03) 50%); background-size: 100% 4px; pointer-events: none; }
-        @keyframes blink { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
-        .cursor-blink { animation: blink 1s infinite; }
-        @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 5px #00ff9c; } 50% { box-shadow: 0 0 20px #00ff9c, 0 0 40px #00ff9c33; } }
-        .pulse-glow { animation: pulse-glow 2s infinite; }
-        .cmd-prompt::before { content: 'root@tubi:~# '; color: #00ff9c; font-weight: 700; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
         [x-cloak] { display: none !important; }
+        // Smooth scroll cho anchor links
+        html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+        // Hover lift cho stat cards
+        .stat-card { transition: transform .2s, box-shadow .2s, border-color .2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(16,185,129,0.08); border-color: #10b98144; }
+        // Permission row hover
+        .perm-row { transition: background .15s; }
+        .perm-row:hover { background: rgba(16,185,129,0.06); }
+        // Sidebar nav active state
+        .nav-link { transition: all .15s; }
+        .nav-link:hover { background: rgba(16,185,129,0.08); color: #10b981; }
+        .nav-link.active { background: rgba(16,185,129,0.12); color: #10b981; border-left: 2px solid #10b981; }
+        // Code chip
+        .chip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: #0f172a;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
+        // Scrollbar đẹp
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
-<body class="bg-term-bg text-gray-300 min-h-screen matrix-bg" x-data="{ sidebarOpen: true, activeSection: 'dashboard' }">
+<body class="bg-code-bg text-code-text min-h-screen text-sm md:text-base"
+      x-data="{ sidebarOpen: false }">
 
-    <!-- Top Bar — Terminal header -->
-    <header class="bg-term-panel border-b border-term-border sticky top-0 z-50">
-        <div class="flex items-center justify-between h-12 px-4">
-            <div class="flex items-center gap-3">
-                <span class="text-matrix glow text-lg font-bold">⚙️</span>
-                <span class="text-term-accent font-bold text-sm tracking-wider">ADMIN_KY_THUAT@TUBI</span>
-                <span class="text-term-border">|</span>
-                <span class="text-gray-500 text-xs">v0.9.11</span>
-                <span class="text-term-border">|</span>
-                <span class="text-term-amber text-xs">50 PERMISSIONS</span>
-                <span class="text-term-accent cursor-blink">█</span>
+    <!-- ═══ Top Bar — compact, mobile-friendly ═══ -->
+    <header class="bg-code-panel border-b border-code-border sticky top-0 z-50">
+        <div class="flex items-center justify-between h-14 px-3 md:px-6">
+            <!-- Left: hamburger + logo -->
+            <div class="flex items-center gap-3 min-w-0">
+                <button @click="sidebarOpen = !sidebarOpen"
+                        class="md:hidden p-2 -ml-2 rounded-lg hover:bg-code-border text-code-soft"
+                        aria-label="Mở menu">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <div class="w-9 h-9 rounded-lg bg-code-accent/15 flex items-center justify-center text-base shrink-0">
+                    ⚙️
+                </div>
+                <div class="min-w-0">
+                    <h1 class="font-semibold text-sm md:text-base text-code-text truncate">
+                        Admin Kỹ Thuật
+                    </h1>
+                    <p class="text-[10px] md:text-[11px] text-code-muted truncate">
+                        Toàn quyền hệ thống · 50 quyền
+                    </p>
+                </div>
             </div>
-            <div class="flex items-center gap-4 text-xs">
-                <span class="text-term-cyan">UPTIME: <span id="uptime">00:00:00</span></span>
-                <span class="text-term-green">● ONLINE</span>
-                <a href="/" class="text-gray-500 hover:text-term-accent transition">[EXIT]</a>
+
+            <!-- Right: version + user + exit -->
+            <div class="flex items-center gap-2 md:gap-4">
+                <span class="hidden sm:inline-flex chip">v0.9.12</span>
+                <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
+                {% if let Some(u) = user %}
+                <div class="hidden sm:flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-code-purple/20 flex items-center justify-center text-xs font-bold text-code-purple">
+                        {{ u.display_name.chars().next().unwrap_or('?') }}
+                    </div>
+                    <span class="hidden lg:inline text-xs text-code-soft truncate max-w-[120px]">{{ u.display_name }}</span>
+                </div>
+                {% endif %}
+                <a href="/" class="text-xs px-3 py-1.5 rounded-lg bg-code-border/50 hover:bg-code-border text-code-text transition">
+                   Thoát</a>
             </div>
         </div>
     </header>
 
     <div class="flex">
-        <!-- Sidebar — File tree style -->
-        <nav class="w-56 bg-term-panel border-r border-term-border min-h-[calc(100vh-48px)] flex-shrink-0"
-             :class="sidebarOpen ? '' : 'hidden'">
-            <div class="p-3 text-xs">
-                <div class="text-term-accent font-bold mb-2 cmd-prompt">ls admin/</div>
-                <div class="space-y-0.5">
-                    <a href="/admin/ky-thuat" class="block px-3 py-1.5 rounded text-term-accent bg-term-border/30 font-bold">
-                        <span class="text-term-amber">▸</span> dashboard
-                    </a>
-                    <a href="/admin/ky-thuat/system" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
-                        <span class="text-term-red">▸</span> system/
-                    </a>
-                    <a href="/admin/ky-thuat/users" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
-                        <span class="text-term-blue">▸</span> users/
-                    </a>
-                    <a href="/admin/ky-thuat/migrations" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
-                        <span class="text-term-purple">▸</span> migrations/
-                    </a>
-                    <a href="/admin/ky-thuat/permissions" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
-                        <span class="text-term-amber">▸</span> permissions/
-                    </a>
-                    <a href="/admin/ky-thuat/logs" class="block px-3 py-1.5 rounded text-gray-400 hover:text-term-accent hover:bg-term-border/20 transition">
-                        <span class="text-term-cyan">▸</span> logs/
-                    </a>
+        <!-- ═══ Sidebar — mobile collapsible ═══ -->
+        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+               class="md:translate-x-0 fixed md:sticky top-14 md:top-14 left-0 z-40
+                      w-60 md:w-56 h-[calc(100dvh-56px)] md:h-[calc(100dvh-56px)]
+                      bg-code-panel border-r border-code-border overflow-y-auto
+                      transition-transform duration-200 ease-out shrink-0">
+            <nav class="p-3 space-y-1">
+                <a href="#tong-quan" @click="sidebarOpen = false"
+                   class="nav-link active flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>📊</span> <span>Tổng quan</span>
+                </a>
+                <a href="#he-thong" @click="sidebarOpen = false"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>🖥️</span> <span>Tình trạng hệ thống</span>
+                </a>
+                <a href="/admin/thanh-vien"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>👥</span> <span>Quản lý thành viên</span>
+                    <span class="ml-auto text-[10px] text-code-muted">→</span>
+                </a>
+                <a href="#phan-quyen" @click="sidebarOpen = false"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>🔐</span> <span>Phân quyền chi tiết</span>
+                </a>
+                <a href="#csdl" @click="sidebarOpen = false"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>🗄️</span> <span>Cơ sở dữ liệu</span>
+                </a>
+                <a href="#nhat-ky" @click="sidebarOpen = false"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>📋</span> <span>Nhật ký hoạt động</span>
+                </a>
+                <a href="#hanh-dong" @click="sidebarOpen = false"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                    <span>⚡</span> <span>Hành động nhanh</span>
+                </a>
+            </nav>
+
+            <!-- User card -->
+            {% if let Some(u) = user %}
+            <div class="mx-3 mt-4 p-3 rounded-lg bg-code-bg border border-code-border">
+                <div class="text-[10px] text-code-muted uppercase tracking-wider mb-2">Tài khoản</div>
+                <div class="text-sm font-semibold text-code-text truncate">{{ u.display_name }}</div>
+                <div class="text-[11px] text-code-soft truncate mono">{{ u.email }}</div>
+                <div class="mt-2 inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-code-purple/15 text-code-purple font-semibold">
+                    ⚙️ {{ u.role_display() }} · cấp 4
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tech stack info -->
+            <div class="mx-3 mt-3 mb-6 p-3 rounded-lg bg-code-bg border border-code-border">
+                <div class="text-[10px] text-code-muted uppercase tracking-wider mb-2">Stack kỹ thuật</div>
+                <ul class="space-y-1 text-[11px] text-code-soft mono">
+                    <li><span class="text-code-muted">backend</span>  Rust 1.97.1</li>
+                    <li><span class="text-code-muted">web</span>      Axum 0.8</li>
+                    <li><span class="text-code-muted">db</span>       PostgreSQL 17</li>
+                    <li><span class="text-code-muted">ui</span>       HTMX + Alpine.js</li>
+                    <li><span class="text-code-muted">deploy</span>   Coolify + GHCR</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Overlay for mobile sidebar -->
+        <div x-show="sidebarOpen" x-cloak x-transition.opacity
+             @click="sidebarOpen = false"
+             class="md:hidden fixed inset-0 top-14 bg-black/50 z-30"></div>
+
+        <!-- ═══ Main Content ═══ -->
+        <main class="flex-1 min-w-0 p-3 md:p-6 space-y-6">
+
+            <!-- ─── Tổng quan ─── -->
+            <section id="tong-quan" class="space-y-4">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                    <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                        <span>📊</span> Tổng quan hệ thống
+                    </h2>
+                    <span class="chip">cập nhật theo thời gian thực</span>
                 </div>
 
-                <div class="mt-6 text-term-accent font-bold mb-2 cmd-prompt">whoami</div>
-                {% if let Some(u) = user %}
-                <div class="text-gray-500 px-3 py-1">{{ u.display_name }}</div>
-                <div class="text-term-purple px-3 py-1 text-[10px]">{{ u.email }}</div>
-                <div class="text-term-accent px-3 py-1 text-[10px] font-bold">ROLE: {{ u.role }} (level 4)</div>
-                {% endif %}
-
-                <div class="mt-6 text-term-accent font-bold mb-2 cmd-prompt">env</div>
-                <div class="text-gray-600 px-3 py-0.5 text-[10px]">RUST=1.97.1</div>
-                <div class="text-gray-600 px-3 py-0.5 text-[10px]">AXUM=0.8</div>
-                <div class="text-gray-600 px-3 py-0.5 text-[10px]">PG=17</div>
-            </div>
-        </nav>
-
-        <!-- Main Content Area -->
-        <main class="flex-1 p-6">
-            <!-- Terminal-style dashboard -->
-            <div class="terminal-border rounded-lg bg-term-panel/50 p-6 scanline relative">
-                <!-- System Status -->
-                <div class="mb-6">
-                    <div class="cmd-prompt text-term-accent font-bold mb-3">cat /proc/tubi/status</div>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div class="terminal-border rounded bg-term-bg/50 p-3">
-                            <div class="text-[10px] text-gray-500 mb-1">USERS</div>
-                            <div class="text-xl font-bold text-term-accent">{{ stats.total_users }}</div>
-                            <div class="text-[10px] text-term-green">{{ stats.active_users }} active</div>
+                <!-- Stats grid: 2 cols mobile, 4 cols desktop -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-code-blue/15 flex items-center justify-center text-base">👥</div>
+                            <span class="text-[10px] text-code-accent font-semibold">{{ stats.active_users }} hoạt động</span>
                         </div>
-                        <div class="terminal-border rounded bg-term-bg/50 p-3">
-                            <div class="text-[10px] text-gray-500 mb-1">ADMIN</div>
-                            <div class="text-xl font-bold text-term-purple">{{ stats.admin_count }}</div>
-                            <div class="text-[10px] text-term-amber">50 permissions</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_users }}</div>
+                        <div class="text-[11px] md:text-xs text-code-muted">Tổng thành viên</div>
+                    </div>
+                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-code-purple/15 flex items-center justify-center text-base">⚙️</div>
+                            <span class="text-[10px] text-code-muted">tối đa 4</span>
                         </div>
-                        <div class="terminal-border rounded bg-term-bg/50 p-3">
-                            <div class="text-[10px] text-gray-500 mb-1">GROUPS</div>
-                            <div class="text-xl font-bold text-term-blue">{{ stats.total_groups }}</div>
-                            <div class="text-[10px] text-gray-500">{{ stats.total_topics }} topics · {{ stats.total_comments }} comments</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.admin_count }}</div>
+                        <div class="text-[11px] md:text-xs text-code-muted">Quản trị viên</div>
+                    </div>
+                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-code-amber/15 flex items-center justify-center text-base">🏛️</div>
+                            <span class="text-[10px] text-code-muted">{{ stats.total_topics }} chủ đề</span>
                         </div>
-                        <div class="terminal-border rounded bg-term-bg/50 p-3">
-                            <div class="text-[10px] text-gray-500 mb-1">BOOKS</div>
-                            <div class="text-xl font-bold text-term-amber">{{ stats.total_books }}</div>
-                            <div class="text-[10px] text-term-red">{{ stats.pending_reviews }} pending reviews</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_groups }}</div>
+                        <div class="text-[11px] md:text-xs text-code-muted">Nhóm cộng đồng</div>
+                    </div>
+                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="w-8 h-8 rounded-lg bg-code-cyan/15 flex items-center justify-center text-base">📚</div>
+                            <span class="text-[10px] text-code-red font-semibold">{{ stats.pending_reviews }} chờ duyệt</span>
                         </div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_books }}</div>
+                        <div class="text-[11px] md:text-xs text-code-muted">Sách trong thư viện</div>
                     </div>
                 </div>
 
-                <!-- Permission Matrix -->
-                <div class="mb-6">
-                    <div class="cmd-prompt text-term-accent font-bold mb-3">cat /etc/tubi/permissions.conf</div>
-                    <div class="terminal-border rounded bg-term-bg/30 p-4 overflow-x-auto">
-                        <table class="w-full text-xs">
-                            <thead>
-                                <tr class="text-term-accent">
-                                    <th class="text-left py-1 pr-4">CATEGORY</th>
-                                    <th class="text-left py-1 pr-4">PERMISSION</th>
-                                    <th class="text-center py-1">KY_THUAT</th>
-                                    <th class="text-center py-1">QUAN_LI</th>
-                                    <th class="text-center py-1">CONG_DONG</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-gray-400">
-                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-red" colspan="5">▸ system/ (10 permissions)</td></tr>
-                                <tr><td></td><td class="text-gray-500">system_view_status</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr><td></td><td class="text-gray-500">system_manage_config</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr><td></td><td class="text-gray-500">system_manage_migrate</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr><td></td><td class="text-gray-500">... (7 more)</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-blue" colspan="5">▸ users/ (10 permissions)</td></tr>
-                                <tr><td></td><td class="text-gray-500">users_view_list</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr><td></td><td class="text-gray-500">users_change_role</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr><td></td><td class="text-gray-500">... (8 more)</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td></tr>
-                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-amber" colspan="5">▸ content/ (10 permissions)</td></tr>
-                                <tr><td></td><td class="text-gray-500">content_approve</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
-                                <tr><td></td><td class="text-gray-500">content_mod_comments</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
-                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-cyan" colspan="5">▸ community/ (10 permissions)</td></tr>
-                                <tr><td></td><td class="text-gray-500">community_manage_grp</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-accent">✓</td></tr>
-                                <tr class="border-t border-term-border/30"><td class="py-1 text-term-purple" colspan="5">▸ kinh_sach/ (10 permissions)</td></tr>
-                                <tr><td></td><td class="text-gray-500">ksach_manage_books</td><td class="text-center text-term-accent">✓</td><td class="text-center text-term-red">✗</td><td class="text-center text-term-red">✗</td></tr>
-                            </tbody>
-                            <tfoot class="text-term-accent font-bold border-t border-term-border">
-                                <tr><td colspan="2" class="py-2">TOTAL</td><td class="text-center">50</td><td class="text-center">30</td><td class="text-center">20</td></tr>
-                            </tfoot>
-                        </table>
+                <!-- Secondary stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
+                        <div class="text-code-muted mb-1">Bình luận</div>
+                        <div class="text-base font-semibold text-code-text mono">{{ stats.total_comments }}</div>
+                    </div>
+                    <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
+                        <div class="text-code-muted mb-1">Thư trong hệ thống</div>
+                        <div class="text-base font-semibold text-code-text mono">{{ stats.total_mails }}</div>
+                    </div>
+                    <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
+                        <div class="text-code-muted mb-1">Phân quyền</div>
+                        <div class="text-base font-semibold text-code-text mono">50 / 50</div>
+                    </div>
+                    <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
+                        <div class="text-code-muted mb-1">Phiên bản</div>
+                        <div class="text-base font-semibold text-code-text mono">v0.9.12</div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Quick Terminal Commands -->
-                <div>
-                    <div class="cmd-prompt text-term-accent font-bold mb-3">history | tail -8</div>
-                    <div class="space-y-1 text-xs text-gray-500">
-                        <div><span class="text-term-accent">[system]</span> <a href="/admin/ky-thuat/users" class="text-term-blue hover:underline">vim /etc/tubi/users.toml</a> <span class="text-gray-600">— Quản lý thành viên &amp; role</span></div>
-                        <div><span class="text-term-accent">[system]</span> <a href="/api/health" class="text-term-blue hover:underline">curl /api/health</a> <span class="text-gray-600">— Health check JSON</span></div>
-                        <div><span class="text-term-accent">[system]</span> <a href="/admin/ky-thuat/permissions" class="text-term-blue hover:underline">chmod 755 /etc/tubi/permissions</a> <span class="text-gray-600">— Xem 50 quyền chi tiết</span></div>
-                        <div><span class="text-term-accent">[system]</span> <span class="text-term-red">sudo systemctl restart tubi</span> <span class="text-gray-600">— Restart server (requires permission)</span></div>
-                        <div><span class="text-term-accent">[system]</span> <span class="text-term-amber">tail -f /var/log/tubi/app.log</span> <span class="text-gray-600">— View logs</span></div>
+            <!-- ─── Tình trạng hệ thống ─── -->
+            <section id="he-thong" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>🖥️</span> Tình trạng hệ thống
+                </h2>
+                <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-code-border">
+                        <div class="p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Trạng thái server</span>
+                                <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-code-accent">
+                                    <span class="w-2 h-2 rounded-full bg-code-accent"></span> Đang chạy
+                                </span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Framework</span>
+                                <span class="text-xs text-code-text mono">Axum 0.8</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Runtime Rust</span>
+                                <span class="text-xs text-code-text mono">1.97.1</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Cơ sở dữ liệu</span>
+                                <span class="text-xs text-code-text mono">PostgreSQL 17</span>
+                            </div>
+                        </div>
+                        <div class="p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Môi trường</span>
+                                <span class="text-xs text-code-text mono">production</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Health check</span>
+                                <a href="/api/health" target="_blank"
+                                   class="text-xs text-code-blue hover:underline mono">/api/health ↗</a>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">Domain</span>
+                                <span class="text-xs text-code-text mono truncate ml-2">tubi.louis.vangioitutien.com</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-code-muted text-xs">CI/CD</span>
+                                <span class="text-xs text-code-text mono">GitHub Actions → Coolify</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Footer terminal -->
-            <div class="mt-4 text-[10px] text-gray-600 flex items-center gap-2">
-                <span class="text-matrix">🪷</span>
-                <span>Ứng Dụng Từ Bi v0.9.11 · Admin Kỹ Thuật · 50/50 permissions · Rust 1.97.1</span>
-                <span class="text-term-accent cursor-blink">█</span>
-            </div>
+            <!-- ─── Phân quyền chi tiết ─── -->
+            <section id="phan-quyen" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>🔐</span> Phân quyền chi tiết
+                    <span class="text-xs font-normal text-code-muted">— 50 quyền chia 5 nhóm</span>
+                </h2>
+
+                <p class="text-xs text-code-soft bg-code-panel/60 border border-code-border rounded-lg p-3">
+                    Bảng dưới đây liệt kê đầy đủ 50 quyền của hệ thống, chia theo 5 nhóm chức năng.
+                    Ký hiệu <span class="text-code-accent font-semibold">✓</span> là có quyền,
+                    <span class="text-code-red font-semibold">✗</span> là không.
+                </p>
+
+                <!-- Permission matrix — mobile: cards; desktop: table -->
+                <div class="space-y-3 md:space-y-0">
+
+                    <!-- Mobile: accordion-style cards -->
+                    <div class="md:hidden space-y-3">
+                        <!-- System -->
+                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-code-red/10 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">⚙️</span>
+                                    <span class="font-semibold text-sm text-code-text">Hệ thống</span>
+                                    <span class="chip">10 quyền</span>
+                                </div>
+                                <span class="text-xs text-code-accent font-semibold">chỉ Admin Kỹ Thuật</span>
+                            </div>
+                            <ul class="divide-y divide-code-border text-xs">
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Xem tình trạng hệ thống</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Quản lý cấu hình</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Chạy migration cơ sở dữ liệu</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Xem log hệ thống</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Xoá cơ sở dữ liệu (hard delete)</span>
+                                    <span class="text-code-red font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 5 quyền khác</li>
+                            </ul>
+                        </div>
+
+                        <!-- Users -->
+                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-code-blue/10 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">👥</span>
+                                    <span class="font-semibold text-sm text-code-text">Thành viên</span>
+                                    <span class="chip">10 quyền</span>
+                                </div>
+                                <span class="text-xs text-code-blue font-semibold">KT + QL</span>
+                            </div>
+                            <ul class="divide-y divide-code-border text-xs">
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Xem danh sách thành viên</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Đổi vai trò thành viên</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Khoá / mở khoá tài khoản</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
+                            </ul>
+                        </div>
+
+                        <!-- Content -->
+                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-code-amber/10 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">📝</span>
+                                    <span class="font-semibold text-sm text-code-text">Nội dung</span>
+                                    <span class="chip">10 quyền</span>
+                                </div>
+                                <span class="text-xs text-code-amber font-semibold">tất cả admin</span>
+                            </div>
+                            <ul class="divide-y divide-code-border text-xs">
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Duyệt nội dung</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Ghim / khoá chủ đề</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Kiểm duyệt bình luận</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
+                            </ul>
+                        </div>
+
+                        <!-- Community -->
+                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-code-cyan/10 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">🏛️</span>
+                                    <span class="font-semibold text-sm text-code-text">Cộng đồng</span>
+                                    <span class="chip">10 quyền</span>
+                                </div>
+                                <span class="text-xs text-code-cyan font-semibold">tất cả admin</span>
+                            </div>
+                            <ul class="divide-y divide-code-border text-xs">
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Quản lý nhóm</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Quản lý live chat</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Broadcast thông báo</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
+                            </ul>
+                        </div>
+
+                        <!-- Kinh Sách -->
+                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                            <div class="px-4 py-3 bg-code-purple/10 flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-base">📚</span>
+                                    <span class="font-semibold text-sm text-code-text">Kinh Sách</span>
+                                    <span class="chip">10 quyền</span>
+                                </div>
+                                <span class="text-xs text-code-purple font-semibold">chỉ Admin Kỹ Thuật</span>
+                            </div>
+                            <ul class="divide-y divide-code-border text-xs">
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Thêm / sửa sách</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Quản lý chương sách</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 flex items-center justify-between">
+                                    <span class="text-code-soft">Duyệt cảm ngộ</span>
+                                    <span class="text-code-accent font-bold">✓</span>
+                                </li>
+                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Desktop: full table -->
+                    <div class="hidden md:block bg-code-panel border border-code-border rounded-xl overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead class="bg-code-bg/60 text-code-muted">
+                                    <tr class="border-b border-code-border">
+                                        <th class="text-left px-4 py-3 font-semibold uppercase tracking-wider">Nhóm quyền</th>
+                                        <th class="text-left px-4 py-3 font-semibold uppercase tracking-wider">Quyền</th>
+                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Kỹ Thuật</th>
+                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Quản Lý</th>
+                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Cộng Đồng</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-code-border/50">
+                                    <!-- System group -->
+                                    <tr class="bg-code-red/5">
+                                        <td class="px-4 py-2 font-semibold text-code-red" rowspan="3">⚙️ Hệ thống <span class="text-code-muted font-normal">(10)</span></td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Xem tình trạng hệ thống</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-red/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý cấu hình & migration</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-red/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền hệ thống khác (log, hard-delete, restart…)</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <!-- Users group -->
+                                    <tr class="bg-code-blue/5">
+                                        <td class="px-4 py-2 font-semibold text-code-blue" rowspan="3">👥 Thành viên <span class="text-code-muted font-normal">(10)</span></td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Xem danh sách thành viên</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-blue/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft">Đổi vai trò, khoá / mở khoá</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-blue/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền thành viên khác</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <!-- Content group -->
+                                    <tr class="bg-code-amber/5">
+                                        <td class="px-4 py-2 font-semibold text-code-amber" rowspan="3">📝 Nội dung <span class="text-code-muted font-normal">(10)</span></td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Duyệt, sửa, xoá nội dung</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <tr class="bg-code-amber/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft">Ghim / khoá chủ đề, mod bình luận</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <tr class="bg-code-amber/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền nội dung khác</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <!-- Community group -->
+                                    <tr class="bg-code-cyan/5">
+                                        <td class="px-4 py-2 font-semibold text-code-cyan" rowspan="3">🏛️ Cộng đồng <span class="text-code-muted font-normal">(10)</span></td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý nhóm, sự kiện</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <tr class="bg-code-cyan/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý live chat, broadcast</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <tr class="bg-code-cyan/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền cộng đồng khác</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                    </tr>
+                                    <!-- Kinh Sách group -->
+                                    <tr class="bg-code-purple/5">
+                                        <td class="px-4 py-2 font-semibold text-code-purple" rowspan="3">📚 Kinh Sách <span class="text-code-muted font-normal">(10)</span></td>
+                                        <td class="px-4 py-2 perm-row text-code-soft">Thêm / sửa / xoá sách</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-purple/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý chương, duyệt cảm ngộ</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                    <tr class="bg-code-purple/5">
+                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 quyền kinh sách khác</td>
+                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot class="bg-code-bg/60 border-t-2 border-code-border">
+                                    <tr class="font-bold">
+                                        <td class="px-4 py-3 text-code-text" colspan="2">Tổng cộng</td>
+                                        <td class="px-4 py-3 text-center text-code-accent">50</td>
+                                        <td class="px-4 py-3 text-center text-code-blue">30</td>
+                                        <td class="px-4 py-3 text-center text-code-cyan">20</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ─── Cơ sở dữ liệu ─── -->
+            <section id="csdl" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>🗄️</span> Cơ sở dữ liệu
+                </h2>
+                <div class="bg-code-panel border border-code-border rounded-xl p-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        <div>
+                            <div class="text-code-muted mb-1">Loại</div>
+                            <div class="font-semibold text-code-text mono">PostgreSQL 17</div>
+                        </div>
+                        <div>
+                            <div class="text-code-muted mb-1">Driver</div>
+                            <div class="font-semibold text-code-text mono">SQLx 0.8 (async)</div>
+                        </div>
+                        <div>
+                            <div class="text-code-muted mb-1">Kiểm tra cấu trúc</div>
+                            <div class="font-semibold text-code-accent mono">đã chạy (safety)</div>
+                        </div>
+                        <div>
+                            <div class="text-code-muted mb-1">Auto migration</div>
+                            <div class="font-semibold text-code-accent mono">bật (production)</div>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-[11px] text-code-muted leading-relaxed">
+                        Hệ thống chạy <span class="mono text-code-soft">ensure_schema_safety()</span> trước khi migration
+                        để đảm bảo các cột quan trọng (<span class="mono text-code-soft">i_balance</span>,
+                        <span class="mono text-code-soft">role</span>) luôn tồn tại — tránh lỗi đăng nhập do schema drift.
+                    </p>
+                </div>
+            </section>
+
+            <!-- ─── Nhật ký hoạt động ─── -->
+            <section id="nhat-ky" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>📋</span> Nhật ký hoạt động
+                </h2>
+                <div class="bg-code-panel border border-code-border rounded-xl p-4">
+                    <p class="text-xs text-code-soft mb-3">
+                        Nhật ký chi tiết đang được phát triển. Tạm thời, bạn có thể xem tình trạng sức khoẻ hệ thống qua API:
+                    </p>
+                    <a href="/api/health" target="_blank"
+                       class="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-code-bg border border-code-border hover:border-code-accent text-code-blue transition mono">
+                        GET /api/health ↗
+                    </a>
+                </div>
+            </section>
+
+            <!-- ─── Hành động nhanh ─── -->
+            <section id="hanh-dong" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>⚡</span> Hành động nhanh
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <a href="/admin/thanh-vien"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-blue/15 flex items-center justify-center text-lg shrink-0">👥</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Quản lý thành viên</div>
+                            <div class="text-[11px] text-code-muted">Xem, đổi role, khoá TK</div>
+                        </div>
+                    </a>
+                    <a href="/api/health" target="_blank"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0">💓</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Kiểm tra sức khoẻ</div>
+                            <div class="text-[11px] text-code-muted">JSON API status</div>
+                        </div>
+                    </a>
+                    <a href="/quy-tu-bi"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0">🪷</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Quỹ Từ Bi</div>
+                            <div class="text-[11px] text-code-muted">Xem quỹ cộng đồng</div>
+                        </div>
+                    </a>
+                    <a href="/bang-xep-hang"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0">🏆</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Bảng xếp hạng</div>
+                            <div class="text-[11px] text-code-muted">Top tu hành</div>
+                        </div>
+                    </a>
+                    <a href="/cong-dong"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0">🏛️</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Cộng đồng</div>
+                            <div class="text-[11px] text-code-muted">Nhóm &amp; chủ đề</div>
+                        </div>
+                    </a>
+                    <a href="/kinh-sach"
+                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="w-10 h-10 rounded-lg bg-code-pink/15 flex items-center justify-center text-lg shrink-0">📚</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Kinh Sách</div>
+                            <div class="text-[11px] text-code-muted">Thư viện kinh</div>
+                        </div>
+                    </a>
+                </div>
+            </section>
+
+            <!-- Footer -->
+            <footer class="pt-6 pb-4 border-t border-code-border">
+                <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
+                    <div class="flex items-center gap-2">
+                        <span>🪷</span>
+                        <span>Ứng Dụng Từ Bi v0.9.12 · Admin Kỹ Thuật · 50/50 quyền</span>
+                    </div>
+                    <div class="mono">Rust 1.97.1 · Axum 0.8 · PostgreSQL 17</div>
+                </div>
+            </footer>
         </main>
     </div>
 
-    <script>
-        // Uptime counter
-        let seconds = 0;
-        setInterval(() => {
-            seconds++;
-            const h = String(Math.floor(seconds/3600)).padStart(2,'0');
-            const m = String(Math.floor((seconds%3600)/60)).padStart(2,'0');
-            const s = String(seconds%60).padStart(2,'0');
-            document.getElementById('uptime').textContent = `${h}:${m}:${s}`;
-        }, 1000);
-    </script>
     <script src="/static/js/app.js"></script>
 </body>
 </html>

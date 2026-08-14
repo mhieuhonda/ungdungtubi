@@ -59,19 +59,19 @@
                 <a href="/admin/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-comm-500 text-comm-700">
                     📊 Tổng quan
                 </a>
-                <a href="/admin/cong-dong/nhom" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                <a href="/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     👥 Quản lý Nhóm
                 </a>
-                <a href="/admin/cong-dong/noi-dung" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                <a href="/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     📝 Kiểm duyệt Nội dung
                 </a>
-                <a href="/admin/cong-dong/cam-ngo" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                <a href="/kinh-sach" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     🪷 Cảm ngộ chờ duyệt
                     {% if stats.pending_reviews > 0 %}
                     <span class="ml-1 px-1.5 py-0.5 bg-alert text-white text-[10px] rounded-full">{{ stats.pending_reviews }}</span>
                     {% endif %}
                 </a>
-                <a href="/admin/cong-dong/thanh-vien" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                <a href="/admin/thanh-vien" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     👤 Thành viên
                 </a>
             </nav>
@@ -122,7 +122,7 @@
 
         <!-- Quick Actions -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <a href="/admin/cong-dong/cam-ngo" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+            <a href="/kinh-sach" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-warm/10 flex items-center justify-center text-2xl group-hover:bg-warm/20 transition">🔍</div>
                     <div>
@@ -131,7 +131,7 @@
                     </div>
                 </div>
             </a>
-            <a href="/admin/cong-dong/nhom" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+            <a href="/cong-dong" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-comm-100 flex items-center justify-center text-2xl group-hover:bg-comm-200 transition">🏛️</div>
                     <div>
@@ -140,12 +140,12 @@
                     </div>
                 </div>
             </a>
-            <a href="/admin/cong-dong/noi-dung" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+            <a href="/admin/thanh-vien" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-comm-100 flex items-center justify-center text-2xl group-hover:bg-comm-200 transition">📝</div>
                     <div>
-                        <h3 class="font-bold text-gray-800">Nội dung Báo cáo</h3>
-                        <p class="text-xs text-gray-500">Bình luận &amp; chủ đề cần mod</p>
+                        <h3 class="font-bold text-gray-800">Thành viên</h3>
+                        <p class="text-xs text-gray-500">Xem &amp; quản lý tài khoản</p>
                     </div>
                 </div>
             </a>
@@ -179,6 +179,12 @@
             </div>
         </div>
     </main>
+
+    <footer class="bg-gray-100 border-t border-gray-200 mt-8">
+        <div class="max-w-7xl mx-auto px-6 py-4 text-center text-xs text-gray-500">
+            🪷 Ứng Dụng Từ Bi v0.9.12 · Admin Cộng Đồng · 20/50 permissions · Nguyện công đức vô lượng
+        </div>
+    </footer>
 
     <script src="/static/js/app.js"></script>
 </body>

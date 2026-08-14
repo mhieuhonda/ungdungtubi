@@ -3,9 +3,11 @@
 
 {% block head %}
 <style>
-  /* Live Chat panel — chiếm 30-40% chiều cao trên desktop, full width mobile */
+  /* Live Chat panel — dùng dvh (dynamic viewport height) để tự co lại khi bàn phím ảo mở */
   .chat-panel {
-    height: 360px;
+    height: 60dvh;
+    min-height: 280px;
+    max-height: 480px;
     display: flex;
     flex-direction: column;
   }
@@ -22,7 +24,7 @@
     overflow-wrap: anywhere;
   }
   @media (max-width: 768px) {
-    .chat-panel { height: 300px; }
+    .chat-panel { height: 50dvh; min-height: 260px; }
   }
 </style>
 {% endblock %}
@@ -252,8 +254,11 @@
             <input type="text"
                    x-model="draft"
                    @keydown.enter.prevent="send()"
-                   :disabled="!connected"
                    maxlength="500"
+                   enterkeyhint="send"
+                   inputmode="text"
+                   autocomplete="off"
+                   autocapitalize="sentences"
                    placeholder="Nhập tin nhắn… (Enter để gửi)"
                    class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
             <button type="submit"

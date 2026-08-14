@@ -6,6 +6,123 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.12] — 2026-08-15 — Giai đoạn 16: Mobile UX + Admin Kỹ Thuật Redesign + Security Hardening
+
+### Thêm (Features — Giai đoạn 16)
+
+- **[FEAT-1] Redesign toàn diện giao diện Admin Kỹ Thuật** (`/admin/ky-thuat`)
+  - Phong cách coder hiện đại: bảng màu slate-900 + emerald accent (không phải neon terminal)
+  - Font Inter (sans-serif) cho UI + JetBrains Mono cho code/technical — dễ đọc
+  - Mobile-first responsive: hamburger toggle sidebar, `text-sm md:text-base`, grid 2 cột mobile / 4 cột desktop
+  - Tiếng Việt phổ thông 100%: "Tổng quan", "Tình trạng hệ thống", "Quản lý thành viên", "Phân quyền chi tiết", "Cơ sở dữ liệu", "Nhật ký hoạt động", "Hành động nhanh"
+  - Sidebar dùng anchor links (single-page) — không cần 5 route riêng, không 404
+  - Bảng phân quyền dạng card accordion trên mobile, table đầy đủ trên desktop
+  - 50 quyền dịch sang tiếng Việt + mô tả ngắn gọn, chia 5 nhóm màu (Hệ thống/Thành viên/Nội dung/Cộng đồng/Kinh Sách)
+  - Bỏ hoàn toàn: shell prompts (`root@tubi:~#`), `cat /proc/...`, fake `.bash_history`, blinking cursor `█`, scanlines, matrix background, `[EXIT]`, `UPTIME` counter, `whoami`, `env` block
+
+- **[FEAT-2] Sidebar mobile collapsible** — Admin Kỹ Thuật có thể dùng trên điện thoại không cần zoom
+  - Overlay backdrop khi sidebar mở (mobile)
+  - Smooth transform animation
+  - `scroll-padding-top` cho anchor link không bị header che
+
+- **[FEAT-3] Route mới**: `GET /admin/ky-thuat/users` — redirect sang `/admin/thanh-vien` (fix 404)
+
+### Sửa (Bug Fixes — CRITICAL: Live Chat mobile keyboard)
+
+- **[FIX-1] CRITICAL: Bàn phím ảo liên tục đóng khi nhập tin nhắn trên mobile**
+  - Nguyên nhân: `:disabled="!connected"` reactive binding trên `<input>` — mỗi lần WebSocket reconnect (thường xuyên trên mobile), Alpine toggle `disabled` attribute → mobile OS dismiss bàn phím
+  - Fix: bỏ `:disabled="!connected"` khỏi `<input>` ở 3 nơi (group live chat, DM conversation, Chat Chung popup). Submit button vẫn giữ `:disabled` để disable khi không kết nối. `send()` đã có guard `if (!this.connected) return error`.
+  - Thêm `enterkeyhint="send"` + `inputmode="text"` + `autocomplete="off"` + `autocapitalize="sentences"` cho UX mobile tốt hơn
+
+- **[FIX-2] Viewport meta thêm `interactive-widget=resizes-content` + `viewport-fit=cover`**
+  - Android: layout viewport giờ co lại đúng khi bàn phím ảo mở → input không bị che
+  - iOS: hỗ trợ notch / safe area
+
+- **[FIX-3] Chat panel heights đổi từ `vh`/fixed-px sang `dvh` (dynamic viewport height)**
+  - `.chat-panel`: `60dvh` (desktop) / `50dvh` (mobile) với min/max-height
+  - `.dm-panel`: `calc(100dvh - 200px)` (desktop) / `calc(100dvh - 160px)` (mobile)
+  - `.chat-chung-popup`: `60dvh` max `480px` (desktop) / `55dvh` max `60dvh` (mobile)
+  - `dvh` tự co lại khi bàn phím mở — input luôn nhìn thấy được
+
+### Sửa (Bug Fixes — Security: Stored XSS)
+
+- **[FIX-4] CRITICAL: Stored XSS qua `other_display_name` trong DM conversation** (`templates/ban-be/conversation.html`)
+  - Nguyên nhân: inject trực tiếp `{{ other_display_name }}` vào `x-data="dmChat({...})"` — Askama HTML-escape `"` thành `&#34;`, browser decode lại thành `"` → break JS string → arbitrary code execution
+  - Attack vector: user đặt `display_name` thành payload JS → admin mở DM với user đó → JS chạy trong session admin → có thể tự promote lên admin_ky_thuat qua POST `/admin/thanh-vien/{id}/role`
+  - Fix: thêm field `init_json: String` vào `ConversationTemplate`, serialize toàn bộ init object bằng `serde_json::to_string` (escape đúng JS string context), render `x-data="dmChat({{ init_json|safe }})"`
+
+- **[FIX-5] CRITICAL: Stored XSS qua `f.other_display_name` trong friends list** (`templates/ban-be/index.html`)
+  - Nguyên nhân: `onsubmit="return confirm('...{{ f.other_display_name }}?');"` — cùng vấn đề escape
+  - Fix: bỏ user-controlled data khỏi confirm message, dùng generic "Bạn có chắc muốn hủy kết bạn?"
+
+### Sửa (Bug Fixes — Security: Permission gaps)
+
+- **[FIX-6] HIGH: `mail_send` cho phép gửi thư cho bất kỳ user nào (không cần kết bạn)**
+  - Nguyên nhân: handler chỉ check `recipient_id != user.id` + validate subject/body, không check `friendships` table
+  - Risk: spam vector chéo toàn userbase — attacker craft POST với bất kỳ `recipient_id`
+  - Fix: thêm query `SELECT EXISTS(... friendships ... status='accepted')` — reject nếu không phải bạn bè
+
+- **[FIX-7] HIGH: `create_comment` không validate `parent_id` thuộc cùng topic**
+  - Nguyên nhân: `parent_id` parse thành Uuid và bind thẳng vào INSERT, không check parent comment có `topic_id` khớp
+  - Risk: cross-topic reply — comment của topic A xuất hiện làm reply của comment ở topic B
+  - Fix: nếu `parent_id` được cung cấp, query `SELECT EXISTS(... comments WHERE id=$1 AND topic_id=$2 ...)` — reject nếu không khớp
+
+### Sửa (Bug Fixes — 404s)
+
+- **[FIX-8] Báo 404 khi click "Quản lý thành viên" trong sidebar Admin Kỹ Thuật**
+  - Nguyên nhân: sidebar link `href="/admin/ky-thuat/users"` nhưng route không tồn tại (route thật là `/admin/thanh-vien`)
+  - Fix: thêm route `GET /admin/ky-thuat/users` → handler `admin_ky_thuat_users_redirect` → redirect sang `/admin/thanh-vien`
+
+- **[FIX-9] Báo 404 khi click các tab trong Admin Quản Lý** (`/admin/quan-li/nhom`, `/admin/quan-li/kinh-sach`, `/admin/quan-li/bao-cao`)
+  - Fix: đổi link sang route có thật — `/cong-dong`, `/kinh-sach`, `/quy-tu-bi`
+
+- **[FIX-10] Báo 404 khi click các tab trong Admin Cộng Đồng** (`/admin/cong-dong/nhom`, `/admin/cong-dong/noi-dung`, `/admin/cong-dong/cam-ngo`, `/admin/cong-dong/thanh-vien`)
+  - Fix: đổi link sang route có thật — `/cong-dong`, `/kinh-sach`, `/admin/thanh-vien`
+
+### Sửa (Bug Fixes — Code quality)
+
+- **[FIX-11] Clippy: `return Err(...)` dư trong `auth.rs:577`** — bỏ `return`, trả giá trị trực tiếp
+- **[FIX-12] Clippy: collapsed `if` trong `quy_tu_bi.rs:175`** — gộp 2 if lồng nhau thành `if let ... && ...`
+
+### Routes mới (v0.9.12)
+
+| Method | Path | Mô tả | Auth |
+|--------|------|-------|------|
+| GET | `/admin/ky-thuat/users` | Redirect → `/admin/thanh-vien` (fix 404) | Admin Kỹ Thuật |
+
+### Đổi (Refactors)
+
+- **[REF-1] `templates/admin/ky-thuat/index.html`** — rewrite hoàn toàn (~550 dòng), bỏ terminal aesthetic, đổi sang modern dark dashboard
+- **[REF-2] `templates/admin/quan-li/index.html`** — fix 3 dead links, bump version
+- **[REF-3] `templates/admin/cong-dong/index.html`** — fix 4 dead links, add footer, bump version
+- **[REF-4] `src/handlers/admin.rs`** — thêm `admin_ky_thuat_users_redirect` handler
+- **[REF-5] `src/handlers/friends.rs::ConversationTemplate`** — thêm field `init_json` để escape Alpine.js init object
+- **[REF-6] `src/handlers/friends.rs::mail_send`** — thêm friendship check
+- **[REF-7] `src/handlers/community.rs::create_comment`** — thêm parent_id topic validation
+
+### Cập Nhật Tài Liệu
+
+- `Cargo.toml` — version `0.9.11` → `0.9.12`
+- `src/main.rs` — log khởi động v0.9.12, phase 16, health check JSON, thêm 4 features flags
+- `templates/layout.html` — footer v0.9.12, viewport meta `interactive-widget=resizes-content`, bỏ `:disabled` khỏi chat chung input
+- `templates/community/group.html` — `.chat-panel` dùng `dvh`, bỏ `:disabled` khỏi live chat input
+- `templates/ban-be/conversation.html` — `.dm-panel` dùng `dvh`, bỏ `:disabled` khỏi DM input, dùng `init_json`
+- `templates/admin/users.html` — version note v0.9.12
+- `templates/khong-gian/index.html` — footer v0.9.12
+- `templates/bang-xep-hang/index.html` — footer v0.9.12
+- `templates/quy-tu-bi/index.html` — footer v0.9.12
+- `src/static/css/app.css` — `.chat-chung-popup` dùng `dvh` với min/max-height
+- `Dockerfile.coolify` — `FROM :0.9.11` → `FROM :0.9.12`
+
+### Build & Test
+
+- ✅ `cargo check --release` — pass (3 pre-existing dead_code warnings, không phải lỗi)
+- ✅ `cargo clippy --release` — pass (sau khi fix 2 style issues)
+- ✅ Rust 1.97.1 toolchain xác nhận
+- ✅ Tất cả templates Askama render thành công (compile-time checked)
+
+---
+
 ## [0.9.11] — 2026-08-14 — Giai đoạn 15: Quỹ Từ Bi & Fix lỗi đăng nhập triệt để
 
 ### Thêm (Features — Giai đoạn 15: Quỹ Từ Bi)

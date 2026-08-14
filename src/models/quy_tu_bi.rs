@@ -172,10 +172,10 @@ impl DonationForm {
         ) {
             return Err("Loại quỹ không hợp lệ.".into());
         }
-        if let Some(msg) = &self.message {
-            if msg.chars().count() > 500 {
-                return Err("Lời nhắn tối đa 500 ký tự.".into());
-            }
+        if let Some(msg) = &self.message
+            && msg.chars().count() > 500
+        {
+            return Err("Lời nhắn tối đa 500 ký tự.".into());
         }
         Ok(())
     }

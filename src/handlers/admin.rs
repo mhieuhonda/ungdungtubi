@@ -288,6 +288,21 @@ pub async fn admin_quan_li_dashboard(State(state): State<AppState>, jar: CookieJ
     Html(html).into_response()
 }
 
+/// GET /admin/ky-thuat/users — Redirect sang /admin/thanh-vien.
+///
+/// v0.9.12: Fix 404 — sidebar admin kỹ thuật có link "Quản lý thành viên" cũ
+/// trỏ tới `/admin/ky-thuat/users` (không tồn tại). Redirect sang route thật
+/// `/admin/thanh-vien` (shared user list) để không còn 404 nữa.
+pub async fn admin_ky_thuat_users_redirect(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin_ky_thuat() {
+        return render_forbidden(&user);
+    }
+    Redirect::to("/admin/thanh-vien").into_response()
+}
+
 /// GET /admin/thanh-vien — Danh sách thành viên + role.
 ///
 /// Chỉ admin mới xem được. Chỉ admin_ky_thuat và admin_quan_li mới đổi role được.
