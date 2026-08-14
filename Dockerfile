@@ -44,8 +44,11 @@ ENV SQLX_OFFLINE=true
 RUN cargo build --release --bin ungdungtubi && \
     cp target/release/ungdungtubi /build/ungdungtubi && \
     test -f /build/ungdungtubi && \
-    strings /build/ungdungtubi | grep -q "Ứng Dụng Từ Bi" || \
-    (echo "ERROR: binary không chứa string 'Ứng Dụng Từ Bi' — có vẻ là dummy binary!" && exit 1)
+    # Verify binary không phải dummy: tìm string "axum" (web framework thật).
+    # `strings` mặc định chỉ show ASCII, không thấy Vietnamese (UTF-8) nên
+    # không thể grep "Ứng Dụng Từ Bi" — dùng "axum" thay thế.
+    strings /build/ungdungtubi | grep -q "axum" || \
+    (echo "ERROR: binary không chứa 'axum' — có vẻ là dummy binary!" && exit 1)
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────
 FROM debian:bookworm-slim AS runtime
