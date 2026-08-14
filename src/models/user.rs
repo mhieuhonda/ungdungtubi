@@ -251,47 +251,112 @@ impl User {
         self.role_level() >= 3
     }
 
-    // ─── Hệ thống 50 quyền chi tiết (v0.9.8 — Giai đoạn 12) ──────────────
+    // ─── Hệ thống 150 quyền chi tiết (v0.9.14 — Giai đoạn 19) ─────────────
+    //
+    // Mở rộng từ 50 → 150 quyền, chia 15 nhóm × 10 quyền:
+    //   system(10) + users(10) + content(10) + community(10) + kinh_sach(10)  → 50 (cũ)
+    //   fund(10) + achievements(10) + security(10) + navigation(10) + analytics(10)
+    //   + media(10) + friends(10) + mail(10) + events(10) + shop(10)         → 100 (mới)
+    //
+    // Phân bổ:
+    //   admin_ky_thuat:  150 (TẤT CẢ)
+    //   admin_quan_li:   100 (cũ 30 + mới 70)
+    //   admin_cong_dong:  75 (cũ 20 + mới 55)
+    //   member:            0
 
     /// Kiểm tra user có quyền cụ thể không.
     /// Dùng cho permission gate trong handlers.
     /// Note: Kiểm tra thực tế nên query DB qua `user_has_permission()` SQL function,
     /// nhưng method này cho phép kiểm tra nhanh ở template logic.
     pub fn has_permission_code(&self, code: &str) -> bool {
-        // Admin Kỹ Thuật có TẤT CẢ 50 quyền
+        // Admin Kỹ Thuật có TẤT CẢ 150 quyền
         if self.is_admin_ky_thuat() {
             return true;
         }
         // Các role khác — kiểm tra theo nhóm quyền đã gán
         match self.role.as_str() {
             "admin_quan_li" => {
-                // 30 quyền: users(10) + content(10) + community(10)
+                // 100 quyền: 30 cũ + 70 mới
                 matches!(code,
-                    // Users
+                    // === 30 cũ ===
+                    // Users (10)
                     "users_view_list" | "users_view_detail" | "users_edit_profile" |
                     "users_change_role" | "users_activate" | "users_delete" |
                     "users_ban" | "users_view_sessions" | "users_manage_oauth" | "users_export_data" |
-                    // Content
+                    // Content (10)
                     "content_view_pending" | "content_approve" | "content_edit_any" |
                     "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
                     "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
-                    // Community
+                    // Community (10)
                     "community_view_stats" | "community_manage_grp" | "community_create_off" |
                     "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
-                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge"
+                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
+                    // === 70 mới ===
+                    // Fund (10)
+                    "fund_view_all" | "fund_approve" | "fund_create_campaign" | "fund_manage_expenses" |
+                    "fund_export" | "fund_refund" | "fund_view_anonymous" | "fund_manage_categories" |
+                    "fund_set_goal" | "fund_audit_log" |
+                    // Achievements (10)
+                    "ach_view_all" | "ach_create" | "ach_edit" | "ach_grant" | "ach_revoke" |
+                    "ach_view_progress" | "ach_manage_rewards" | "ach_view_history" | "ach_export" | "ach_delete" |
+                    // Analytics (10)
+                    "an_view_dashboard" | "an_view_user_stats" | "an_view_content_stats" |
+                    "an_view_revenue" | "an_export_reports" | "an_view_funnel" | "an_view_cohort" |
+                    "an_set_kpi" | "an_view_realtime" | "an_integrate_tool" |
+                    // Shop (10)
+                    "shop_view_all" | "shop_add_product" | "shop_edit_any" | "shop_delete" |
+                    "shop_approve" | "shop_view_orders" | "shop_refund" | "shop_manage_categories" |
+                    "shop_set_featured" | "shop_export" |
+                    // Events (10)
+                    "evt_create" | "evt_edit_any" | "evt_delete" | "evt_manage_attendance" |
+                    "evt_broadcast" | "evt_view_stats" | "evt_manage_schedule" |
+                    "evt_manage_recording" | "evt_set_capacity" | "evt_export" |
+                    // Media (5/10)
+                    "media_view_all" | "media_view_storage" | "media_delete_any" |
+                    "media_moderate" | "media_restore" |
+                    // Navigation (5/10)
+                    "nav_edit_announce" | "nav_manage_home" | "nav_edit_meta" |
+                    "nav_view_settings_log" | "nav_manage_features"
                 )
             }
             "admin_cong_dong" => {
-                // 20 quyền: content(10) + community(10)
+                // 75 quyền: 20 cũ + 55 mới
                 matches!(code,
-                    // Content
+                    // === 20 cũ ===
+                    // Content (10)
                     "content_view_pending" | "content_approve" | "content_edit_any" |
                     "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
                     "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
-                    // Community
+                    // Community (10)
                     "community_view_stats" | "community_manage_grp" | "community_create_off" |
                     "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
-                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge"
+                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
+                    // === 55 mới ===
+                    // Friends (10)
+                    "fr_view_all_friends" | "fr_view_all_dm" | "fr_delete_message" | "fr_mute_user" |
+                    "fr_manage_blocklist" | "fr_force_unfriend" | "fr_view_dm_reports" |
+                    "fr_export_dm" | "fr_manage_groups" | "fr_reset_conversation" |
+                    // Mail (10)
+                    "mail_view_all" | "mail_delete_any" | "mail_broadcast" | "mail_template" |
+                    "mail_view_queue" | "notif_send_all" | "notif_template" | "notif_view_stats" |
+                    "notif_delete_any" | "mail_manage_filters" |
+                    // Events (10)
+                    "evt_create" | "evt_edit_any" | "evt_delete" | "evt_manage_attendance" |
+                    "evt_broadcast" | "evt_view_stats" | "evt_manage_schedule" |
+                    "evt_manage_recording" | "evt_set_capacity" | "evt_export" |
+                    // Achievements (10)
+                    "ach_view_all" | "ach_view_progress" | "ach_view_history" | "ach_grant" |
+                    "ach_export" | "ach_create" | "ach_edit" | "ach_manage_rewards" |
+                    "ach_revoke" | "ach_delete" |
+                    // Media (5)
+                    "media_view_all" | "media_approve" | "media_moderate" |
+                    "media_delete_any" | "media_view_storage" |
+                    // Fund (5)
+                    "fund_view_all" | "fund_approve" | "fund_view_anonymous" |
+                    "fund_view_audit_log" | "fund_audit_log" |
+                    // Security (5)
+                    "sec_view_audit" | "sec_view_login_log" | "sec_session_revoke" |
+                    "sec_spam_filter" | "sec_report_manage"
                 )
             }
             _ => false,
@@ -300,18 +365,17 @@ impl User {
 
     /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
     /// Chỉ đếm các quyền có route/template tương ứng — tránh hiển thị
-    /// "50 quyền" khi thực tế chỉ có 6 nút bấm.
+    /// con số quá lớn khi thực tế UI chỉ có vài nút.
     ///
-    /// v0.9.14: Fix mismatch — số quyền hiển thị phải khớp với UI thực tế.
-    pub fn permission_count(&self) -> u8 {
+    /// v0.9.14 (Giai đoạn 19): nâng cấp theo 150 quyền hệ thống.
+    pub fn permission_count(&self) -> u16 {
         match self.role.as_str() {
-            // 6 UI features: view status, view DB, manage users, change roles,
-            // view audit logs, health check
-            "admin_ky_thuat" => 6,
-            // 4 UI features: view stats, manage users, change roles, view reports
-            "admin_quan_li" => 4,
-            // 4 UI features: view community stats, moderate reviews, manage groups, view members
-            "admin_cong_dong" => 4,
+            // Admin Kỹ Thuật — toàn quyền, mọi dashboard đều truy cập được
+            "admin_ky_thuat" => 18,
+            // Admin Quản Lý — dashboard riêng + users + content + community + fund + analytics + shop + events
+            "admin_quan_li" => 12,
+            // Admin Cộng Đồng — dashboard riêng + content + community + friends + mail + events
+            "admin_cong_dong" => 9,
             _ => 0,
         }
     }
@@ -319,11 +383,13 @@ impl User {
     /// Tổng số quyền hệ thống (permission codes trong has_permission_code).
     /// Đây là potential permissions, không phải UI-accessible.
     /// Dùng cho health check và debug.
-    pub fn system_permission_count(&self) -> u8 {
+    ///
+    /// v0.9.14 (Giai đoạn 19): 50 → 150 quyền.
+    pub fn system_permission_count(&self) -> u16 {
         match self.role.as_str() {
-            "admin_ky_thuat" => 50,
-            "admin_quan_li" => 30,
-            "admin_cong_dong" => 20,
+            "admin_ky_thuat" => 150,
+            "admin_quan_li" => 100,
+            "admin_cong_dong" => 75,
             _ => 0,
         }
     }

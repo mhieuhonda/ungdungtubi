@@ -1,12 +1,16 @@
 pub mod admin;
 pub mod auth;
 pub mod bang_xep_hang;
+pub mod cai_dat;
 pub mod chat;
 pub mod community;
 pub mod friends;
 pub mod kinh_sach;
 pub mod khong_gian;
 pub mod quy_tu_bi;
+pub mod thanh_tich;
+pub mod tim_kiem;
+pub mod tong_quan;
 pub mod uploads;
 
 use axum::{
@@ -393,7 +397,7 @@ pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Respons
 
 pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 10")
+    placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 20")
 }
 
 #[allow(dead_code)]
@@ -572,7 +576,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.13 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.14 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

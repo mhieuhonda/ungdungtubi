@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.13 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.14 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.13 — Giai đoạn 17: Admin UI Compact + Bug Fixes + Audit Log");
+    log::info!("📦 Phiên bản: v0.9.14 — Giai đoạn 18 + 19: Navigation Overhaul + 150 Quyền + Thành Tích");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -238,6 +238,16 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         .route("/thuong-thanh", get(handlers::thuong_thanh))
         .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
+        // Routes — Tổng Quan (User Hub) [v0.9.14 — Giai đoạn 18]
+        .route("/tong-quan", get(handlers::tong_quan::tong_quan_index))
+        // Routes — Cài Đặt [v0.9.14 — Giai đoạn 18]
+        .route("/cai-dat", get(handlers::cai_dat::cai_dat_index))
+        .route("/cai-dat/cap-nhat", post(handlers::cai_dat::cai_dat_cap_nhat))
+        // Routes — Thành Tích [v0.9.14 — Giai đoạn 19]
+        .route("/thanh-tich", get(handlers::thanh_tich::thanh_tich_index))
+        .route("/api/thanh-tich/stats", get(handlers::thanh_tich::thanh_tich_stats_api))
+        // Routes — Tìm Kiếm toàn cục [v0.9.14 — Giai đoạn 19]
+        .route("/tim-kiem", get(handlers::tim_kiem::tim_kiem_index))
         // Routes — Bảng Xếp Hạng (v0.9.10 — Giai đoạn 14)
         .route("/api/bang-xep-hang/stats", get(handlers::bang_xep_hang::bang_xep_hang_stats_api))
         // Routes — Quỹ Từ Bi (v0.9.11 — Giai đoạn 15)
@@ -322,11 +332,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.13",
+        "version": "0.9.14",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 17,
-        "phase_name": "Giai đoạn 17 — Admin UI Compact + Audit Log + Bug Fixes",
+        "phase": 19,
+        "phase_name": "Giai đoạn 18 + 19 — Navigation Overhaul + 150 Quyền + Thành Tích",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -349,7 +359,7 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "admin-roles",
             "admin-panel",
             "role-based-permissions",
-            "granular-permissions-50",
+            "granular-permissions-150",
             "admin-ky-thuat-dashboard",
             "admin-cong-dong-dashboard",
             "admin-quan-li-dashboard",
@@ -372,13 +382,20 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "fund-donations",
             "fund-campaigns",
             "fund-expenses",
-            "fund-summary-view"
+            "fund-summary-view",
+            "user-hub-tong-quan",
+            "user-settings-cai-dat",
+            "achievements-system",
+            "global-search-tim-kiem",
+            "mega-menu-navigation",
+            "mobile-drawer-navigation",
+            "permissions-150-expanded"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 6, "admin_quan_li": 4, "admin_cong_dong": 4, "member": 0},
-            "system_permission_counts": {"admin_ky_thuat": 50, "admin_quan_li": 30, "admin_cong_dong": 20, "member": 0},
+            "permission_counts": {"admin_ky_thuat": 18, "admin_quan_li": 12, "admin_cong_dong": 9, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "member": 0},
             "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",

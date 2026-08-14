@@ -296,6 +296,36 @@ Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng T�
 
 ### Giai đoạn 12–25: *(xem kế hoạch chi tiết trong HieuLouis/)*
 
+### Giai đoạn 18: Navigation Overhaul + User Hub + Settings ✅ (v0.9.14)
+- **Trang Tổng Quan (User Hub) `/tong-quan`** — liệt kê TẤT CẢ 24 tính năng của app trong 4 nhóm (Chuyên Mục / Hệ Thống / Cá Nhân / Liên Kết Nhanh)
+- **Mega Menu Desktop** — dropdown "🧭 Khám Phá" 3 cột với 18 link, fix lỗi route mồ côi trên desktop
+- **Mobile Drawer đầy đủ** — 6 nhóm với 22 link (vs 4 chuyên mục + Hồ sơ + Thoát ở v0.9.13)
+- **Bottom Nav redesign** — icon giữa đổi từ 🪷 sang 🧭 (Tổng Quan); tab cuối đổi từ "Không Gian" sang "🙏 Niệm Phật"
+- **Footer 5 cột** — Giới Thiệu + Chuyên Mục + Hệ Thống + Cá Nhân + Khám Phá (vs 4 cột cũ)
+- **Trang Cài Đặt `/cai-dat`** — 4 nhóm cài đặt: Riêng Tư, Thông Báo, Giao Diện, Chat & Niệm Phật
+- **Migration 017**: bảng `user_settings` (16 cột) + trigger `updated_at` + seed default
+- **Mục tiêu**: User có thể truy cập MỌI route chỉ từ UI — không còn "route mồ côi" nào
+
+### Giai đoạn 19: 150 Quyền + Thành Tích + Tìm Kiếm toàn cục ✅ (v0.9.14)
+- **Hệ thống 150 quyền chi tiết** — mở rộng từ 50 → 150, thêm 100 quyền mới chia 10 nhóm × 10 quyền:
+  - `fund` (10) — Quản lý Quỹ Từ Bi
+  - `achievements` (10) — Quản lý Thành Tích
+  - `security` (10) — Bảo mật & chống spam
+  - `navigation` (10) — Quản lý UI/Navigation/Settings
+  - `analytics` (10) — Phân tích & báo cáo
+  - `media` (10) — Quản lý media/uploads
+  - `friends` (10) — Quản lý Bạn Bè/DM
+  - `mail` (10) — Quản lý Thư/Thông báo
+  - `events` (10) — Quản lý Sự kiện/Cộng tu
+  - `shop` (10) — Quản lý Thương Thành
+- **Phân bổ mới**: admin_ky_thuat (150) > admin_quan_li (100) > admin_cong_dong (75) > member (0)
+- **Hệ thống Thành Tích** — 30 achievements mẫu chia 6 nhóm (Niệm Phật, Tượng Phật, Cộng Đồng, Kinh Sách, Bạn Bè, Quỹ Từ Bi) với 5 độ hiếm (common → mythic)
+- **Trang `/thanh-tich`** — cards thành tích đã đạt + progress bar cho đang tiến hành + 5 stats tổng quan
+- **Trang `/tim-kiem`** — search đồng thời users + books + topics + groups, tối đa 10 kết quả mỗi loại
+- **Migration 018**: 100 quyền mới + role_permissions (325 row, idempotent)
+- **Migration 019**: 3 bảng (`achievements`, `user_achievements`, `achievement_progress`) + 2 view + function `check_and_grant_achievement()`
+- **Mục tiêu**: Hệ thống phân quyền chi tiết 150 quyền, thành tích động viên user tu tập, tìm kiếm toàn cục
+
 ---
 
 ## Cấu Trúc Dự Án (Giai đoạn 12 / v0.9.8)
@@ -502,6 +532,12 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 | GET | `/api/quy-tu-bi/stats` | **[v0.9.11]** JSON tổng quan Quỹ Từ Bi | Public |
 | GET | `/thuong-thanh` | Thương Thành (placeholder) | Public |
 | GET | `/bang-xep-hang` | **[v0.9.10]** Trang Bảng Xếp Hạng (5 tabs) | Public |
+| GET | `/tong-quan` | **[v0.9.14]** Trang Tổng Quan (User Hub) — 24 tính năng | Public |
+| GET | `/cai-dat` | **[v0.9.14]** Trang Cài Đặt cá nhân | Auth |
+| POST | `/cai-dat/cap-nhat` | **[v0.9.14]** Cập nhật cài đặt | Auth |
+| GET | `/thanh-tich` | **[v0.9.14]** Trang Thành Tích cá nhân | Auth |
+| GET | `/api/thanh-tich/stats` | **[v0.9.14]** JSON tổng quan thành tích | Auth |
+| GET | `/tim-kiem` | **[v0.9.14]** Tìm kiếm toàn cục (?q=) | Public |
 | GET | `/api/health` | Health check JSON + DB status | Public |
 | POST | `/api/heartbeat` | Heartbeat giữ session | Auth |
 | GET | `/api/upload-info` | Trả về giới hạn upload | Public |
@@ -527,6 +563,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.9** — Giai đoạn 13: Không Gian Cá Nhân (Niệm Phật Counter + Tượng Phật vows + Nhật Ký Tu Học + i_balance)
 - **v0.9.10** — Giai đoạn 14: Bảng Xếp Hạng (5 tabs: A/I/K/Hôm Nay/Streak) + Safety schema fix cho login
 - **v0.9.11** — Giai đoạn 15: Quỹ Từ Bi (đóng góp K + dashboard + 5 loại quỹ) + Fix Docker cache stale (CRITICAL deploy fix cho login)
+- **v0.9.14** — Giai đoạn 18 + 19: Navigation Overhaul (User Hub + Mega Menu + Mobile Drawer + Settings) + 150 Quyền chi tiết + Hệ thống Thành Tích + Tìm Kiếm toàn cục
 
 ---
 

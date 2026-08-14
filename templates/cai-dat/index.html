@@ -1,0 +1,160 @@
+{% extends "layout.html" %}
+
+{% block title %}Cài Đặt — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-4xl mx-auto px-4 py-8 md:py-12">
+    <div class="mb-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-tubi-900 flex items-center gap-2">
+            <span>⚙️</span><span>Cài Đặt Cá Nhân</span>
+        </h1>
+        <p class="text-gray-600 text-sm mt-1">
+            Tùy chỉnh trải nghiệm sử dụng Ứng Dụng Từ Bi theo ý bạn.
+        </p>
+    </div>
+
+    {% if let Some(e) = error %}
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 text-sm">
+        ⚠️ {{ e }}
+    </div>
+    {% endif %}
+    {% if let Some(s) = success %}
+    <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 text-sm">
+        ✅ {{ s }}
+    </div>
+    {% endif %}
+
+    <form action="/cai-dat/cap-nhat" method="POST" class="space-y-6">
+        <!-- Riêng Tư -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 class="text-lg font-bold text-tubi-900 mb-4 flex items-center gap-2">
+                <span>🔒</span><span>Riêng Tư</span>
+            </h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Hiển thị hồ sơ</label>
+                    <select name="profile_visibility" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
+                        <option value="public" {% if settings.profile_visibility == "public" %}selected{% endif %}>Công khai — ai cũng xem được</option>
+                        <option value="friends" {% if settings.profile_visibility == "friends" %}selected{% endif %}>Chỉ bạn bè</option>
+                        <option value="private" {% if settings.profile_visibility == "private" %}selected{% endif %}>Riêng tư — chỉ mình tôi</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-3 text-sm text-gray-700">
+                        <input type="checkbox" name="show_balance" {% if settings.show_balance %}checked{% endif %}
+                               class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                        <span>Hiển thị số dư A/I/K công khai</span>
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700">
+                        <input type="checkbox" name="show_activity" {% if settings.show_activity %}checked{% endif %}
+                               class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                        <span>Hiển thị hoạt động gần đây</span>
+                    </label>
+                    <label class="flex items-center gap-3 text-sm text-gray-700">
+                        <input type="checkbox" name="show_email" {% if settings.show_email %}checked{% endif %}
+                               class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                        <span>Hiển thị email công khai</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Thông Báo -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 class="text-lg font-bold text-tubi-900 mb-4 flex items-center gap-2">
+                <span>🔔</span><span>Thông Báo</span>
+            </h2>
+            <div class="space-y-2">
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="notify_friends" {% if settings.notify_friends %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Lời mời kết bạn</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="notify_mail" {% if settings.notify_mail %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Thư mới trong hộp thư</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="notify_dm" {% if settings.notify_dm %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Tin nhắn trực tiếp (DM)</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="notify_group" {% if settings.notify_group %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Hoạt động trong nhóm</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="notify_system" {% if settings.notify_system %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Thông báo hệ thống</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Giao Diện -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 class="text-lg font-bold text-tubi-900 mb-4 flex items-center gap-2">
+                <span>🎨</span><span>Giao Diện</span>
+            </h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Chủ đề (theme)</label>
+                    <select name="theme" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-tubi-300">
+                        <option value="lotus" {% if settings.theme == "lotus" %}selected{% endif %}>🪷 Lotus (mặc định — xanh sen)</option>
+                        <option value="dark" {% if settings.theme == "dark" %}selected{% endif %}>🌙 Tối (dark mode)</option>
+                        <option value="minimal" {% if settings.theme == "minimal" %}selected{% endif %}>⚪ Tối thiểu (minimal)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ngôn ngữ</label>
+                    <select name="language" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-tubi-300">
+                        <option value="vi" {% if settings.language == "vi" %}selected{% endif %}>🇻🇳 Tiếng Việt</option>
+                        <option value="en" {% if settings.language == "en" %}selected{% endif %}>🇬🇧 English</option>
+                        <option value="zh" {% if settings.language == "zh" %}selected{% endif %}>🇨🇳 中文</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat & Niệm Phật -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <h2 class="text-lg font-bold text-tubi-900 mb-4 flex items-center gap-2">
+                <span>🙏</span><span>Chat & Niệm Phật</span>
+            </h2>
+            <div class="space-y-2">
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="auto_join_global_chat" {% if settings.auto_join_global_chat %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Tự động tham gia Chat Chung khi đăng nhập</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="chat_sound_enabled" {% if settings.chat_sound_enabled %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Âm thanh thông báo tin nhắn mới</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="niem_sound_enabled" {% if settings.niem_sound_enabled %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Âm thanh khi niệm Phật</span>
+                </label>
+                <label class="flex items-center gap-3 text-sm text-gray-700">
+                    <input type="checkbox" name="niem_auto_convert_k" {% if settings.niem_auto_convert_k %}checked{% endif %}
+                           class="w-4 h-4 rounded border-gray-300 text-tubi-600 focus:ring-tubi-300">
+                    <span>Tự động quy đổi 1000 A = 1 K khi niệm Phật</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center justify-between gap-4">
+            <a href="/tong-quan" class="text-sm text-gray-500 hover:text-tubi-700">← Về Tổng Quan</a>
+            <button type="submit"
+                    class="bg-tubi-800 hover:bg-tubi-900 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+                💾 Lưu Cài Đặt
+            </button>
+        </div>
+    </form>
+</section>
+{% endblock %}

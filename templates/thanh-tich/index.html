@@ -1,0 +1,131 @@
+{% extends "layout.html" %}
+
+{% block title %}Thành Tích — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto px-4 py-8 md:py-12">
+    <!-- Header -->
+    <div class="mb-8 text-center">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-pink-100 rounded-full mb-3">
+            <span class="text-3xl">🎖️</span>
+        </div>
+        <h1 class="text-2xl md:text-3xl font-bold text-tubi-900">Thành Tích Tu Tập</h1>
+        <p class="text-gray-600 text-sm mt-1">
+            Hệ thống thành tích ghi nhận hành trình tu học của bạn — niệm Phật, viết cảm ngộ, kết bạn, đóng góp quỹ.
+        </p>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-10">
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-2xl font-bold text-tubi-800">{{ stats.total_earned }}</div>
+            <div class="text-xs text-gray-500 mt-1">Đã đạt</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-2xl font-bold text-amber-600">{{ stats.total_points }}</div>
+            <div class="text-xs text-gray-500 mt-1">Điểm thành tích</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-2xl font-bold text-tubi-600">{{ stats.total_reward_a }}</div>
+            <div class="text-xs text-gray-500 mt-1">Phần thưởng A</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-2xl font-bold text-yellow-600">{{ stats.total_reward_i }}</div>
+            <div class="text-xs text-gray-500 mt-1">Phần thưởng I</div>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
+            <div class="text-2xl font-bold text-lotus">{{ stats.total_reward_k }}</div>
+            <div class="text-xs text-gray-500 mt-1">Phần thưởng K</div>
+        </div>
+    </div>
+
+    <!-- Earned achievements -->
+    <div class="mb-10">
+        <h2 class="text-xl font-bold text-tubi-900 mb-4 flex items-center gap-2">
+            <span>🏆</span><span>Thành Tích Đã Đạt</span>
+            <span class="text-sm font-normal text-gray-500">({{ earned.len() }})</span>
+        </h2>
+        {% if earned.is_empty() %}
+        <div class="bg-white rounded-2xl p-8 text-center border border-gray-100">
+            <div class="text-4xl mb-3">🌱</div>
+            <p class="text-gray-600 text-sm">Bạn chưa đạt thành tích nào. Bắt đầu niệm Phật và tham gia cộng đồng để nhận thành tích đầu tiên!</p>
+            <a href="/khong-gian" class="inline-block mt-4 bg-tubi-800 text-white px-5 py-2 rounded-lg text-sm hover:bg-tubi-900 transition">
+                🙏 Vào Không Gian niệm Phật
+            </a>
+        </div>
+        {% else %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for ach in earned %}
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition">
+                <div class="flex items-start justify-between mb-3">
+                    <div class="text-3xl">{{ ach.icon }}</div>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full border font-semibold {{ ach.rarity_class() }}">
+                        {{ ach.rarity_label() }}
+                    </span>
+                </div>
+                <h3 class="font-bold text-tubi-900 text-sm mb-1">{{ ach.name_vi }}</h3>
+                {% if let Some(desc) = ach.description_vi %}
+                <p class="text-xs text-gray-500 mb-2">{{ desc }}</p>
+                {% endif %}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-tubi-700 font-medium">{{ ach.reward_label() }}</span>
+                    <span class="text-amber-600 font-semibold">+{{ ach.achievement_points }} điểm</span>
+                </div>
+                <div class="mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-400">
+                    🗓️ Đạt lúc {{ ach.achieved_at.format("%d/%m/%Y %H:%M") }}
+                    {% if ach.period_key.is_some() %} · 📅 {{ ach.period_key.as_ref().unwrap() }}{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- In-progress achievements -->
+    {% if !in_progress.is_empty() %}
+    <div>
+        <h2 class="text-xl font-bold text-tubi-900 mb-4 flex items-center gap-2">
+            <span>🎯</span><span>Đang Tiến Hành</span>
+            <span class="text-sm font-normal text-gray-500">({{ in_progress.len() }})</span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {% for ach in in_progress %}
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                <div class="flex items-start gap-3 mb-3">
+                    <div class="text-2xl">{{ ach.icon }}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="font-bold text-tubi-900 text-sm truncate">{{ ach.name_vi }}</h3>
+                            <span class="text-[10px] text-gray-400 shrink-0">{{ ach.rarity_label() }}</span>
+                        </div>
+                        {% if let Some(desc) = ach.description_vi %}
+                        <p class="text-xs text-gray-500 mt-0.5">{{ desc }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-gray-600">Tiến độ</span>
+                        <span class="font-semibold text-tubi-800">{{ ach.percent_complete }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div class="h-full rounded-full transition-all {{ ach.progress_bar_class() }}"
+                             style="width: {{ ach.percent_complete }}%"></div>
+                    </div>
+                    <div class="text-[10px] text-gray-400 text-right">
+                        Mục tiêu: {{ ach.target_value }} · Hiện tại: {{ ach.current_value }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Footer note -->
+    <div class="mt-10 text-center text-xs text-gray-500">
+        <p>🪷 Hệ thống thành tích tự động ghi nhận — niệm Phật, viết cảm ngộ, kết bạn, đóng góp quỹ đều được tính.</p>
+        <p class="mt-1">Thành tích periodic (daily/weekly/monthly/yearly) sẽ reset theo chu kỳ.</p>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+
+{% block title %}Tìm Kiếm — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 py-8 md:py-12">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-2xl md:text-3xl font-bold text-tubi-900 flex items-center gap-2">
+            <span>🔎</span><span>Tìm Kiếm</span>
+        </h1>
+        <p class="text-gray-600 text-sm mt-1">
+            Tìm kiếm thành viên, sách, chủ đề và nhóm trong cộng đồng Từ Bi.
+        </p>
+    </div>
+
+    <!-- Search form -->
+    <form action="/tim-kiem" method="GET" class="mb-8">
+        <div class="relative">
+            <input type="text"
+                   name="q"
+                   value="{{ results.query }}"
+                   placeholder="Nhập từ khoá — tên người, tựa sách, chủ đề..."
+                   class="w-full px-5 py-3 pl-12 border border-gray-200 rounded-2xl text-sm focus:ring-2 focus:ring-tubi-300 focus:border-transparent shadow-sm"
+                   autocomplete="off">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <button type="submit"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 bg-tubi-800 hover:bg-tubi-900 text-white px-4 py-1.5 rounded-xl text-sm font-medium transition">
+                Tìm
+            </button>
+        </div>
+    </form>
+
+    {% if !results.query.is_empty() %}
+    {% if results.is_empty() %}
+    <!-- No results -->
+    <div class="bg-white rounded-2xl p-10 text-center border border-gray-100">
+        <div class="text-5xl mb-4">🤔</div>
+        <p class="text-gray-700 font-medium">Không tìm thấy kết quả nào cho "{{ results.query }}"</p>
+        <p class="text-gray-500 text-sm mt-1">Hãy thử từ khoá khác hoặc ngắn gọn hơn.</p>
+    </div>
+    {% else %}
+    <!-- Result count -->
+    <div class="mb-6 text-sm text-gray-600">
+        Tìm thấy <strong class="text-tubi-800">{{ results.total }}</strong> kết quả cho "<strong>{{ results.query }}</strong>"
+    </div>
+
+    <!-- Users -->
+    {% if !results.users.is_empty() %}
+    <div class="mb-8">
+        <h2 class="text-lg font-bold text-tubi-900 mb-3 flex items-center gap-2">
+            <span>👤</span><span>Thành Viên</span>
+            <span class="text-xs font-normal text-gray-500">({{ results.users.len() }})</span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for u in results.users %}
+            <a href="/ca-nhan" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100 flex items-center gap-3">
+                {% if let Some(avatar) = u.avatar_url %}
+                <img src="{{ avatar }}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">
+                {% else %}
+                <div class="w-10 h-10 rounded-full bg-tubi-100 flex items-center justify-center text-tubi-700 font-bold text-sm">
+                    {{ u.display_name.chars().next().unwrap_or('🪷') }}
+                </div>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-tubi-900 text-sm truncate">{{ u.display_name }}</div>
+                    {% if let Some(pd) = u.phap_danh %}
+                    <div class="text-xs text-gray-500 truncate">Pháp danh: {{ pd }}</div>
+                    {% endif %}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Books -->
+    {% if !results.books.is_empty() %}
+    <div class="mb-8">
+        <h2 class="text-lg font-bold text-tubi-900 mb-3 flex items-center gap-2">
+            <span>📚</span><span>Sách</span>
+            <span class="text-xs font-normal text-gray-500">({{ results.books.len() }})</span>
+        </h2>
+        <div class="space-y-2">
+            {% for b in results.books %}
+            <a href="/kinh-sach/{{ b.slug }}" class="block bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-tubi-900 text-sm">{{ b.title }}</div>
+                        {% if let Some(a) = b.author %}
+                        <div class="text-xs text-gray-500 mt-0.5">Tác giả: {{ a }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="text-xs text-gray-400 shrink-0">👁️ {{ b.view_count }}</div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Topics -->
+    {% if !results.topics.is_empty() %}
+    <div class="mb-8">
+        <h2 class="text-lg font-bold text-tubi-900 mb-3 flex items-center gap-2">
+            <span>💬</span><span>Chủ Đề</span>
+            <span class="text-xs font-normal text-gray-500">({{ results.topics.len() }})</span>
+        </h2>
+        <div class="space-y-2">
+            {% for t in results.topics %}
+            <a href="/cong-dong/chu-de/{{ t.id }}" class="block bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100">
+                <div class="flex items-start justify-between gap-3 mb-1">
+                    <div class="font-bold text-tubi-900 text-sm">{{ t.title }}</div>
+                    <div class="text-xs text-gray-400 shrink-0">👁️ {{ t.view_count }}</div>
+                </div>
+                <div class="text-xs text-gray-500 line-clamp-2">{{ t.body_preview }}</div>
+                <div class="mt-2 text-[10px] text-gray-400">
+                    📁 {{ t.group_name }} · ✍️ {{ t.author_name }}
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Groups -->
+    {% if !results.groups.is_empty() %}
+    <div class="mb-8">
+        <h2 class="text-lg font-bold text-tubi-900 mb-3 flex items-center gap-2">
+            <span>👥</span><span>Nhóm</span>
+            <span class="text-xs font-normal text-gray-500">({{ results.groups.len() }})</span>
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {% for g in results.groups %}
+            <a href="/cong-dong/nhom/{{ g.slug }}" class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100">
+                <div class="flex items-start gap-3">
+                    {% if let Some(cover) = g.cover_image_url %}
+                    <img src="{{ cover }}" alt="cover" class="w-12 h-12 rounded-lg object-cover">
+                    {% else %}
+                    <div class="w-12 h-12 rounded-lg bg-tubi-100 flex items-center justify-center text-2xl">👥</div>
+                    {% endif %}
+                    <div class="flex-1 min-w-0">
+                        <div class="font-bold text-tubi-900 text-sm truncate">{{ g.name }}</div>
+                        {% if let Some(d) = g.description %}
+                        <div class="text-xs text-gray-500 line-clamp-2 mt-0.5">{{ d }}</div>
+                        {% endif %}
+                        <div class="text-[10px] text-gray-400 mt-1">👥 {{ g.member_count }} thành viên</div>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% else %}
+    <!-- Empty state -->
+    <div class="bg-white rounded-2xl p-10 text-center border border-gray-100">
+        <div class="text-5xl mb-4">🪷</div>
+        <p class="text-gray-700 font-medium">Bắt đầu tìm kiếm</p>
+        <p class="text-gray-500 text-sm mt-1">Nhập từ khoá để tìm thành viên, sách, chủ đề và nhóm.</p>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

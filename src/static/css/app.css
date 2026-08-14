@@ -185,7 +185,7 @@
     border: 2px solid white;
 }
 
-/* Global chat popup — v0.9.13: dùng dvh để input không bị bàn phím ảo che trên mobile */
+/* Global chat popup — v0.9.14: dùng dvh để input không bị bàn phím ảo che trên mobile */
 .chat-chung-popup {
     position: fixed;
     bottom: 80px;

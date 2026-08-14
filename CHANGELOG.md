@@ -6,6 +6,59 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.14] — 2026-08-15 — Giai đoạn 18 + 19: Navigation Overhaul + 150 Quyền + Thành Tích
+
+### Thêm (Features — Giai đoạn 18: Navigation Overhaul)
+
+- **[NAV-1] Trang Tổng Quan (User Hub) `/tong-quan`** — Trung tâm điều hướng liệt kê TẤT CẢ 24 tính năng của app trong 4 nhóm (Chuyên Mục / Hệ Thống / Cá Nhân / Liên Kết Nhanh). Fix lỗi route mồ côi — user không cần biết URL cũng truy cập được mọi trang.
+- **[NAV-2] Mega Menu Desktop** — Thêm dropdown "🧭 Khám Phá" trên header desktop, chia 3 cột (Hệ Thống / Cá Nhân / Khám Phá) với 18 link. Hover là mở, click outside là đóng.
+- **[NAV-3] Mobile Drawer đầy đủ** — Mobile menu cũ chỉ có 4 chuyên mục + Hồ sơ + Thoát. Bây giờ có 6 nhóm (Chuyên Mục / Hệ Thống / Cá Nhân / Khám Phá / Tìm Kiếm / Quản Trị) với 22 link. Scroll được, không bị cắt.
+- **[NAV-4] Bottom Nav redesign** — Đổi icon giữa từ 🪷 (Trang Chủ) sang 🧭 (Tổng Quan) để phản ánh đúng vai trò hub trung tâm. Tab "Không Gian" đổi sang "🙏 Niệm Phật" cho rõ nghĩa.
+- **[NAV-5] Footer mở rộng 5 cột** — Footer cũ 4 cột, giờ 5 cột: Giới Thiệu + Chuyên Mục + Hệ Thống + Cá Nhân + Khám Phá. Mọi route đều có link từ footer.
+- **[NAV-6] Search icon trên header** — Icon 🔎 dẫn nhanh đến `/tim-kiem` cho user đã đăng nhập.
+- **[SET-1] Trang Cài Đặt `/cai-dat`** — User settings page với 4 nhóm: Riêng Tư (profile_visibility, show_balance/activity/email), Thông Báo (5 toggle), Giao Diện (theme lotus/dark/minimal, language vi/en/zh), Chat & Niệm Phật (4 toggle).
+- **[SET-2] Migration 017** — Bảng `user_settings` với 16 cột + trigger `updated_at` + seed default cho user hiện có.
+
+### Thêm (Features — Giai đoạn 19: 150 Quyền + Thành Tích + Tìm Kiếm)
+
+- **[PERM-1] Mở rộng 50 → 150 quyền chi tiết** — Thêm 100 quyền mới chia 10 nhóm × 10 quyền:
+  - `fund` (10) — Quản lý Quỹ Từ Bi (xem tất cả, duyệt, tạo chiến dịch, chi tiêu, refund, ...)
+  - `achievements` (10) — Quản lý Thành Tích (tạo, sửa, xóa, grant, revoke, ...)
+  - `security` (10) — Bảo mật (audit log, login log, IP blocklist, 2FA, CAPTCHA, ...)
+  - `navigation` (10) — Quản lý UI (menu, footer, themes, announcement, feature flags, ...)
+  - `analytics` (10) — Phân tích (dashboard, user stats, revenue, funnel, cohort, ...)
+  - `media` (10) — Quản lý upload (xem tất cả, xóa, approve, quota, compress, ...)
+  - `friends` (10) — Quản lý Bạn Bè/DM (xem tất cả, mute, blocklist, force unfriend, ...)
+  - `mail` (10) — Quản lý Thư/Thông báo (broadcast, template, queue, filter, ...)
+  - `events` (10) — Quản lý Sự kiện (tạo, sửa, xóa, attendance, recording, ...)
+  - `shop` (10) — Quản lý Thương Thành (sản phẩm, đơn hàng, refund, danh mục, ...)
+- **[PERM-2] Phân bổ mới**:
+  - `admin_ky_thuat`: 150 quyền (TẤT CẢ — toàn quyền hệ thống)
+  - `admin_quan_li`: 100 quyền (30 cũ + 70 mới)
+  - `admin_cong_dong`: 75 quyền (20 cũ + 55 mới)
+  - `member`: 0 quyền admin
+- **[PERM-3] Migration 018** — INSERT 100 quyền mới + INSERT role_permissions (150+100+75 = 325 row). Idempotent với ON CONFLICT DO NOTHING.
+- **[ACH-1] Hệ thống Thành Tích** — 30 thành tích mẫu chia 6 nhóm (Niệm Phật, Tượng Phật, Cộng Đồng, Kinh Sách, Bạn Bè, Quỹ Từ Bi) với 5 độ hiếm (common → mythic).
+- **[ACH-2] Migration 019** — 3 bảng mới (`achievements`, `user_achievements`, `achievement_progress`) + 2 view (`v_user_achievements`, `v_user_achievement_progress`) + function `check_and_grant_achievement()` + trigger `updated_at`.
+- **[ACH-3] Trang `/thanh-tich`** — Hiển thị thành tích đã đạt (cards với rarity badge + reward) + thành tích đang tiến hành (progress bar) + 5 stats tổng quan (đã đạt / điểm / A / I / K).
+- **[ACH-4] API `/api/thanh-tich/stats`** — JSON tổng quan cho dashboard tích hợp.
+- **[SRCH-1] Trang Tìm Kiếm toàn cục `/tim-kiem`** — Search đồng thời 4 loại: users (tên + pháp danh + email), books (title + author + description), topics (title + body), groups (name + description). Tối đa 10 kết quả mỗi loại, ILIKE pattern, order by view_count/friend_count.
+- **[USR-1] User model mở rộng** — `has_permission_code` hỗ trợ 150 mã quyền, `permission_count` (UI features: 18/12/9/0), `system_permission_count` (150/100/75/0).
+
+### Sửa lỗi (Bug Fixes)
+
+- **[FIX-1] Lỗi thiếu giao diện cho route mồ côi** — `/bang-xep-hang`, `/quy-tu-bi`, `/thuong-thanh`, `/ban-be/tin-nhan`, `/ban-be/thu`, `/ban-be/thong-bao`, `/ban-be/tim-kiem`, `/kinh-sach/tim-kiem`, `/cong-dong/tao-nhom` giờ đều có link từ mega menu (desktop) + mobile drawer + footer + trang Tổng Quan.
+- **[FIX-2] Mobile bottom nav khó hiểu** — Icon giữa 🪷 không rõ nghĩa, đổi sang 🧭 (Tổng Quan). Tab cuối đổi từ "Không Gian" sang "🙏 Niệm Phật" cho rõ hơn.
+- **[FIX-3] Footer thiếu nhiều route** — Footer cũ chỉ có 3 route Hệ Thống (Quỹ Từ Bi, Thương Thành, Bảng Xếp Hạng). Bây giờ có 5 cột với 22 link.
+- **[FIX-4] Health check version mismatch** — Cập nhật `version`, `phase`, `phase_name`, `permission_counts`, `system_permission_counts`, `features` list trong `/api/health`.
+
+### Giai đoạn
+
+Giai đoạn 18 — Navigation Overhaul + User Hub + Settings
+Giai đoạn 19 — 150 Quyền + Thành Tích + Tìm Kiếm toàn cục
+
+---
+
 ## [0.9.13] — 2025-08-15 — Giai đoạn 17: Admin UI Compact + Bug Fixes + Audit Log
 
 ### Sửa lỗi
