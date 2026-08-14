@@ -170,7 +170,7 @@
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6"
        x-data="liveChat({
          slug: '{{ group.slug }}',
-         isMember: {% if let Some(m) = &membership %}{% if m.status == 'active' %}true{% else %}false{% endif %}{% else %}false{% endif %},
+         isMember: {% if let Some(m) = &membership %}{% if m.status == "active" %}true{% else %}false{% endif %}{% else %}false{% endif %},
          isLoggedIn: {% if user.is_some() %}true{% else %}false{% endif %},
          initialMessages: {{ chat_messages_json|safe }}
        })"
