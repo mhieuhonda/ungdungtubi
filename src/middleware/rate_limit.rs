@@ -15,11 +15,11 @@
 //!       Nếu scale horizontal, cần chuyển sang Redis-based rate limit.
 
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use axum::{
-    extract::{Request, State},
+    extract::Request,
     http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
@@ -47,15 +47,25 @@ impl Default for RateEntry {
 }
 
 /// State chia sẻ cho rate limit middleware.
+/// v0.9.24: Dùng global static (OnceLock) để tránh xung đột với router state.
 #[derive(Clone, Default)]
 pub struct RateLimitState {
     /// Map: (ip, endpoint_group) → RateEntry
     entries: Arc<RwLock<HashMap<(String, &'static str), RateEntry>>>,
 }
 
+/// Global static instance — khởi tạo lần đầu khi `get_global()` được gọi.
+static GLOBAL_STATE: OnceLock<RateLimitState> = OnceLock::new();
+
 impl RateLimitState {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Lấy global instance (singleton). Tự khởi tạo nếu chưa có.
+    /// Dùng cho middleware function (không cần State extractor).
+    pub fn get_global() -> &'static RateLimitState {
+        GLOBAL_STATE.get_or_init(|| RateLimitState::new())
     }
 
     /// Phân loại endpoint vào nhóm để áp dụng limit tương ứng.
@@ -155,13 +165,12 @@ impl RateLimitState {
 }
 
 /// Middleware function: rate limit per IP + endpoint.
-/// v0.9.24: Nhận state qua `State<RateLimitState>` (từ `from_fn_with_state`).
-pub async fn rate_limit(
-    State(state): State<RateLimitState>,
-    req: Request,
-    next: Next,
-) -> Response {
-    // Lấy IP từ X-Forwarded-For (sau Traefik) hoặc ConnectInfo
+/// v0.9.24: Dùng global static state (OnceLock) — không cần State extractor,
+/// tránh xung đột với router's AppState.
+pub async fn rate_limit(req: Request, next: Next) -> Response {
+    let state = RateLimitState::get_global();
+
+    // Lấy IP từ X-Forwarded-For (sau Traefik) hoặc fallback "unknown"
     let ip = req
         .headers()
         .get("x-forwarded-for")
