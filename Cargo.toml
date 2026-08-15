@@ -1,6 +1,6 @@
 [package]
 name = "ungdungtubi"
-version = "0.9.15"
+version = "0.9.16"
 edition = "2024"
 rust-version = "1.97"
 

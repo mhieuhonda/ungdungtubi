@@ -397,7 +397,7 @@ pub async fn quy_tu_bi(State(state): State<AppState>, jar: CookieJar) -> Respons
 
 pub async fn thuong_thanh(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
-    placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 20")
+    placeholder_page(user.as_ref(), "", "Thương Thành", "🏪", "Mua bán, trao đổi vật phẩm và dịch vụ trong cộng đồng", "Giai đoạn 22")
 }
 
 #[allow(dead_code)]

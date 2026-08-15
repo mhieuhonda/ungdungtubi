@@ -157,7 +157,6 @@ pub struct ThanhTichTemplate {
     pub earned: Vec<EarnedAchievement>,
     pub in_progress: Vec<InProgressAchievement>,
     pub stats: AchievementStats,
-    pub now: DateTime<Utc>,
 }
 
 // ─── Handlers ────────────────────────────────────────────────────────────
@@ -178,7 +177,6 @@ pub async fn thanh_tich_index(State(state): State<AppState>, jar: CookieJar) -> 
         earned,
         in_progress,
         stats,
-        now: Utc::now(),
     }
     .render()
     .unwrap_or_else(|e| {

@@ -4,9 +4,32 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.15 — Giai đoạn 20
+## 📦 Phiên bản hiện tại: v0.9.16 — Giai đoạn 21
 
-**Giai đoạn 20: Niệm Phật Fix + Admin Redesign + Mobile UX**
+**Giai đoạn 21: UI Redesign + Route Hub + Polish**
+
+### UI/UX Redesign tổng thể
+- **Layout redesign gọn nhẹ** — Header h-14 (thay vì h-16), logo 🪷 + tên rút gọn "TỪ BI", background paper nhẹ nhàng. Cards nhỏ gọn, ít chữ, nhiều icon.
+- **Mega menu desktop 4 cột** — Hệ Thống / Cá Nhân / Kinh Sách / Cộng Đồng với 24+ link, fix lỗi route mồ côi.
+- **Footer 6 cột** — Logo + 5 nhóm link với 30+ route đều có link truy cập.
+- **Home page compact** — Hero ngắn, bỏ Prayer Counter Demo dài dòng, thêm section Khám Phá 12 card link.
+- **Trang /tong-quan redesign thành Hub đẹp** — 8 nhóm: Chuyên Mục / Hệ Thống / Kinh Sách / BXH / Cá Nhân / Cộng Đồng / Quản Trị / Liên Kết Nhanh.
+
+### Route Hub mở rộng
+- **Health Check link** từ /tong-quan (icon 💓)
+- **5 Thư Viện Kinh Sách** có link từ /tong-quan, mega menu, footer
+- **5 BXH tabs** (a/i/k/today/streak) có link từ /tong-quan, mega menu, footer
+- **Admin Dashboard quick links** từ /tong-quan (chỉ admin thấy)
+- **Cộng Đồng quick links** — Lướt Nhóm, Lướt Chủ Đề, Tạo Nhóm, Tạo Chủ Đề
+
+### Giữ nguyên theo yêu cầu user
+- **Bottom nav mobile** giữ nguyên icon/label (Trang Chủ / Cộng Đồng / 🪷 Tổng Quan / Bạn Bè / Niệm Phật)
+- **Mobile menu 3 gạch** giữ nguyên 7 mục — không thêm mục nào
+
+### Code Quality
+- `cargo check` sạch — 0 warnings
+- `cargo clippy --all-targets` sạch — 0 warnings
+- Version strings đồng bộ 0.9.16 ở mọi nơi
 
 ### Bug fixes critical
 - **Niệm Phật counter không bị lệch trái** sau click (HTMX response giữ nguyên class `text-center mb-4`)
@@ -586,6 +609,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.10** — Giai đoạn 14: Bảng Xếp Hạng (5 tabs: A/I/K/Hôm Nay/Streak) + Safety schema fix cho login
 - **v0.9.11** — Giai đoạn 15: Quỹ Từ Bi (đóng góp K + dashboard + 5 loại quỹ) + Fix Docker cache stale (CRITICAL deploy fix cho login)
 - **v0.9.14** — Giai đoạn 18 + 19: Navigation Overhaul (User Hub + Mega Menu + Mobile Drawer + Settings) + 150 Quyền chi tiết + Hệ thống Thành Tích + Tìm Kiếm toàn cục
+- **v0.9.16** — Giai đoạn 21: UI Redesign (header gọn, footer 6 cột, mega menu 4 cột) + Route Hub mở rộng (Health Check, 5 thư viện Kinh Sách, 5 BXH tabs, Admin quick links) + Code Quality (0 warnings, 0 clippy)
 
 ---
 

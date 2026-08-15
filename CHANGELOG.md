@@ -6,6 +6,52 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.16] — 2026-08-15 — Giai đoạn 21: UI Redesign + Route Hub + Polish
+
+### Thay đổi (UI/UX — Redesign tổng thể)
+
+- **[UI-1] Layout tổng thể redesign** — Header nhỏ gọn hơn (h-14 thay vì h-16), logo 🪷 + tên rút gọn "TỪ BI", bỏ subtitle dài dòng trên mobile. Background giấy (paper) nhẹ nhàng thay vì gray-50.
+- **[UI-2] Mega menu desktop 4 cột** — Thay vì 3 cột (Hệ Thống / Cá Nhân / Khám Phá), giờ là 4 cột (Hệ Thống / Cá Nhân / Kinh Sách / Cộng Đồng) với đầy đủ 24 link — fix lỗi route mồ côi.
+- **[UI-3] Footer 6 cột** — Footer cũ 5 cột, giờ 6 cột: Logo + 5 nhóm link (Chuyên Mục / Hệ Thống / Cá Nhân / Kinh Sách / Khám Phá). Mỗi cột 6 link → tổng 30+ route đều có link.
+- **[UI-4] Home page redesign** — Hero compact, bỏ "Prayer Counter Demo" dài dòng. Thêm section "Khám Phá Thêm" với 12 card link nhanh tới tất cả tính năng (Quỹ, BXH, Thành Tích, Thương Thành, Tìm Kiếm, 5 thư viện Kinh Sách, Tạo Nhóm). Quote ngắn gọn "Tu cũng niệm Phật. Chơi cũng niệm Phật."
+- **[UI-5] Trang /tong-quan redesign thành Hub đẹp** — Bỏ hero dài dòng, tổ chức theo 8 nhóm gọn gàng: Chuyên Mục (4 card) / Hệ Thống (6 card incl. Health Check) / Kinh Sách — 5 Thư Viện / Bảng Xếp Hạng — 5 Tabs / Cá Nhân (7 card) / Cộng Đồng (4 card) / Quản Trị (7 card nếu admin) / Liên Kết Nhanh (8 link).
+- **[UI-6] Bottom nav giữ nguyên** — Theo yêu cầu user, không thay đổi icon/label của bottom nav mobile (Trang Chủ / Cộng Đồng / 🪷 Tổng Quan / Bạn Bè / Niệm Phật).
+- **[UI-7] Mobile menu 3 gạch giữ nguyên 7 mục** — Theo yêu cầu user, không thêm mục nào vào hamburger menu. Các route khác truy cập qua: nút giữa 🪷 (Tổng Quan), mega menu desktop, footer desktop, trang /tong-quan, và trong các trang con (/ban-be, /ca-nhan, /kinh-sach, /cong-dong).
+
+### Thêm (Features — Route Hub mở rộng)
+
+- **[HUB-1] Health Check link** — `/api/health` giờ có link từ trang /tong-quan (icon 💓).
+- **[HUB-2] 5 Thư Viện Kinh Sách** — `/kinh-sach/thu-vien/phat-gia`, `dao-gia`, `kinh-van`, `sach-quy`, `quan-trong` giờ đều có link từ /tong-quan, mega menu, footer.
+- **[HUB-3] 5 BXH tabs** — `/bang-xep-hang?tab=a|today|streak|i|k` giờ đều có link từ /tong-quan, mega menu, footer.
+- **[HUB-4] Admin Dashboard quick links** — /admin/ky-thuat, /admin/ky-thuat/nhat-ky, /admin/cong-dong, /admin/cong-dong/cam-ngo, /admin/quan-li, /admin/thanh-vien giờ có link từ /tong-quan (chỉ admin thấy).
+- **[HUB-5] Cộng Đồng quick links** — Lướt Nhóm, Lướt Chủ Đề, Tạo Nhóm, Tạo Chủ Đề đều có link từ /tong-quan.
+
+### Sửa lỗi (Bug Fixes — Code Quality)
+
+- **[FIX-1] Bỏ 7 warnings Rust** — `cargo check` giờ sạch sẽ:
+  - Bỏ `Redirect` import không dùng trong `tong_quan.rs`
+  - Bỏ field `now: DateTime<Utc>` không dùng trong `thanh_tich.rs`
+  - Bỏ field `total_features: u32` không dùng trong `tong_quan.rs` (v0.9.14 đã đếm hardcode 24, giờ không cần)
+  - `#[allow(dead_code)]` cho `VowType::color()`, `DonationType::as_str()`, `FundDonation` struct, `FundSummary::total_k_in_system_label()` (model methods/structs để dùng cho API/UI tương lai)
+- **[FIX-2] Version strings đồng bộ 0.9.16** — `Cargo.toml`, `main.rs` log, `/api/health` JSON, `Dockerfile.coolify`, footer template, `khong-gian/index.html` footer.
+- **[FIX-3] Health check `phase` và `phase_name`** — Updated `phase: 21`, `phase_name: "Giai đoạn 21 — UI Redesign + Route Hub + Polish"`. Thêm 5 feature mới vào `features` list.
+
+### Bảo trì (Maintenance)
+
+- **[MAINT-1] Cargo.toml version** — `0.9.15` → `0.9.16`.
+- **[MAINT-2] Dockerfile.coolify** — `FROM ghcr.io/mhieuhonda/tubi-app:0.9.15` → `:0.9.16`.
+- **[MAINT-3] main.rs version string** — `v0.9.15` → `v0.9.16`.
+- **[MAINT-4] Layout footer version** — `v0.9.15` → `v0.9.16`.
+- **[MAINT-5] khong-gian footer version** — `v0.9.15` → `v0.9.16`.
+
+### Giai đoạn
+
+Giai đoạn 21 — UI Redesign + Route Hub + Polish. Tiếp theo sau Giai đoạn 20 (v0.9.15) — Niệm Phật Fix + Admin Redesign + Mobile UX.
+
+**Triết lý redesign:** Ít chữ hơn, nhiều icon hơn, cards nhỏ gọn, màu sắc mềm mại (paper background, tubi-50/100 accents, lotus-50/100 cho highlight). Tất cả route đều có UI truy cập qua /tong-quan hoặc mega menu hoặc footer — không còn "route mồ côi".
+
+---
+
 ## [0.9.15] — 2026-08-15 — Giai đoạn 20: Niệm Phật Fix + Admin Redesign + Mobile UX
 
 ### Sửa (Bug Fixes — Critical)

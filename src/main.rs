@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.15 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.16 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.15 — Giai đoạn 20: Niệm Phật Fix + Admin Redesign + Mobile UX");
+    log::info!("📦 Phiên bản: v0.9.16 — Giai đoạn 21: UI Redesign + Route Hub + Polish");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -332,11 +332,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.15",
+        "version": "0.9.16",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 20,
-        "phase_name": "Giai đoạn 20 — Niệm Phật Fix + Admin Redesign + Mobile UX",
+        "phase": 21,
+        "phase_name": "Giai đoạn 21 — UI Redesign + Route Hub + Polish",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -389,7 +389,12 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "global-search-tim-kiem",
             "mega-menu-navigation",
             "mobile-drawer-navigation",
-            "permissions-150-expanded"
+            "permissions-150-expanded",
+            "ui-redesign-compact",
+            "route-hub-tong-quan-v2",
+            "kinh-sach-5-thu-vien-links",
+            "bang-xep-hang-5-tabs-links",
+            "admin-dashboard-quick-links"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],

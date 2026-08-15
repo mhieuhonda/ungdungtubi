@@ -72,6 +72,7 @@ impl DonationType {
     }
 
     /// Chuỗi cho DB.
+    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::General => "general",
@@ -84,6 +85,7 @@ impl DonationType {
 }
 
 /// Một đóng góp vào Quỹ Từ Bi.
+#[allow(dead_code)]
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct FundDonation {
     pub id: i64,
@@ -204,6 +206,7 @@ pub struct FundSummary {
 impl FundSummary {
     /// Tổng K trong toàn hệ thống (sum của users.k_balance).
     /// Tính riêng vì không thuộc view v_fund_summary.
+    #[allow(dead_code)]
     pub fn total_k_in_system_label() -> &'static str {
         "Tổng K trong hệ thống"
     }

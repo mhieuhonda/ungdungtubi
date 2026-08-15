@@ -9,7 +9,7 @@
 
 use axum::{
     extract::State,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{Html, IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
 use askama::Template;
@@ -24,21 +24,15 @@ use crate::models::user::User;
 pub struct TongQuanTemplate {
     pub user: Option<User>,
     pub active_page: String,
-    /// Tổng số route/feature có trong hub.
-    pub total_features: u32,
 }
 
 /// GET /tong-quan — Trang User Hub với cards cho mọi tính năng.
 pub async fn tong_quan_index(State(state): State<AppState>, jar: CookieJar) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
 
-    // Đếm số feature trong hub (cho badge)
-    let total_features = 24u32; // 4 chuyên mục + 20 route phụ
-
     let html = TongQuanTemplate {
         user,
         active_page: "tong_quan".into(),
-        total_features,
     }
     .render()
     .unwrap_or_else(|e| {

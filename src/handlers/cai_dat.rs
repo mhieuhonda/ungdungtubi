@@ -265,15 +265,11 @@ async fn fetch_user_settings(pool: &sqlx::PgPool, user_id: uuid::Uuid) -> UserSe
                 .bind(user_id)
                 .execute(pool)
                 .await;
-            let mut s = UserSettings::default();
-            s.user_id = user_id;
-            s
+            UserSettings { user_id, ..Default::default() }
         }
         Err(e) => {
             log::warn!("⚠️ Lỗi fetch user_settings: {e}");
-            let mut s = UserSettings::default();
-            s.user_id = user_id;
-            s
+            UserSettings { user_id, ..Default::default() }
         }
     }
 }

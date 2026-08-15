@@ -63,6 +63,7 @@ impl VowType {
     }
 
     /// Màu sắc (hex) cho badge.
+    #[allow(dead_code)]
     pub fn color(&self) -> &'static str {
         match self {
             Self::Prayer => "#FFB300",
