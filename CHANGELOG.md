@@ -6,6 +6,55 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.23] — 2026-08-15 — Giai đoạn 28: Security Fix + Member Mgmt + Thuong Thanh + UI Fix
+
+### Sửa lỗi (CRITICAL — Security)
+
+- **[SEC-1] Health check lộ thông tin nhạy cảm** — `GET /api/health` công khai cho TẤT CẢ user, lộ DB version, features list, role hierarchy, permission counts, user counts. **Fix**: endpoint giờ yêu cầu auth + staff role (admin/mod). User thường nhận 401/403.
+- **[SEC-2] Health Check link trên trang Tổng Quan** — User thường có thể click vào 💓 Health Check trên trang `/tong-quan` để xem thông tin hệ thống nhạy cảm. **Fix**: thay thế bằng link 👥 Đội Ngũ (công khai, an toàn).
+- **[SEC-3] Chống leo thang đặc quyền** — Admin Quản Lý (level 4) có thể nâng user lên Admin Kỹ Thuật (level 5). **Fix**: thêm check `new_role_level >= actor.role_level()` — không cho nâng user lên role cao hơn hoặc bằng role của actor.
+- **[SEC-4] DmCtrlMessage::Error dùng sai cho pong** — DM WebSocket handler gửi pong response qua `DmCtrlMessage::Error` variant (sai ngữ nghĩa), trong khi global chat dùng `CtrlMessage::Text`. **Fix**: đổi `DmCtrlMessage::Error` → `DmCtrlMessage::Text`, đồng bộ với chat.rs.
+
+### Sửa lỗi (UI)
+
+- **[UI-1] Danh sách bạn bè tràn trên mobile** — Nút "💬 Nhắn tin" và "✉️ Gửi thư" chiếm quá nhiều không gian, đè lên tên user, gây tràn layout trên điện thoại. **Fix**: chuyển sang icon-only trên mobile (chỉ hiện 💬, ✉️, ✕), responsive flex với gap/padding thích ứng. Avatar và text cũng thu nhỏ trên mobile.
+- **[UI-2] Lời mời kết bạn tràn trên mobile** — Cùng vấn đề với danh sách bạn bè. **Fix**: responsive treatment đồng nhất.
+
+### Thêm mới
+
+- **Trang Thương Thành** (`GET /thuong-thanh`) — Marketplace của Ứng Dụng Từ Bi
+  - 6 danh mục vật phẩm: Phật Tử, Kinh Sách, Đồ Cúng Tụ, Trang Phục, Dịch Vụ, Khác
+  - Nguyên tắc Thương Thành (cúng dường đúng pháp, giá cả hợp lý, trao đổi thiện lành, an toàn minh bạch)
+  - Thống kê, liên kết hữu ích
+  - Handler riêng `handlers::thuong_thanh` + template `thuong-thanh/index.html`
+  - Thay thế placeholder page cũ
+
+- **Quản lý thành viên nhóm** (Group Member Management)
+  - Route `POST /cong-dong/nhom/{slug}/duyet-thanh-vien/{member_id}` — duyệt thành viên đang chờ
+  - Route `POST /cong-dong/nhom/{slug}/xoa-thanh-vien/{member_id}` — xóa thành viên
+  - Section "Quản Lý Thành Viên" hiển thị trên trang nhóm khi user là owner/admin/staff
+  - `GroupMemberWithUser` model mới với `role_display()`, `role_icon()`, `initial()` helpers
+  - Không thể xóa chủ nhóm (bảo vệ)
+
+- **Nút Đội Ngũ Quản Lí**
+  - Thêm vào "Khám Phá Thêm" trên trang chủ (home.html)
+  - Thêm vào section "Hệ Thống" trên trang Tổng Quan (thay Health Check)
+
+### Thay đổi
+
+- Cập nhật version v0.9.23, Giai đoạn 28
+- `DmCtrlMessage` enum: `Error` → `Text` (đồng bộ với `CtrlMessage` trong chat.rs)
+- `health_check()` → `health_check_secure()` + `health_check_inner()` (tách logic)
+- Thêm `CookieJar` import trong main.rs
+- Thêm route member management trong main.rs
+- Thêm module `handlers::thuong_thanh`
+- Thêm template `templates/thuong-thanh/index.html`
+- Thêm `members: Vec<GroupMemberWithUser>` vào `GroupTemplate`
+- Cập nhật Dockerfile.coolify tag → `:0.9.23`
+- HEALTH_FEATURES thêm 5 features mới v0.9.23
+
+---
+
 ## [0.9.22] — 2026-08-15 — Giai đoạn 27: Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix
 
 ### Thêm mới
