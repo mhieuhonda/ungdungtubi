@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" class="tubi-logo">
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Ứng Dụng Từ Bi — Logo Inline (cho header navbar)
+       v0.9.24 — Phiên bản inline nhỏ, không background, fit trong button 36-40px
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <defs>
+    <linearGradient id="ilOuter" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFCDD2"/>
+      <stop offset="55%" stop-color="#F48FB1"/>
+      <stop offset="100%" stop-color="#AD1457"/>
+    </linearGradient>
+    <linearGradient id="ilMiddle" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFE0E6"/>
+      <stop offset="60%" stop-color="#FFB3C6"/>
+      <stop offset="100%" stop-color="#D81B60"/>
+    </linearGradient>
+    <linearGradient id="ilInner" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="55%" stop-color="#FFE082"/>
+      <stop offset="100%" stop-color="#FF8F00"/>
+    </linearGradient>
+    <radialGradient id="ilCenter" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD54F"/>
+      <stop offset="55%" stop-color="#FFA000"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </radialGradient>
+    <linearGradient id="ilLeaf" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#81C784"/>
+      <stop offset="100%" stop-color="#1B5E20"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Lá sen base -->
+  <path d="M 6 30 Q 14 26 24 30 Q 18 36 10 34 Z" fill="url(#ilLeaf)" opacity="0.85"/>
+  <path d="M 42 30 Q 34 26 24 30 Q 30 36 38 34 Z" fill="url(#ilLeaf)" opacity="0.85"/>
+
+  <!-- Outer petals (8 cánh) -->
+  <g transform="translate(24 24)">
+    <g><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(45)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(90)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(135)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(180)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(225)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(270)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+    <g transform="rotate(315)"><path d="M 0 -3 Q -4 -10 -2 -18 Q 0 -21 2 -18 Q 4 -10 0 -3 Z" fill="url(#ilOuter)" opacity="0.92"/></g>
+  </g>
+
+  <!-- Middle petals (8 cánh, lệch 22.5°) -->
+  <g transform="translate(24 24)">
+    <g transform="rotate(22.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(67.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(112.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(157.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(202.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(247.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(292.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+    <g transform="rotate(337.5)"><path d="M 0 -1.5 Q -2.5 -7 -1.5 -13 Q 0 -16 1.5 -13 Q 2.5 -7 0 -1.5 Z" fill="url(#ilMiddle)" opacity="0.95"/></g>
+  </g>
+
+  <!-- Inner petals (6 cánh trong cùng) -->
+  <g transform="translate(24 24)">
+    <g><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+    <g transform="rotate(60)"><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+    <g transform="rotate(120)"><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+    <g transform="rotate(180)"><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+    <g transform="rotate(240)"><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+    <g transform="rotate(300)"><path d="M 0 -0.5 Q -1.8 -4 -1 -9 Q 0 -10.5 1 -9 Q 1.8 -4 0 -0.5 Z" fill="url(#ilInner)" opacity="0.96"/></g>
+  </g>
+
+  <!-- Center (tim sen) -->
+  <circle cx="24" cy="24" r="2.5" fill="url(#ilCenter)"/>
+  <circle cx="24" cy="24" r="1" fill="#FFD54F" stroke="#FFA000" stroke-width="0.2"/>
+  <ellipse cx="22.5" cy="22.5" rx="0.6" ry="0.4" fill="#FFFFFF" opacity="0.7"/>
+</svg>

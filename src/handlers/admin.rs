@@ -404,9 +404,17 @@ pub async fn admin_change_role(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    // Permission: admin_ky_thuat (level 4) + admin_quan_li (level 3) mới đổi role được
+    // v0.9.24: Permission check dựa trên permission code, KHÔNG dùng role_level.
+    // Ai có quyền `users_change_role` mới được đổi role.
+    // Theo migration 021: admin_ky_thuat và admin_quan_li có quyền này.
+    // admin_cong_dong và mod KHÔNG có (scope của họ là cộng đồng, không phải user management).
     if !actor.can_manage_admin() {
-        return render_forbidden(&actor);
+        return render_users_error(
+            &state.pool,
+            &actor,
+            "Vai trò của bạn không có quyền đổi role user. Chỉ Admin Kỹ Thuật và Admin Quản Lý mới có quyền này (theo phân quyền v0.9.24).",
+        )
+        .await;
     }
 
     // Validate role
@@ -434,50 +442,10 @@ pub async fn admin_change_role(
         .await;
     }
 
-    // Admin Quản Lý không được nâng ai lên admin_ky_thuat (chỉ admin_ky_thuat mới được)
-    // v0.9.19: Cũng không được nâng lên admin_ky_thuat từ mod hoặc member.
-    if actor.is_admin_quan_li() && new_role == "admin_ky_thuat" {
-        return render_users_error(
-            &state.pool,
-            &actor,
-            "Admin Quản Lý không thể nâng ai lên Admin Kỹ Thuật. Chỉ Admin Kỹ Thuật mới có quyền này.",
-        )
-        .await;
-    }
-
-    // v0.9.19: Admin Cộng Đồng không được đổi role user khác — chỉ xem được.
-    // (admin_cong_dong có thể xem /admin/thanh-vien nhưng không đổi role được.)
-    // Quyền đổi role: chỉ admin_ky_thuat (level 5) và admin_quan_li (level 4).
-    // admin_cong_dong (level 3) và mod (level 2) không được đổi role.
-    // Note: `can_manage_admin()` đã trả false cho admin_cong_dong + mod, nên check
-    // này đã được handle ở trên. Nhưng để safe, thêm check rõ ràng:
-    if actor.is_admin_cong_dong() || actor.is_mod() {
-        return render_users_error(
-            &state.pool,
-            &actor,
-            "Vai trò của bạn không có quyền đổi role user khác. Chỉ Admin Kỹ Thuật và Admin Quản Lý mới có quyền này.",
-        )
-        .await;
-    }
-
-    // v0.9.23: Chống leo thang đặc quyền — không cho nâng user lên role cao hơn hoặc bằng actor
-    // Admin Quản Lý (level 4) chỉ được đặt role ≤ admin_quan_li (không được đặt admin_ky_thuat)
-    // Admin Kỹ Thuật (level 5) được đặt mọi role
-    let new_role_level: u8 = match new_role.as_str() {
-        "admin_ky_thuat" => 5,
-        "admin_quan_li" => 4,
-        "admin_cong_dong" => 3,
-        "mod" => 2,
-        _ => 1,
-    };
-    if new_role_level >= actor.role_level() {
-        return render_users_error(
-            &state.pool,
-            &actor,
-            "Bạn không thể nâng ai lên vai trò cao hơn hoặc bằng vai trò của mình.",
-        )
-        .await;
-    }
+    // v0.9.24: Bỏ hierarchical check (new_role_level >= actor.role_level) vì
+    // tất cả admin giờ NGANG HÀNH nhau. Mọi admin có quyền users_change_role
+    // đều có thể đặt role bất kỳ cho user khác (member/mod/admin_*).
+    // Giới hạn duy nhất: không được tự đổi role chính mình (đã check ở trên).
 
     // Update
     match sqlx::query("UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2")
@@ -596,11 +564,11 @@ async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Erro
     })
 }
 
-/// Fetch users list — hierarchy mới (v0.9.8): admin_ky_thuat cao nhất.
+/// Fetch users list — v0.9.24: admin ngang hàng, ORDER BY role alphabetically.
 ///
 /// v0.9.9: LEFT JOIN sessions để lấy `last_session_at` (MAX(created_at)) — dùng
 /// cho hiển thị "hoạt động gần nhất" trên card.
-/// v0.9.19: Thêm 'mod' vào ORDER BY (sau admin_cong_dong, trước member).
+/// v0.9.24: Bỏ hierarchy ORDER BY — admin ngang hàng, sắp xếp theo role name.
 async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
     sqlx::query_as::<_, AdminUserRow>(
         "SELECT u.id, u.email, u.display_name, u.role, u.rank, u.is_active,
@@ -627,7 +595,7 @@ async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
 }
 
 /// Render trang 403 Forbidden — user không có quyền.
-/// v0.9.19: Cập nhật hierarchy để bao gồm Mod.
+/// v0.9.24: Cập nhật message — admin ngang hàng, phân quyền theo scope.
 fn render_forbidden(user: &User) -> Response {
     let html = format!(
         r#"<!DOCTYPE html>
@@ -641,16 +609,15 @@ fn render_forbidden(user: &User) -> Response {
 <div class="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg text-center">
   <div class="text-5xl mb-4">🚫</div>
   <h1 class="text-xl font-bold text-red-600 mb-2">403 — Không có quyền truy cập</h1>
-  <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin và Mod.</p>
-  <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền UI / {sys_perm_count} quyền hệ thống)</p>
-  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (150/150) &gt; Admin Quản Lý (100/100) &gt; Admin Cộng Đồng (75/75) &gt; Mod (15) &gt; Thành Viên (0)</p>
+  <p class="text-gray-600 text-sm mb-2">Trang này yêu cầu quyền hạn cụ thể mà vai trò của bạn không có.</p>
+  <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền)</p>
+  <p class="text-gray-400 text-[10px] mb-6">v0.9.24 — Admin ngang hàng, mỗi admin phụ trách một mảng riêng.</p>
   <a href="/" class="inline-block text-white px-6 py-2 rounded-xl transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </div>
 </body></html>"#,
         role_icon = user.role_icon(),
         role_display = user.role_display(),
         perm_count = user.permission_count(),
-        sys_perm_count = user.system_permission_count(),
     );
     Html(html).into_response()
 }
@@ -966,6 +933,9 @@ async fn render_cam_ngo_result(
 // ─── User Ban / Activate (Admin Kỹ Thuật) ──────────────────────────────
 
 /// POST /admin/thanh-vien/{user_id}/ban — Ban user (set is_active = false).
+///
+/// v0.9.24: Quyền ban user dựa trên permission code `users_ban`.
+/// Theo migration 021: admin_ky_thuat và admin_quan_li có quyền này.
 pub async fn admin_ban_user(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -975,7 +945,8 @@ pub async fn admin_ban_user(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !actor.is_admin_ky_thuat() {
+    // v0.9.24: Permission check theo code, không theo role
+    if !actor.can_ban_user() {
         return render_forbidden(&actor);
     }
 
@@ -1019,6 +990,9 @@ pub async fn admin_ban_user(
 }
 
 /// POST /admin/thanh-vien/{user_id}/kich-hoat — Activate user (set is_active = true).
+///
+/// v0.9.24: Quyền activate user dựa trên permission code `users_activate`.
+/// Theo migration 021: admin_ky_thuat và admin_quan_li có quyền này.
 pub async fn admin_activate_user(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -1028,7 +1002,8 @@ pub async fn admin_activate_user(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !actor.is_admin_ky_thuat() {
+    // v0.9.24: Permission check theo code, không theo role
+    if !actor.can_ban_user() {
         return render_forbidden(&actor);
     }
 

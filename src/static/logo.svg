@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Ứng Dụng Từ Bi — Logo Hoa Sen (Full Size)
+       v0.9.24 — Phiên bản logo đầy đủ cho header, footer, landing page
+       Hoa sen 3 lớp cánh + 2 lá sen + tim sen vàng-xanh
+       ═══════════════════════════════════════════════════════════════════════ -->
+  <defs>
+    <linearGradient id="logoOuter" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFCDD2"/>
+      <stop offset="55%" stop-color="#F48FB1"/>
+      <stop offset="100%" stop-color="#AD1457"/>
+    </linearGradient>
+    <linearGradient id="logoMiddle" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFE0E6"/>
+      <stop offset="60%" stop-color="#FFB3C6"/>
+      <stop offset="100%" stop-color="#D81B60"/>
+    </linearGradient>
+    <linearGradient id="logoInner" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="55%" stop-color="#FFE082"/>
+      <stop offset="100%" stop-color="#FF8F00"/>
+    </linearGradient>
+    <radialGradient id="logoCenter" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD54F"/>
+      <stop offset="55%" stop-color="#FFA000"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </radialGradient>
+    <linearGradient id="logoLeaf" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#81C784"/>
+      <stop offset="100%" stop-color="#1B5E20"/>
+    </linearGradient>
+    <radialGradient id="logoBg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F1F8E9"/>
+    </radialGradient>
+    <!-- Soft glow filter -->
+    <filter id="logoGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background — vòng tròn nhẹ -->
+  <circle cx="64" cy="64" r="62" fill="url(#logoBg)" stroke="#2E7D32" stroke-width="1.2" opacity="0.6"/>
+
+  <!-- Lá sen base (2 lá lớn phía dưới) -->
+  <path d="M 16 82 Q 36 72 64 80 Q 48 96 26 92 Z" fill="url(#logoLeaf)" opacity="0.85"/>
+  <path d="M 112 82 Q 92 72 64 80 Q 80 96 102 92 Z" fill="url(#logoLeaf)" opacity="0.85"/>
+  <!-- Gân lá sen -->
+  <path d="M 22 88 Q 40 82 60 84" stroke="#1B5E20" stroke-width="0.6" fill="none" opacity="0.5"/>
+  <path d="M 106 88 Q 88 82 68 84" stroke="#1B5E20" stroke-width="0.6" fill="none" opacity="0.5"/>
+
+  <!-- ═══ Outer petals (8 cánh ngoài) ═══ -->
+  <g transform="translate(64 64)" filter="url(#logoGlow)">
+    <g>
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(45)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(90)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(135)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(180)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(225)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(270)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(315)">
+      <path d="M 0 -8 Q -10 -28 -6 -48 Q 0 -56 6 -48 Q 10 -28 0 -8 Z" fill="url(#logoOuter)" opacity="0.92"/>
+    </g>
+  </g>
+
+  <!-- ═══ Middle petals (8 cánh giữa, lệch 22.5°) ═══ -->
+  <g transform="translate(64 64)">
+    <g transform="rotate(22.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(67.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(112.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(157.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(202.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(247.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(292.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(337.5)">
+      <path d="M 0 -4 Q -7 -20 -4 -36 Q 0 -42 4 -36 Q 7 -20 0 -4 Z" fill="url(#logoMiddle)" opacity="0.95"/>
+    </g>
+  </g>
+
+  <!-- ═══ Inner petals (6 cánh trong cùng) ═══ -->
+  <g transform="translate(64 64)">
+    <g>
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(60)">
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(120)">
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(180)">
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(240)">
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(300)">
+      <path d="M 0 -2 Q -5 -12 -3 -24 Q 0 -28 3 -24 Q 5 -12 0 -2 Z" fill="url(#logoInner)" opacity="0.96"/>
+    </g>
+  </g>
+
+  <!-- ═══ Center (tim sen) ═══ -->
+  <circle cx="64" cy="64" r="7" fill="url(#logoCenter)"/>
+  <circle cx="64" cy="64" r="3" fill="#FFD54F" stroke="#FFA000" stroke-width="0.6"/>
+  <!-- Nhụy sen — chấm nhỏ -->
+  <circle cx="60" cy="60" r="1" fill="#FFA000" opacity="0.8"/>
+  <circle cx="68" cy="60" r="1" fill="#FFA000" opacity="0.8"/>
+  <circle cx="64" cy="68" r="1" fill="#FFA000" opacity="0.8"/>
+
+  <!-- Highlight — glint ánh sáng -->
+  <ellipse cx="60" cy="58" rx="2" ry="1.2" fill="#FFFFFF" opacity="0.7"/>
+</svg>

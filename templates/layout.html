@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover">
     <meta name="description" content="Ứng Dụng Từ Bi — Sân chơi tu đạo, thư viện kinh sách, niệm Phật, cộng tu.">
     <meta name="theme-color" content="#0f766e">
+    {# v0.9.24: Security headers — CSP, X-Frame-Options, etc. được set qua middleware.
+       Meta tags ở đây là bổ sung cho trường hợp middleware không chạy (vd. static files). #}
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="robots" content="index, follow, max-image-preview:large">
     <title>{% block title %}Ứng Dụng Từ Bi{% endblock %}</title>
 
     <!-- v0.9.17: Anti-FOUC — apply theme class BEFORE paint để tránh flash sáng/tối -->
@@ -77,11 +81,11 @@
     <header class="bg-white/95 dark:bg-slate-800 backdrop-blur border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 transition-colors">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-14">
-                <!-- Logo -->
+                <!-- Logo — v0.9.24: SVG hoa sen thay emoji 🪷 -->
                 <a href="/" class="flex items-center gap-2 group">
                     <div class="w-9 h-9 bg-gradient-to-br from-tubi-600 to-tubi-800 rounded-xl flex items-center justify-center
-                                group-hover:scale-105 transition-transform shadow-sm">
-                        <span class="text-white text-lg">🪷</span>
+                                group-hover:scale-105 transition-transform shadow-sm overflow-hidden">
+                        <img src="/static/logo-inline.svg" alt="🪷 Từ Bi" class="w-7 h-7" loading="eager" decoding="async">
                     </div>
                     <div class="leading-tight">
                         <div class="text-sm font-bold tracking-tight text-ink">TỪ BI</div>

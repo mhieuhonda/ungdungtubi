@@ -4,9 +4,41 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.22 — Giai đoạn 27
+## 📦 Phiên bản hiện tại: v0.9.24 — Giai đoạn 29
 
-**Giai đoạn 27: Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix**
+**Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix**
+
+### 🔐 Redesign Phân Quyền — Admin ngang hàng (MAJOR)
+- **Bỏ hierarchy cũ**: admin_ky_thuat(5) > admin_quan_li(4) > admin_cong_dong(3) → tất cả admin giờ **NGANG HÀNH** (level 3)
+- **Mỗi admin có scope quyền riêng** theo phần phụ trách:
+  - `admin_ky_thuat` (40 quyền) — system, security, technical infrastructure, media storage, analytics
+  - `admin_quan_li` (40 quyền) — users (incl. change_role), content, community, fund, mail/notif
+  - `admin_cong_dong` (45 quyền) — content, community, friends, mail, events, achievements, media mod
+  - `mod` (15 quyền) — content moderation, chat moderation, basic community
+- **Migration 021** — Re-seed `role_permissions`, thêm `csrf_token` vào sessions, `last_login_ip` vào users, `ip_address` vào audit_log, tạo bảng `rate_limit_log` + `login_attempts`
+- **`can_manage_*()` dùng permission check** thay vì role_level — `can_manage_admin()` check `users_change_role`, `can_ban_user()` check `users_ban`, etc.
+
+### 🪷 SVG Redesign
+- **Redraw `favicon.svg`** — Hoa sen 3 lớp cánh (8+8+6) + 2 lá sen + tim sen vàng-xanh, gradient hồng-đỏ-vàng-xanh
+- **Tạo `logo.svg`** — Logo đầy đủ 128x128 cho home hero, có background + glow filter
+- **Tạo `logo-inline.svg`** — Logo inline 48x48 cho header navbar (thay emoji 🪷)
+- **Layout.html + home.html** — Dùng SVG image thay emoji
+
+### 🔒 Security Hardening
+- **Security Headers middleware** — CSP, X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy, Permissions-Policy, HSTS (2 năm), Cross-Origin-Isolation
+- **Rate Limiting middleware** — In-memory token bucket per IP + endpoint:
+  - Auth: 10 req/phút | Upload: 10 req/phút | API: 60 req/phút | POST: 30 req/phút | General: 120 req/phút
+  - 429 Too Many Requests + Retry-After khi exceed
+- **CSRF Protection middleware** — Log-only mode (v0.9.24), block mode ở v0.9.25
+- **Audit log IP tracking** — Track IP mọi admin action + login
+- **Login attempts table** — Detect brute-force (sẽ integrate auth handler v0.9.25)
+
+### 🐛 Fix Deploy
+- **v0.9.23 không deploy thực sự** — Production vẫn chạy v0.9.22. Fix v0.9.24: bump tag image, verify deploy, restart Coolify app thủ công nếu cần.
+
+---
+
+## 📦 Phiên bản trước: v0.9.22 — Giai đoạn 27
 
 ### 👥 Trang Đội Ngũ Quản Lí (new feature)
 - **Route**: `GET /doi-ngu-quan-li` — công khai, không yêu cầu đăng nhập

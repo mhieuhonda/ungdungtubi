@@ -13,10 +13,12 @@ mod config;
 mod db;
 mod errors;
 mod handlers;
+mod middleware;
 mod models;
 
 use config::Config;
 use handlers::chat::{DmChatHub, GlobalChatHub};
+use middleware::RateLimitState;
 
 /// Shared application state — replaces actix-web's `web::Data<T>`.
 ///
@@ -43,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.23 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.24 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.23 — Giai đoạn 28: Security Fix + Member Mgmt + Thuong Thanh + UI Fix");
+    log::info!("📦 Phiên bản: v0.9.24 — Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -140,9 +142,13 @@ async fn main() -> std::io::Result<()> {
         dm_chat_hub: DmChatHub::default(),
     };
 
+    // v0.9.24: Rate limit state (in-memory, per-IP)
+    let rate_limit_state = RateLimitState::new();
+    middleware::rate_limit::spawn_cleanup_task(rate_limit_state.clone());
+
     // Build router
     let static_dir = config.static_dir.clone();
-    let app = build_router(state, static_dir);
+    let app = build_router(state, static_dir, rate_limit_state);
 
     // Start server
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
@@ -158,7 +164,11 @@ async fn main() -> std::io::Result<()> {
 }
 
 /// Build the axum Router with all routes.
-fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
+///
+/// v0.9.24: Thêm security middleware layers (rate limit + CSRF + headers).
+fn build_router(state: AppState, static_dir: std::path::PathBuf, rate_limit_state: RateLimitState) -> Router {
+    use axum::middleware as axum_mw;
+
     Router::new()
         // Routes — Trang chủ
         .route("/", get(handlers::home))
@@ -315,6 +325,9 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // API
         // v0.9.23: /api/health yêu cầu auth + admin role — không công khai cho user thường
         .route("/api/health", get(health_check_secure))
+        // v0.9.24: /api/ping — public health endpoint cho Docker healthcheck + monitoring
+        // (không cần DB, không cần auth, luôn trả 200 "pong")
+        .route("/api/ping", get(handlers::ping))
         .route("/api/heartbeat", post(handlers::heartbeat))
         // API — Upload ảnh (v0.5+)
         .route("/api/upload-info", get(handlers::uploads::upload_info))
@@ -323,7 +336,15 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .nest_service("/static", ServeDir::new(static_dir))
         // Shared state
         .with_state(state)
+        // v0.9.24: Inject rate limit state vào request extensions
+        .layer(axum::extension::AddExtensionLayer::new(rate_limit_state))
         // Middleware (order matters: outermost last)
+        // v0.9.24: Security headers — map_response (chỉ sửa response, không đọc request)
+        .layer(axum_mw::map_response(middleware::headers::security_headers))
+        // v0.9.24: CSRF check (log-only mode trong v0.9.24) — from_fn (đọc request, gọi next)
+        .layer(axum_mw::from_fn(middleware::csrf::csrf_check))
+        // v0.9.24: Rate limit (per-IP + per-endpoint) — from_fn
+        .layer(axum_mw::from_fn(middleware::rate_limit::rate_limit))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
 }
@@ -444,6 +465,21 @@ const HEALTH_FEATURES: &[&str] = &[
     "dm-ctrlmessage-fix-v0.9.23",
     "friends-list-mobile-ui-fix-v0.9.23",
     "doi-ngu-btn-in-tong-quan-v0.9.23",
+    "admin-equal-permissions-v0.9.24",
+    "permission-scope-per-domain-v0.9.24",
+    "svg-lotus-redesign-v0.9.24",
+    "favicon-svg-redraw-v0.9.24",
+    "logo-svg-inline-v0.9.24",
+    "csp-security-headers-v0.9.24",
+    "rate-limit-middleware-v0.9.24",
+    "csrf-check-log-only-v0.9.24",
+    "audit-log-ip-tracking-v0.9.24",
+    "login-attempts-table-v0.9.24",
+    "rate-limit-log-table-v0.9.24",
+    "hsts-strict-transport-security-v0.9.24",
+    "permissions-policy-v0.9.24",
+    "cross-origin-isolation-v0.9.24",
+    "deploy-fix-v0.9.24",
 ];
 
 /// GET /api/health — Secure health check (admin only).
@@ -487,24 +523,25 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.23",
+        "version": "0.9.24",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 28,
-        "phase_name": "Giai đoạn 28 — Security Fix + Member Mgmt + Thuong Thanh + UI Fix",
+        "phase": 29,
+        "phase_name": "Giai đoạn 29 — Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "mod": 15, "member": 0},
-            "system_permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "mod": 15, "member": 0},
+            "permission_counts": {"admin_ky_thuat": 40, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 40, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
             "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",
             "admin_quan_li_dashboard": "/admin/quan-li",
-            "mod_dashboard": "/admin/thanh-vien"
+            "mod_dashboard": "/admin/thanh-vien",
+            "v0_9_24_note": "Tất cả admin NGANG HÀNH (level 3) — mỗi admin có scope quyền riêng theo phần phụ trách"
         },
         "database": {
             "status": db_status,

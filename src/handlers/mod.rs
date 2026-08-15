@@ -415,6 +415,19 @@ pub async fn heartbeat() -> Response {
     axum::Json(serde_json::json!({ "status": "ok" })).into_response()
 }
 
+/// API: Ping — public health endpoint for Docker healthcheck + monitoring.
+/// v0.9.24: Thêm endpoint này vì /api/health giờ yêu cầu admin auth (v0.9.23),
+/// khiến Docker healthcheck fail. /api/ping luôn công khai, không cần DB,
+/// trả về 200 "pong" — dùng cho Coolify/Docker healthcheck.
+pub async fn ping() -> Response {
+    (
+        axum::http::StatusCode::OK,
+        [("content-type", "text/plain; charset=utf-8")],
+        "pong",
+    )
+        .into_response()
+}
+
 // --- Helper ---
 
 /// Render trang "tính năng đang phát triển" dùng layout chính.

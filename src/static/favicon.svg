@@ -1,31 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Lotus flower favicon for Ứng Dụng Từ Bi -->
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       Ứng Dụng Từ Bi — Favicon (Hoa Sen)
+       v0.9.24 — Redraw: многослойная симметричная схема, gradients, тонкие линии
+       Symbolism: hoa sen thanh tịnh mọc từ bùn lầy — giác ngộ, giải thoát.
+       ═══════════════════════════════════════════════════════════════════════ -->
   <defs>
-    <linearGradient id="petalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFB300;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#FFA000;stop-opacity:1" />
+    <!-- Outer petals — hồng đậm → cánh sen rosé -->
+    <linearGradient id="outerPetal" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFCDD2"/>
+      <stop offset="55%" stop-color="#F48FB1"/>
+      <stop offset="100%" stop-color="#C2185B"/>
     </linearGradient>
-    <linearGradient id="centerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#2E7D32;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#1B5E20;stop-opacity:1" />
+    <!-- Middle petals — hồng nhạt -->
+    <linearGradient id="middlePetal" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFE0E6"/>
+      <stop offset="60%" stop-color="#FFB3C6"/>
+      <stop offset="100%" stop-color="#E91E63"/>
+    </linearGradient>
+    <!-- Inner petals — vàng kem (cánh trong cùng) -->
+    <linearGradient id="innerPetal" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#FFF8E1"/>
+      <stop offset="55%" stop-color="#FFE082"/>
+      <stop offset="100%" stop-color="#FFB300"/>
+    </linearGradient>
+    <!-- Center — xanh tubi (tim sen) -->
+    <radialGradient id="centerGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFD54F"/>
+      <stop offset="60%" stop-color="#FFA000"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </radialGradient>
+    <!-- Base — lá sen xanh -->
+    <linearGradient id="leafBase" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#1B5E20"/>
     </linearGradient>
   </defs>
-  <!-- Background circle -->
-  <circle cx="32" cy="32" r="30" fill="#E8F5E9" stroke="#2E7D32" stroke-width="1"/>
-  <!-- Outer petals -->
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(0,32,32)"/>
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(60,32,32)"/>
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(120,32,32)"/>
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(180,32,32)"/>
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(240,32,32)"/>
-  <ellipse cx="32" cy="14" rx="6" ry="12" fill="url(#petalGrad)" opacity="0.9" transform="rotate(300,32,32)"/>
-  <!-- Inner petals -->
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(30,32,32)"/>
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(90,32,32)"/>
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(150,32,32)"/>
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(210,32,32)"/>
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(270,32,32)"/>
-  <ellipse cx="32" cy="18" rx="4" ry="8" fill="#FFD54F" opacity="0.8" transform="rotate(330,32,32)"/>
-  <!-- Center -->
-  <circle cx="32" cy="32" r="5" fill="url(#centerGrad)"/>
+
+  <!-- Background circle — cream/light -->
+  <circle cx="32" cy="32" r="30" fill="#FAF7F2" stroke="#2E7D32" stroke-width="0.8" opacity="0.95"/>
+
+  <!-- Lá sen base (2 lá cong phía dưới) -->
+  <path d="M 10 40 Q 20 36 32 40 Q 24 48 14 46 Z" fill="url(#leafBase)" opacity="0.85"/>
+  <path d="M 54 40 Q 44 36 32 40 Q 40 48 50 46 Z" fill="url(#leafBase)" opacity="0.85"/>
+
+  <!-- ═══ Outer petals (8 cánh ngoài) — kích thước lớn, xoay 8 hướng ═══ -->
+  <g transform="translate(32 32)">
+    <!-- Each petal: ellipse-like path, tapered tip -->
+    <g>
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(45)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(90)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(135)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(180)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(225)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(270)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+    <g transform="rotate(315)">
+      <path d="M 0 -4 Q -5 -14 -3 -24 Q 0 -28 3 -24 Q 5 -14 0 -4 Z" fill="url(#outerPetal)" opacity="0.92"/>
+    </g>
+  </g>
+
+  <!-- ═══ Middle petals (8 cánh giữa) — nhỏ hơn, lệch 22.5° so với outer ═══ -->
+  <g transform="translate(32 32)">
+    <g transform="rotate(22.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(67.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(112.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(157.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(202.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(247.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(292.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+    <g transform="rotate(337.5)">
+      <path d="M 0 -2 Q -3.5 -10 -2 -18 Q 0 -21 2 -18 Q 3.5 -10 0 -2 Z" fill="url(#middlePetal)" opacity="0.95"/>
+    </g>
+  </g>
+
+  <!-- ═══ Inner petals (6 cánh trong cùng) — vàng kem, nhỏ ═══ -->
+  <g transform="translate(32 32)">
+    <g>
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(60)">
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(120)">
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(180)">
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(240)">
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+    <g transform="rotate(300)">
+      <path d="M 0 -1 Q -2.5 -6 -1.5 -12 Q 0 -14 1.5 -12 Q 2.5 -6 0 -1 Z" fill="url(#innerPetal)" opacity="0.96"/>
+    </g>
+  </g>
+
+  <!-- ═══ Center (tim sen) — vòng tròn vàng-xanh ═══ -->
+  <circle cx="32" cy="32" r="3.5" fill="url(#centerGrad)"/>
+  <!-- Nhụy sen — chấm vàng nổi -->
+  <circle cx="32" cy="32" r="1.5" fill="#FFD54F" stroke="#FFA000" stroke-width="0.3"/>
+
+  <!-- Highlight — glint ánh sáng -->
+  <ellipse cx="30" cy="30" rx="0.8" ry="0.5" fill="#FFFFFF" opacity="0.6"/>
 </svg>

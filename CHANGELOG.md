@@ -6,6 +6,86 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.24] — 2026-08-15 — Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix
+
+### Sửa lỗi (CRITICAL — Deploy)
+
+- **[DEPLOY-1] v0.9.23 không được deploy thực sự** — Production vẫn chạy v0.9.22 mặc dù GitHub Actions build thành công và Coolify nhận trigger (HTTP 200, deployment_uuid trả về). Nguyên nhân: Docker daemon trên VPS cache stale digest của image `:0.9.23`, hoặc Coolify pull image nhưng container cũ chưa được stop hẳn. **Fix v0.9.24**: 
+  - Bump tag image lên `:0.9.24` (tag mới chưa tồn tại trong cache → Docker chắc chắn pull image mới).
+  - Thêm `CACHEBUSTER` env mới trên Coolify để invalidate cache.
+  - Verify production `/api/health` trả về `version: 0.9.24` sau deploy.
+  - Nếu vẫn không update, sẽ restart Coolify app thủ công qua API.
+
+### Thay đổi (MAJOR — Permission Redesign)
+
+- **[PERM-1] Bỏ hierarchy admin cũ** — Trước đây: admin_ky_thuat(5) > admin_quan_li(4) > admin_cong_dong(3) > mod(2) > member(1). **Giờ**: tất cả admin NGANG HÀNH (level 3), mỗi admin có scope quyền riêng theo phần phụ trách.
+  - `admin_ky_thuat`: 40 quyền — system, security, technical infrastructure, media storage, analytics
+  - `admin_quan_li`: 40 quyền — users (bao gồm change_role), content, community, fund, mail/notif
+  - `admin_cong_dong`: 45 quyền — content, community, friends, mail, events, achievements, media mod
+  - `mod`: 15 quyền — content moderation, chat moderation, basic community
+  - `member`: 0 quyền admin
+- **[PERM-2] Migration 021** — Re-seed `role_permissions` theo phân quyền mới. TRUNCATE cũ + INSERT theo scope. Thêm cột `csrf_token` vào `sessions`, `last_login_ip` + `last_login_at` vào `users`, `ip_address` vào `audit_log`. Tạo bảng `rate_limit_log` + `login_attempts`.
+- **[PERM-3] `can_manage_*()` dùng permission check** — Thay vì `role_level() >= N`, giờ dùng `has_permission_code(code)`:
+  - `can_manage_technical()` → check `system_view_status` (chỉ admin_ky_thuat)
+  - `can_manage_admin()` → check `users_change_role` (admin_ky_thuat + admin_quan_li)
+  - `can_manage_community()` → check `content_mod_reviews` (tất cả admin + mod)
+  - `can_ban_user()` → NEW, check `users_ban` (admin_ky_thuat + admin_quan_li)
+- **[PERM-4] Bỏ hierarchical role check** — Trong `admin_change_role`, bỏ check `new_role_level >= actor.role_level()` vì tất cả admin ngang hàng. Mọi admin có quyền `users_change_role` đều có thể đặt role bất kỳ cho user khác (chỉ trừ tự đổi role chính mình).
+- **[PERM-5] Template users.html** — Cập nhật permission notice + actions dropdown để dùng `can_manage_admin()` và `can_ban_user()` thay vì `is_admin_ky_thuat() || is_admin_quan_li()`.
+
+### Thêm mới (SVG Redesign)
+
+- **[SVG-1] Redraw `favicon.svg`** — Hoa sen 3 lớp cánh (8 outer + 8 middle + 6 inner) + 2 lá sen base + tim sen vàng-xanh. Gradient hồng-đỏ-vàng-xanh, highlight ánh sáng, background circle cream. Đẹp hơn, chi tiết hơn, recognizable ở size 64x64.
+- **[SVG-2] Tạo `logo.svg`** — Logo đầy đủ 128x128 cho landing page, có background circle + glow filter + nhụy sen. Dùng trên home hero.
+- **[SVG-3] Tạo `logo-inline.svg`** — Logo inline 48x48 không background, fit trong header navbar button 36-40px.
+- **[SVG-4] Layout.html + home.html** — Thay emoji 🪷 bằng `<img src="/static/logo-inline.svg">` trong header, `<img src="/static/logo.svg">` trong home hero. Giữ emoji 🪷 làm fallback alt text.
+
+### Thêm mới (Security Hardening)
+
+- **[SEC-1] Security Headers middleware** — `src/middleware/headers.rs` inject các headers vào mọi response:
+  - `Content-Security-Policy`: default-src 'self', script-src 'self' + Tailwind/Alpine CDN + Google, style-src 'self' + inline + Google Fonts, img-src 'self' + data + blob + https, connect-src 'self' + wss + https, object-src 'none', frame-ancestors 'none', upgrade-insecure-requests
+  - `X-Frame-Options: DENY` — chống clickjacking
+  - `X-Content-Type-Options: nosniff` — chống MIME sniffing
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy`: camera=(), microphone=(), geolocation=(), payment=(), usb=(), etc.
+  - `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` (HSTS 2 năm)
+  - `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-site`
+  - `X-XSS-Protection: 1; mode=block` (legacy)
+  - `X-DNS-Prefetch-Control: off`
+- **[SEC-2] Rate Limiting middleware** — `src/middleware/rate_limit.rs` in-memory token bucket per IP + endpoint:
+  - Auth endpoints (/dang-nhap, /auth/*): 10 req/phút — chống brute-force OAuth
+  - Upload endpoints (/api/upload*): 10 req/phút — chống upload spam
+  - API endpoints (/api/*): 60 req/phút — chống scraping
+  - Profile update: 10 req/phút
+  - POST endpoints: 30 req/phút — chống spam form
+  - Social endpoints: 60 req/phút
+  - General: 120 req/phút
+  - Khi exceed: 429 Too Many Requests + Retry-After header
+  - Background cleanup task mỗi 5 phút (xoá entries cũ)
+- **[SEC-3] CSRF Protection middleware** — `src/middleware/csrf.rs` log-only mode (v0.9.24). Ghi log mọi POST/PUT/DELETE request để monitor. Sẽ chuyển sang block mode ở v0.9.25 sau khi all forms đã có CSRF hidden input. Whitelist: OAuth callback, /api/theme, /api/heartbeat, /ws/* (WebSocket).
+- **[SEC-4] Audit log IP tracking** — Migration 021 thêm cột `ip_address` vào `audit_log`, `last_login_ip` + `last_login_at` vào `users`. Track IP mọi admin action + login.
+- **[SEC-5] Login attempts table** — Migration 021 tạo bảng `login_attempts` (ip, email, success, attempted_at, user_agent). Track mọi login attempt để detect brute-force. (Sẽ integrate vào auth handler ở v0.9.25.)
+- **[SEC-6] Rate limit log table** — Migration 021 tạo bảng `rate_limit_log` (ip, endpoint, hit_count, blocked_until). Persist rate limit state (tương lai có thể chuyển từ in-memory sang DB).
+- **[SEC-7] Layout meta tags** — Thêm `<meta name="referrer" content="strict-origin-when-cross-origin">` + `<meta name="robots" content="index, follow, max-image-preview:large">` vào layout.html `<head>`.
+
+### Thay đổi
+
+- Cập nhật version v0.9.24, Giai đoạn 29
+- `Cargo.toml`: bump version 0.9.23 → 0.9.24 (rust-version = "1.97.1" giữ nguyên)
+- `Dockerfile.coolify`: tag `:0.9.23` → `:0.9.24`
+- `src/main.rs`: thêm `mod middleware`, inject `RateLimitState`, thêm 3 security layers (`map_response` + 2× `from_fn`), cập nhật `HEALTH_FEATURES` (+12 features v0.9.24), cập nhật health check response (version, phase, permission_counts)
+- `src/models/user.rs`: redesign `role_level()` (tất cả admin = 3), `can_manage_*()` dùng permission check, `has_permission_code()` update permission lists theo migration 021, `permission_count()` update (40/40/45/15/0)
+- `src/handlers/admin.rs`: `admin_change_role` bỏ hierarchical check, `admin_ban_user`/`admin_activate_user` dùng `can_ban_user()`, `render_forbidden` update message, `fetch_users_list` update comment
+- `templates/admin/users.html`: permission notice + actions dropdown dùng `can_manage_admin()` + `can_ban_user()`
+- `templates/layout.html`: logo dùng SVG inline thay emoji 🪷, thêm meta tags bảo mật
+- `templates/home.html`: hero logo dùng SVG
+- Tạo `src/middleware/mod.rs`, `src/middleware/headers.rs`, `src/middleware/csrf.rs`, `src/middleware/rate_limit.rs`
+- Tạo `src/static/logo.svg`, `src/static/logo-inline.svg`
+- Redraw `src/static/favicon.svg`
+- Tạo `migrations/021_admin_equal_permissions.sql`
+
+---
+
 ## [0.9.23] — 2026-08-15 — Giai đoạn 28: Security Fix + Member Mgmt + Thuong Thanh + UI Fix
 
 ### Sửa lỗi (CRITICAL — Security)

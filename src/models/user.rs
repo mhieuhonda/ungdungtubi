@@ -13,12 +13,19 @@ use uuid::Uuid;
 ///
 /// Từ v0.4, thêm các trường hồ sơ: `phap_danh`, `phap_hieu`, `but_danh`, gender, bio.
 ///
-/// Từ v0.9.7 (Giai đoạn 11), thêm trường `role` cho hệ thống phân quyền:
-///   - `member`          — Thành Viên (mặc định)
-///   - `mod`             — Mod (v0.9.19 — Giai đoạn 24: dưới admin, trên member)
-///   - `admin_ky_thuat`  — Admin Kỹ Thuật
-///   - `admin_cong_dong` — Admin Cộng Đồng
-///   - `admin_quan_li`   — Admin Quản Lý (quyền cao nhất)
+/// Từ v0.9.7 (Giai đoạn 11), thêm trường `role` cho hệ thống phân quyền.
+///
+/// **v0.9.24 (Giai đoạn 29) — REDESIGN PHÂN QUYỀN:**
+///   - Tất cả admin NGANG HÀNG nhau (cùng level 3) — không còn hierarchy.
+///   - Mỗi admin có quyền khác nhau theo phần mình phụ trách:
+///     - `admin_ky_thuat`  — phụ trách kỹ thuật (system, security, infrastructure)
+///     - `admin_quan_li`   — phụ trách quản lý (users, content, community, fund)
+///     - `admin_cong_dong` — phụ trách cộng đồng (content, community, friends, mail, events)
+///   - `mod`             — Mod (level 2, dưới admin, trên member) — moderation cơ bản
+///   - `member`          — Thành Viên (mặc định, 0 quyền admin)
+///
+/// Nguyên tắc: "Các admin đều bằng nhau ngang hàng,
+///              nhưng mỗi người phụ trách một mảng khác nhau."
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
@@ -53,8 +60,8 @@ pub struct User {
     pub bio: Option<String>,
     /// ID ảnh avatar user tự upload (ưu tiên trước Google `avatar_url`).
     pub avatar_upload_id: Option<Uuid>,
-    /// Vai trò quản trị: member | admin_ky_thuat | admin_cong_dong | admin_quan_li
-    /// (v0.9.7 — Giai đoạn 11)
+    /// Vai trò quản trị: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li
+    /// v0.9.24: tất cả admin NGANG HÀNG (level 3), khác nhau ở permission scope.
     pub role: String,
 }
 
@@ -161,11 +168,17 @@ impl User {
         }
     }
 
-    // ─── Hệ thống vai trò (v0.9.7 — Giai đoạn 11) ───────────────────────────
+    // ─── Hệ thống vai trò (v0.9.24 — Giai đoạn 29: Admin ngang hàng) ───────
+    //
+    // NGUYÊN TẮC MỚI (v0.9.24):
+    //   - Tất cả 3 admin role NGANG HÀNH nhau (cùng level 3)
+    //   - Mod ở level 2 (dưới admin, trên member)
+    //   - Member ở level 1
+    //   - Không còn hierarchy admin_ky_thuat > admin_quan_li > admin_cong_dong
+    //   - Mỗi admin có scope quyền riêng theo phần phụ trách
 
     /// Tên hiển thị tiếng Việt của vai trò.
     /// Dùng cho badge trên profile / header.
-    /// v0.9.19: thêm "Mod" — chức vụ dưới admin, trên thành viên.
     pub fn role_display(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "Admin Quản Lý",
@@ -177,7 +190,6 @@ impl User {
     }
 
     /// Emoji đại diện cho vai trò.
-    /// v0.9.19: thêm 📜 cho Mod.
     pub fn role_icon(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "👑",
@@ -189,12 +201,12 @@ impl User {
     }
 
     /// Màu sắc đại diện cho vai trò (hex).
-    /// v0.9.19: thêm màu cho Mod — teal-700 (#0F766E).
+    /// v0.9.24: 3 admin dùng 3 màu khác nhau nhưng cùng level — không "cao hơn" nhau.
     pub fn role_color(&self) -> &str {
         match self.role.as_str() {
-            "admin_quan_li" => "#FF6F00",   // amber-900 (gold)
-            "admin_cong_dong" => "#1565C0",  // blue-800
-            "admin_ky_thuat" => "#6A1B9A",   // purple-800
+            "admin_quan_li" => "#FF6F00",   // amber-900 (gold) — quản lý
+            "admin_cong_dong" => "#1565C0",  // blue-800 — cộng đồng
+            "admin_ky_thuat" => "#6A1B9A",   // purple-800 — kỹ thuật
             "mod" => "#0F766E",              // teal-700 (moderator)
             _ => "#2E7D32",                   // tubi-800 (green)
         }
@@ -202,28 +214,25 @@ impl User {
 
     /// Cấp độ vai trò (dùng để so sánh quyền):
     ///   - member          → 1
-    ///   - mod             → 2  (v0.9.19 — Giai đoạn 24)
-    ///   - admin_cong_dong → 3
-    ///   - admin_quan_li   → 4
-    ///   - admin_ky_thuat  → 5 (CAO NHẤT — v0.9.8)
+    ///   - mod             → 2
+    ///   - admin_*         → 3 (TẤT CẢ admin NGANG HÀNG — v0.9.24)
     ///
-    /// v0.9.8: Nâng Admin Kỹ Thuật lên chức vụ cao nhất với toàn bộ 50 quyền.
-    /// v0.9.19: Thêm Mod (level 2) — dưới admin, trên thành viên, có quyền quản trị cơ bản.
-    /// Hierarchy mới: admin_ky_thuat > admin_quan_li > admin_cong_dong > mod > member
+    /// v0.9.24: Bỏ hierarchy cũ (admin_ky_thuat=5 > admin_quan_li=4 > admin_cong_dong=3).
+    ///          Giờ tất cả admin đều = 3. Phân quyền theo scope phụ trách,
+    ///          không theo level.
     ///
-    /// (Không thể là `const fn` vì Rust 1.97 chưa ổn định `PartialEq` cho `&str`
-    /// trong const context — xem issue rust-lang/rust#143874.)
+    /// Lưu ý: Không dùng `role_level()` để check quyền cụ thể nữa —
+    ///        dùng `has_permission_code(code)` hoặc `can_manage_*()` thay thế.
     pub fn role_level(&self) -> u8 {
         match self.role.as_str() {
             "mod" => 2,
-            "admin_cong_dong" => 3,
-            "admin_quan_li" => 4,
-            "admin_ky_thuat" => 5,  // CAO NHẤT — v0.9.8
+            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong" => 3, // NGANG HÀNG
             _ => 1,
         }
     }
 
     /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý).
+    /// v0.9.24: Tất cả 3 admin đều ngang hàng — không phân cấp.
     /// v0.9.19: Mod KHÔNG phải là admin — Mod là chức vụ riêng (dưới admin, trên member).
     /// Dùng `is_staff()` để kiểm tra "admin HOẶC mod".
     pub fn is_admin(&self) -> bool {
@@ -256,30 +265,37 @@ impl User {
         matches!(self.role.as_str(), "admin_cong_dong")
     }
 
-    /// True nếu user chính xác là Admin Quản Lý (super admin — quyền cao nhất).
+    /// True nếu user chính xác là Admin Quản Lý.
     pub fn is_admin_quan_li(&self) -> bool {
         matches!(self.role.as_str(), "admin_quan_li")
     }
 
-    /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật trở lên).
-    /// Dùng cho route /admin, quản lý users, hệ thống.
-    /// v0.9.19: Mod (level 2) không có quyền technical.
+    /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật).
+    /// v0.9.24: Dùng permission check thay vì role_level — chỉ admin_ky_thuat có quyền system.
+    /// Mod (level 2) không có quyền technical.
     pub fn can_manage_technical(&self) -> bool {
-        self.role_level() >= 3 // admin_cong_dong (3) trở lên — Mod (2) không có
+        self.has_permission_code("system_view_status")
     }
 
-    /// True nếu user có quyền cộng đồng (Mod trở lên).
-    /// Dùng cho duyệt cảm ngộ, ghim/khoá chủ đề, mod comment.
-    /// v0.9.19: Mod (level 2) CÓ quyền community — đây là quyền cốt lõi của Mod.
+    /// True nếu user có quyền cộng đồng (duyệt cảm ngộ, mod comment, etc.).
+    /// v0.9.24: Dùng permission check — admin_cong_dong, admin_quan_li, admin_ky_thuat, mod đều có.
     pub fn can_manage_community(&self) -> bool {
-        self.role_level() >= 2 // Mod (2) trở lên
+        self.has_permission_code("content_mod_reviews")
+            || self.has_permission_code("content_mod_comments")
     }
 
-    /// True nếu user có quyền quản trị (Admin Quản Lý trở lên).
-    /// Dùng cho đổi role, quản lý users, cấu hình hệ thống.
-    /// v0.9.19: Mod (level 2) không có quyền admin.
+    /// True nếu user có quyền quản trị (đổi role user).
+    /// v0.9.24: Dùng permission check — chỉ admin_quan_li và admin_ky_thuat có users_change_role.
+    /// (admin_cong_dong và mod KHÔNG có — scope của họ là cộng đồng, không phải user management.)
     pub fn can_manage_admin(&self) -> bool {
-        self.role_level() >= 4 // admin_quan_li (4) trở lên
+        self.has_permission_code("users_change_role")
+    }
+
+    /// True nếu user được phép ban/kích hoạt user.
+    /// v0.9.24: Ai có quyền users_ban thì được ban/activate.
+    /// admin_ky_thuat, admin_quan_li đều có users_ban. admin_cong_dong và mod không có.
+    pub fn can_ban_user(&self) -> bool {
+        self.has_permission_code("users_ban")
     }
 
     /// True nếu user được chat trong BẤT KỲ nhóm nào (không cần membership).
@@ -296,145 +312,160 @@ impl User {
     //   fund(10) + achievements(10) + security(10) + navigation(10) + analytics(10)
     //   + media(10) + friends(10) + mail(10) + events(10) + shop(10)         → 100 (mới)
     //
-    // Phân bổ:
-    //   admin_ky_thuat:  150 (TẤT CẢ)
-    //   admin_quan_li:   100 (cũ 30 + mới 70)
-    //   admin_cong_dong:  75 (cũ 20 + mới 55)
-    //   member:            0
+    // v0.9.24 REDESIGN: Phân bổ quyền theo scope phụ trách (admin ngang hàng):
+    //   admin_ky_thuat:  40 quyền (system + security + technical users + media + analytics + nav + api)
+    //   admin_quan_li:   40 quyền (users + content + community + fund + mail/notif)
+    //   admin_cong_dong: 45 quyền (content + community + friends + mail + events + achievements + media)
+    //   mod:             15 quyền (content moderation + community moderation + friends + security reporting)
+    //   member:           0 quyền admin
 
     /// Kiểm tra user có quyền cụ thể không.
     /// Dùng cho permission gate trong handlers.
+    ///
+    /// v0.9.24: Phân bổ theo scope phụ trách — không còn "admin_ky_thuat có TẤT CẢ quyền".
+    /// Mỗi admin chỉ có quyền trong lĩnh vực mình phụ trách.
+    ///
     /// Note: Kiểm tra thực tế nên query DB qua `user_has_permission()` SQL function,
     /// nhưng method này cho phép kiểm tra nhanh ở template logic.
     pub fn has_permission_code(&self, code: &str) -> bool {
-        // Admin Kỹ Thuật có TẤT CẢ 150 quyền
-        if self.is_admin_ky_thuat() {
-            return true;
+        // Member không có quyền admin nào
+        if self.role == "member" {
+            return false;
         }
-        // Các role khác — kiểm tra theo nhóm quyền đã gán
+
         match self.role.as_str() {
-            "admin_quan_li" => {
-                // 100 quyền: 30 cũ + 70 mới
-                matches!(code,
-                    // === 30 cũ ===
-                    // Users (10)
-                    "users_view_list" | "users_view_detail" | "users_edit_profile" |
-                    "users_change_role" | "users_activate" | "users_delete" |
-                    "users_ban" | "users_view_sessions" | "users_manage_oauth" | "users_export_data" |
-                    // Content (10)
-                    "content_view_pending" | "content_approve" | "content_edit_any" |
-                    "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
-                    "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
-                    // Community (10)
-                    "community_view_stats" | "community_manage_grp" | "community_create_off" |
-                    "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
-                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
-                    // === 70 mới ===
-                    // Fund (10)
-                    "fund_view_all" | "fund_approve" | "fund_create_campaign" | "fund_manage_expenses" |
-                    "fund_export" | "fund_refund" | "fund_view_anonymous" | "fund_manage_categories" |
-                    "fund_set_goal" | "fund_audit_log" |
-                    // Achievements (10)
-                    "ach_view_all" | "ach_create" | "ach_edit" | "ach_grant" | "ach_revoke" |
-                    "ach_view_progress" | "ach_manage_rewards" | "ach_view_history" | "ach_export" | "ach_delete" |
-                    // Analytics (10)
-                    "an_view_dashboard" | "an_view_user_stats" | "an_view_content_stats" |
-                    "an_view_revenue" | "an_export_reports" | "an_view_funnel" | "an_view_cohort" |
-                    "an_set_kpi" | "an_view_realtime" | "an_integrate_tool" |
-                    // Shop (10)
-                    "shop_view_all" | "shop_add_product" | "shop_edit_any" | "shop_delete" |
-                    "shop_approve" | "shop_view_orders" | "shop_refund" | "shop_manage_categories" |
-                    "shop_set_featured" | "shop_export" |
-                    // Events (10)
-                    "evt_create" | "evt_edit_any" | "evt_delete" | "evt_manage_attendance" |
-                    "evt_broadcast" | "evt_view_stats" | "evt_manage_schedule" |
-                    "evt_manage_recording" | "evt_set_capacity" | "evt_export" |
-                    // Media (5/10)
-                    "media_view_all" | "media_view_storage" | "media_delete_any" |
-                    "media_moderate" | "media_restore" |
-                    // Navigation (5/10)
-                    "nav_edit_announce" | "nav_manage_home" | "nav_edit_meta" |
-                    "nav_view_settings_log" | "nav_manage_features"
-                )
-            }
-            "admin_cong_dong" => {
-                // 75 quyền: 20 cũ + 55 mới
-                matches!(code,
-                    // === 20 cũ ===
-                    // Content (10)
-                    "content_view_pending" | "content_approve" | "content_edit_any" |
-                    "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
-                    "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
-                    // Community (10)
-                    "community_view_stats" | "community_manage_grp" | "community_create_off" |
-                    "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
-                    "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
-                    // === 55 mới ===
-                    // Friends (10)
-                    "fr_view_all_friends" | "fr_view_all_dm" | "fr_delete_message" | "fr_mute_user" |
-                    "fr_manage_blocklist" | "fr_force_unfriend" | "fr_view_dm_reports" |
-                    "fr_export_dm" | "fr_manage_groups" | "fr_reset_conversation" |
-                    // Mail (10)
-                    "mail_view_all" | "mail_delete_any" | "mail_broadcast" | "mail_template" |
-                    "mail_view_queue" | "notif_send_all" | "notif_template" | "notif_view_stats" |
-                    "notif_delete_any" | "mail_manage_filters" |
-                    // Events (10)
-                    "evt_create" | "evt_edit_any" | "evt_delete" | "evt_manage_attendance" |
-                    "evt_broadcast" | "evt_view_stats" | "evt_manage_schedule" |
-                    "evt_manage_recording" | "evt_set_capacity" | "evt_export" |
-                    // Achievements (10)
-                    "ach_view_all" | "ach_view_progress" | "ach_view_history" | "ach_grant" |
-                    "ach_export" | "ach_create" | "ach_edit" | "ach_manage_rewards" |
-                    "ach_revoke" | "ach_delete" |
-                    // Media (5)
-                    "media_view_all" | "media_approve" | "media_moderate" |
-                    "media_delete_any" | "media_view_storage" |
-                    // Fund (5)
-                    "fund_view_all" | "fund_approve" | "fund_view_anonymous" |
-                    "fund_view_audit_log" | "fund_audit_log" |
-                    // Security (5)
-                    "sec_view_audit" | "sec_view_login_log" | "sec_session_revoke" |
-                    "sec_spam_filter" | "sec_report_manage"
-                )
-            }
+            // ════════════════════════════════════════════════════════════════
+            // admin_ky_thuat — Phụ trách KỸ THUẬT (40 quyền)
+            // Scope: system, security, technical users, media storage, analytics, nav, api
+            // ════════════════════════════════════════════════════════════════
+            "admin_ky_thuat" => matches!(code,
+                // System (10) — toàn quyền hệ thống
+                "system_view_status" | "system_manage_config" | "system_manage_migrate" |
+                "system_view_logs" | "system_manage_cache" | "system_restart_server" |
+                "system_manage_cron" | "system_view_metrics" | "system_manage_backup" |
+                "system_debug_mode" |
+                // Users — xem + kỹ thuật (không change_role — đó là job admin_quan_li)
+                "users_view_list" | "users_view_detail" | "users_view_sessions" |
+                "users_activate" | "users_ban" | "users_export_data" |
+                // Security (5) — chuyên môn admin_ky_thuat
+                "sec_view_audit" | "sec_view_login_log" | "sec_session_revoke" |
+                "sec_spam_filter" | "sec_report_manage" |
+                // Media (5) — technical storage
+                "media_view_all" | "media_view_storage" | "media_delete_any" |
+                "media_moderate" | "media_restore" |
+                // Analytics (6)
+                "an_view_dashboard" | "an_view_user_stats" | "an_view_content_stats" |
+                "an_view_revenue" | "an_export_reports" | "an_view_realtime" |
+                // Navigation (5) — technical config
+                "nav_edit_announce" | "nav_manage_home" | "nav_edit_meta" |
+                "nav_view_settings_log" | "nav_manage_features" |
+                // API keys
+                "api_manage_keys"
+            ),
+
+            // ════════════════════════════════════════════════════════════════
+            // admin_quan_li — Phụ trách QUẢN LÝ (40 quyền)
+            // Scope: users, content, community, fund, mail/notif
+            // ════════════════════════════════════════════════════════════════
+            "admin_quan_li" => matches!(code,
+                // Users (10) — quản lý thành viên đầy đủ (bao gồm change_role)
+                "users_view_list" | "users_view_detail" | "users_edit_profile" |
+                "users_change_role" | "users_activate" | "users_delete" |
+                "users_ban" | "users_view_sessions" | "users_manage_oauth" | "users_export_data" |
+                // Content (10) — kiểm duyệt nội dung
+                "content_view_pending" | "content_approve" | "content_edit_any" |
+                "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
+                "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
+                // Community (10) — quản lý cộng đồng
+                "community_view_stats" | "community_manage_grp" | "community_create_off" |
+                "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
+                "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
+                // Fund (5) — quản lý quỹ từ bi
+                "fund_view_all" | "fund_approve" | "fund_view_anonymous" |
+                "fund_audit_log" | "fund_export" |
+                // Mail/Notif (5) — thông báo hệ thống
+                "mail_view_all" | "notif_send_all" | "mail_broadcast" |
+                "notif_template" | "mail_view_queue"
+            ),
+
+            // ════════════════════════════════════════════════════════════════
+            // admin_cong_dong — Phụ trách CỘNG ĐỒNG (45 quyền)
+            // Scope: content, community, friends, mail, events, achievements, media mod
+            // ════════════════════════════════════════════════════════════════
+            "admin_cong_dong" => matches!(code,
+                // Content (10) — kiểm duyệt nội dung cộng đồng
+                "content_view_pending" | "content_approve" | "content_edit_any" |
+                "content_delete_any" | "content_pin_lock" | "content_manage_cat" |
+                "content_manage_tags" | "content_mod_comments" | "content_mod_reviews" | "content_feature" |
+                // Community (10) — quản lý cộng đồng
+                "community_view_stats" | "community_manage_grp" | "community_create_off" |
+                "community_manage_evt" | "community_manage_chat" | "community_manage_mem" |
+                "community_broadcast" | "community_manage_inv" | "community_archive" | "community_merge" |
+                // Friends (5) — quản lý kết bạn
+                "fr_view_all_friends" | "fr_view_all_dm" | "fr_delete_message" |
+                "fr_view_dm_reports" | "fr_manage_groups" |
+                // Mail (5) — quản lý thư
+                "mail_view_all" | "mail_delete_any" | "mail_broadcast" |
+                "mail_view_queue" | "mail_manage_filters" |
+                // Events (5) — quản lý sự kiện cộng tu
+                "evt_create" | "evt_edit_any" | "evt_manage_attendance" |
+                "evt_broadcast" | "evt_view_stats" |
+                // Achievements (5) — quản lý thành tích
+                "ach_view_all" | "ach_view_progress" | "ach_view_history" |
+                "ach_grant" | "ach_export" |
+                // Media moderation (5)
+                "media_view_all" | "media_approve" | "media_moderate" |
+                "media_delete_any" | "media_view_storage"
+            ),
+
+            // ════════════════════════════════════════════════════════════════
+            // mod — Moderator cơ bản (15 quyền)
+            // Scope: content moderation, chat moderation, basic community
+            // ════════════════════════════════════════════════════════════════
+            "mod" => matches!(code,
+                // Content moderation (5)
+                "content_view_pending" | "content_approve" | "content_mod_comments" |
+                "content_mod_reviews" | "content_pin_lock" |
+                // Community moderation (5)
+                "community_view_stats" | "community_manage_chat" | "community_manage_mem" |
+                "community_broadcast" | "community_archive" |
+                // Friends/DM moderation (3)
+                "fr_view_dm_reports" | "fr_delete_message" | "fr_manage_groups" |
+                // Security reporting (2)
+                "sec_view_audit" | "sec_report_manage"
+            ),
+
             _ => false,
         }
     }
 
     /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
-    /// v0.9.15: đồng bộ với system_permission_count — admin_ky_thuat có 150 quyền
-    /// toàn diện trên UI (đã bổ sung nav tiles cho tất cả 10 nhóm chức năng).
+    /// v0.9.24: Đồng bộ với migration 021 — admin ngang hàng, mỗi role có scope riêng.
     pub fn permission_count(&self) -> u16 {
         match self.role.as_str() {
-            "admin_ky_thuat" => 150,
-            "admin_quan_li" => 100,
-            "admin_cong_dong" => 75,
+            "admin_ky_thuat" => 40,
+            "admin_quan_li" => 40,
+            "admin_cong_dong" => 45,
+            "mod" => 15,
             _ => 0,
         }
     }
 
     /// Tổng số quyền hệ thống (permission codes trong has_permission_code).
-    /// Đây là potential permissions, không phải UI-accessible.
-    /// Dùng cho health check và debug.
-    ///
-    /// v0.9.14 (Giai đoạn 19): 50 → 150 quyền.
+    /// Đồng bộ với `permission_count()` từ v0.9.24.
     pub fn system_permission_count(&self) -> u16 {
-        match self.role.as_str() {
-            "admin_ky_thuat" => 150,
-            "admin_quan_li" => 100,
-            "admin_cong_dong" => 75,
-            _ => 0,
-        }
+        self.permission_count()
     }
 
     /// Tên trang admin dashboard tương ứng với role.
+    /// v0.9.24: Mỗi admin có dashboard riêng theo scope phụ trách.
     /// v0.9.19: Mod redirect về /admin/thanh-vien (mod không có dashboard riêng).
     pub fn admin_dashboard_path(&self) -> &str {
         match self.role.as_str() {
             "admin_ky_thuat" => "/admin/ky-thuat",
             "admin_cong_dong" => "/admin/cong-dong",
             "admin_quan_li" => "/admin/quan-li",
-            "mod" => "/admin/thanh-vien", // Mod không có dashboard riêng — xem danh sách thành viên
+            "mod" => "/admin/thanh-vien",
             _ => "/admin",
         }
     }

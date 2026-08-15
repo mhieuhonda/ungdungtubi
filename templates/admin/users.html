@@ -29,10 +29,10 @@
     </div>
     {% endif %}
 
-    <!-- Permission notice -->
-    {% if !u.is_admin_quan_li() && !u.is_admin_ky_thuat() %}
+    <!-- Permission notice — v0.9.24: admin ngang hàng, quyền theo scope -->
+    {% if !u.can_manage_admin() %}
     <div class="mb-4 bg-amber-50 border border-amber-200 text-amber-800 px-3 sm:px-4 py-3 rounded-xl text-xs sm:text-sm">
-        ℹ️ Bạn đang là <strong>{{ u.role_display() }}</strong>. Bạn có thể xem danh sách nhưng chỉ <strong>Admin Kỹ Thuật</strong> và <strong>Admin Quản Lý</strong> mới đổi được vai trò user khác.
+        ℹ️ Bạn đang là <strong>{{ u.role_display() }}</strong> ({{ u.permission_count() }} quyền). Bạn có thể xem danh sách nhưng chỉ những admin có quyền <code>users_change_role</code> (Admin Kỹ Thuật, Admin Quản Lý) mới đổi được vai trò user khác. <span class="text-amber-600">v0.9.24 — admin ngang hàng, phân quyền theo scope.</span>
     </div>
     {% endif %}
 
@@ -90,8 +90,8 @@
                         <span class="w-2 h-2 rounded-full {{ status_dot }}"></span>{{ status_text }}
                     </span>
 
-                    <!-- Actions dropdown (chỉ Admin Kỹ Thuật + Admin Quản Lý) -->
-                    {% if u.is_admin_ky_thuat() || u.is_admin_quan_li() %}
+                    <!-- Actions dropdown — v0.9.24: ai có quyền users_change_role -->
+                    {% if u.can_manage_admin() %}
                     <div class="relative" x-data="{ open: false }">
                         <button @click="open = !open" @click.outside="open = false"
                                 class="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
@@ -136,7 +136,8 @@
                                     ⚙️ Admin Kỹ Thuật {% if m.role == "admin_ky_thuat" %}✓{% endif %}
                                 </button>
                             </form>
-                            {% if u.is_admin_ky_thuat() %}
+                            {# v0.9.24: ai có quyền users_ban (admin_ky_thuat, admin_quan_li) mới ban/activate #}
+                            {% if u.can_ban_user() %}
                             <div class="my-1 border-t border-gray-100"></div>
                             <div class="px-3 py-1 text-[10px] uppercase tracking-wide text-gray-400">Quản lý tài khoản</div>
                             {% if m.is_active %}
