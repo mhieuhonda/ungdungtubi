@@ -4,6 +4,28 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
+## 📦 Phiên bản hiện tại: v0.9.15 — Giai đoạn 20
+
+**Giai đoạn 20: Niệm Phật Fix + Admin Redesign + Mobile UX**
+
+### Bug fixes critical
+- **Niệm Phật counter không bị lệch trái** sau click (HTMX response giữ nguyên class `text-center mb-4`)
+- **Streak (số ngày tu liên tiếp) tính đúng** — fix timezone mismatch giữa `chrono::Local::now()` và `CURRENT_DATE` của PostgreSQL trong Docker (TZ=UTC)
+- **Tổng niệm / niệm hôm nay cập nhật ngay lập tức** sau khi niệm — dùng HTMX `hx-swap-oob` để swap nhiều element cùng lúc (counter + 4 stats card + footer)
+- **Form Cầu Nguyện / Sám Hối / Hồi Hướng gửi được** — fix bug `hx-post=""` (rỗng) chặn submit. Tách thành 3 form riêng biệt với `hx-post` URL cố định
+- **`practice_logs` upsert không còn nuốt error** — log + rollback nếu fail (trước đây `let _ =` làmtoday_niem không cập nhật dù a_balance vẫn tăng)
+
+### UI/UX redesign
+- **Bảng quản trị Admin Kỹ Thuật redesign theo ảnh tham chiếu** — dark theme, mobile-first, 2-col stats grid (số đỏ coral) + 2-col nav tiles grid
+- **Hiển thị đúng 150 quyền** — admin_ky_thuat có 150 quyền (trước đây hiển thị hardcoded "6/50")
+- **15 nav tiles điều hành** — Hướng dẫn, Phê duyệt, Thành viên, Nhóm, Kinh sách, Báo cáo, Bình luận, Từ vựng cấm, Nội dung đánh dấu, Quản lý tag, VIP, Quỹ Từ Bi, Bảng xếp hạng, Nhật ký, Health check
+- **Permission matrix 10 nhóm × 10 quyền** — hiển thị đầy đủ 150 quyền chia 10 nhóm (system, users, content, community, kinh_sach, fund, achievements, security, media, analytics)
+
+### Navigation overhaul (theo yêu cầu user)
+- **Menu 3 gạch rút gọn chỉ còn 7 mục**: Không Gian, Cộng Đồng, Bạn Bè, Kinh Sách, Hồ Sơ, Quản Trị (nếu admin), Thoát
+- **Bottom nav đổi icon**: Trang Chủ → 🏠 ngôi nhà, nút giữa → 🪷 hoa sen (Tổng Quan)
+- **Các mục khác phân bổ hợp lý**: Tổng Quan/Quỹ/Bảng Xếp Hạng/Thành Tích/Thương Thành/Tìm Kiếm → truy cập qua nút giữa 🪷; Cài Đặt/Tin Nhắn/Hộp Thư/Thông Báo/Tìm Bạn → trong trang /ban-be và /ca-nhan; Kinh Phật/Kinh Đạo/Tìm Sách/Tạo Nhóm → trong trang /kinh-sach và /cong-dong
+
 ## Tầm Nhìn
 
 Xây dựng một hệ sinh thái giúp mọi người có thể ứng dụng Từ Bi vào cuộc sống, tu học và giải trí, từ đó hiểu rõ hơn về bản chất của khổ đau, giác ngộ và giải thoát.

@@ -3,30 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi</title>
-    <!-- v0.9.14: Redesign — coder dark theme, mobile-first, Vietnamese plain language -->
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.15</title>
+    <!-- v0.9.15: Redesign theo ảnh tham chiếu — mobile-first, dark theme,
+         2-col stats grid + 2-col nav tiles, hiển thị đúng 150 quyền -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        // Bảng màu tối hiện đại — không phải neon terminal
                         'code': {
-                            bg:    '#0f172a',   // slate-900 — nền chính
-                            panel: '#1e293b',   // slate-800 — panel
+                            bg:    '#0f172a',
+                            panel: '#1e293b',
                             card:  '#1e293b',
-                            border:'#334155',   // slate-700
-                            muted: '#64748b',   // slate-500
-                            text:  '#e2e8f0',   // slate-200
-                            soft:  '#94a3b8',   // slate-400
-                            accent:'#10b981',   // emerald-500 — green dịu, không neon
+                            border:'#334155',
+                            muted: '#64748b',
+                            text:  '#e2e8f0',
+                            soft:  '#94a3b8',
+                            accent:'#10b981',
                             amber: '#f59e0b',
                             blue:  '#3b82f6',
                             purple:'#a855f7',
                             pink:  '#ec4899',
                             red:   '#ef4444',
                             cyan:  '#06b6d4',
+                            coral: '#ff6b6b',
                         },
                     },
                     fontFamily: {
@@ -45,37 +46,29 @@
         body { font-family: 'Inter', system-ui, sans-serif; }
         .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
         [x-cloak] { display: none !important; }
-        // Smooth scroll cho anchor links
         html { scroll-behavior: smooth; scroll-padding-top: 80px; }
-        // Hover lift cho stat cards
+        /* Stat card hover — lift effect */
         .stat-card { transition: transform .2s, box-shadow .2s, border-color .2s; }
         .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(16,185,129,0.08); border-color: #10b98144; }
-        // Permission row hover
-        .perm-row { transition: background .15s; }
-        .perm-row:hover { background: rgba(16,185,129,0.06); }
-        // Sidebar nav active state
-        .nav-link { transition: all .15s; }
-        .nav-link:hover { background: rgba(16,185,129,0.08); color: #10b981; }
-        .nav-link.active { background: rgba(16,185,129,0.12); color: #10b981; border-left: 2px solid #10b981; }
-        // Code chip
-        .chip {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 11px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: #0f172a;
-            color: #94a3b8;
-            border: 1px solid #334155;
-        }
-        // Scrollbar đẹp
+        /* Nav tile — border subtle, hover accent */
+        .nav-tile { transition: all .15s; }
+        .nav-tile:hover { background: #1e293b; border-color: #10b98166; transform: translateY(-1px); }
+        .nav-tile:hover .tile-icon { background: rgba(16,185,129,0.18); }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        /* Counter pulse cho số liệu real-time */
+        .pulse-num { animation: pulse-num 0.6s ease-out; }
+        @keyframes pulse-num {
+            0%   { transform: scale(1); color: #10b981; }
+            50%  { transform: scale(1.08); color: #34d399; }
+            100% { transform: scale(1); color: #e2e8f0; }
+        }
     </style>
 </head>
 <body class="bg-code-bg text-code-text min-h-screen text-sm md:text-base"
-      x-data="{ sidebarOpen: false }">
+      x-data="{ sidebarOpen: false, activeSection: 'tong-quan' }">
 
     <!-- ═══ Top Bar — compact, mobile-friendly ═══ -->
     <header class="bg-code-panel border-b border-code-border sticky top-0 z-50">
@@ -94,17 +87,21 @@
                 </div>
                 <div class="min-w-0">
                     <h1 class="font-semibold text-sm md:text-base text-code-text truncate">
-                        Admin Kỹ Thuật
+                        Bảng điều khiển điều hành
                     </h1>
                     <p class="text-[10px] md:text-[11px] text-code-muted truncate">
-                        6/50 quyền · toàn hệ thống
+                        {% if let Some(u) = user %}
+                            {{ u.permission_count() }}/{{ u.system_permission_count() }} quyền · toàn hệ thống
+                        {% else %}
+                            — quyền · toàn hệ thống
+                        {% endif %}
                     </p>
                 </div>
             </div>
 
             <!-- Right: version + user + exit -->
             <div class="flex items-center gap-2 md:gap-4">
-                <span class="hidden sm:inline-flex chip">v0.9.14</span>
+                <span class="hidden sm:inline-flex chip">v0.9.15</span>
                 <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
                 {% if let Some(u) = user %}
                 <div class="hidden sm:flex items-center gap-2">
@@ -115,7 +112,8 @@
                 </div>
                 {% endif %}
                 <a href="/" class="text-xs px-3 py-1.5 rounded-lg bg-code-border/50 hover:bg-code-border text-code-text transition">
-                   Thoát</a>
+                   Thoát
+                </a>
             </div>
         </div>
     </header>
@@ -128,35 +126,29 @@
                       bg-code-panel border-r border-code-border overflow-y-auto
                       transition-transform duration-200 ease-out shrink-0">
             <nav class="p-3 space-y-1">
-                <a href="#tong-quan" @click="sidebarOpen = false"
-                   class="nav-link active flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                <a href="#tong-quan" @click="sidebarOpen = false; activeSection='tong-quan'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
                     <span>📊</span> <span>Tổng quan</span>
                 </a>
-                <a href="#he-thong" @click="sidebarOpen = false"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>🖥️</span> <span>Tình trạng</span>
-                </a>
-                <a href="/admin/thanh-vien"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>👥</span> <span>Quản lý thành viên</span>
-                    <span class="ml-auto text-[10px] text-code-muted">→</span>
-                </a>
-                <a href="#phan-quyen" @click="sidebarOpen = false"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                <a href="#phan-quyen" @click="sidebarOpen = false; activeSection='phan-quyen'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
                     <span>🔐</span> <span>Phân quyền</span>
                 </a>
-                <a href="#csdl" @click="sidebarOpen = false"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                <a href="#dieu-hanh" @click="sidebarOpen = false; activeSection='dieu-hanh'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
+                    <span>⚡</span> <span>Điều hành</span>
+                </a>
+                <a href="#he-thong" @click="sidebarOpen = false; activeSection='he-thong'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
+                    <span>🖥️</span> <span>Tình trạng</span>
+                </a>
+                <a href="#csdl" @click="sidebarOpen = false; activeSection='csdl'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
                     <span>🗄️</span> <span>CSDL</span>
                 </a>
-                <a href="/admin/ky-thuat/nhat-ky"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
+                <a href="#nhat-ky" @click="sidebarOpen = false; activeSection='nhat-ky'"
+                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft hover:text-code-accent hover:bg-code-accent/8 transition">
                     <span>📋</span> <span>Nhật ký</span>
-                    <span class="ml-auto text-[10px] text-code-muted">→</span>
-                </a>
-                <a href="#hanh-dong" @click="sidebarOpen = false"
-                   class="nav-link flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-code-soft">
-                    <span>⚡</span> <span>Hành động</span>
                 </a>
             </nav>
 
@@ -168,6 +160,9 @@
                 <div class="text-[11px] text-code-soft truncate mono">{{ u.email }}</div>
                 <div class="mt-2 inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-code-purple/15 text-code-purple font-semibold">
                     ⚙️ {{ u.role_display() }} · cấp 4
+                </div>
+                <div class="mt-1 text-[10px] text-code-muted">
+                    {{ u.permission_count() }} quyền UI / {{ u.system_permission_count() }} quyền hệ thống
                 </div>
             </div>
             {% endif %}
@@ -191,9 +186,9 @@
              class="md:hidden fixed inset-0 top-14 bg-black/50 z-30"></div>
 
         <!-- ═══ Main Content ═══ -->
-        <main class="flex-1 min-w-0 p-3 md:p-6 space-y-6">
+        <main class="flex-1 min-w-0 p-3 md:p-6 space-y-8">
 
-            <!-- ─── Tổng quan ─── -->
+            <!-- ─── Tổng quan: Stats grid 2x2 + 2x4 theo ảnh ─── -->
             <section id="tong-quan" class="space-y-4">
                 <div class="flex items-center justify-between flex-wrap gap-2">
                     <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
@@ -202,60 +197,262 @@
                     <span class="chip">cập nhật theo thời gian thực</span>
                 </div>
 
-                <!-- Stats grid: 2 cols mobile, 4 cols desktop -->
+                <!-- Primary stats grid: 2 cols mobile, 4 cols desktop — số đỏ coral -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-code-blue/15 flex items-center justify-center text-base">👥</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">👥</span>
+                                <span class="text-[11px] md:text-xs text-code-soft">Người dùng</span>
+                            </div>
                             <span class="text-[10px] text-code-accent font-semibold">{{ stats.active_users }} hoạt động</span>
                         </div>
-                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_users }}</div>
-                        <div class="text-[11px] md:text-xs text-code-muted">Tổng thành viên</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-coral mono">{{ stats.total_users }}</div>
                     </div>
                     <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-code-purple/15 flex items-center justify-center text-base">⚙️</div>
-                            <span class="text-[10px] text-code-muted">tối đa 4</span>
-                        </div>
-                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.admin_count }}</div>
-                        <div class="text-[11px] md:text-xs text-code-muted">Quản trị viên</div>
-                    </div>
-                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-code-amber/15 flex items-center justify-center text-base">🏛️</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">🏛️</span>
+                                <span class="text-[11px] md:text-xs text-code-soft">Nhóm</span>
+                            </div>
                             <span class="text-[10px] text-code-muted">{{ stats.total_topics }} chủ đề</span>
                         </div>
-                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_groups }}</div>
-                        <div class="text-[11px] md:text-xs text-code-muted">Nhóm cộng đồng</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-coral mono">{{ stats.total_groups }}</div>
                     </div>
                     <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <div class="w-8 h-8 rounded-lg bg-code-cyan/15 flex items-center justify-center text-base">📚</div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">📚</span>
+                                <span class="text-[11px] md:text-xs text-code-soft">Sách</span>
+                            </div>
                             <span class="text-[10px] text-code-red font-semibold">{{ stats.pending_reviews }} chờ duyệt</span>
                         </div>
-                        <div class="text-2xl md:text-3xl font-bold text-code-text">{{ stats.total_books }}</div>
-                        <div class="text-[11px] md:text-xs text-code-muted">Sách trong thư viện</div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-coral mono">{{ stats.total_books }}</div>
+                    </div>
+                    <div class="stat-card bg-code-panel border border-code-border rounded-xl p-3 md:p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">💬</span>
+                                <span class="text-[11px] md:text-xs text-code-soft">Bình luận</span>
+                            </div>
+                            <span class="text-[10px] text-code-muted">{{ stats.total_mails }} thư</span>
+                        </div>
+                        <div class="text-2xl md:text-3xl font-bold text-code-coral mono">{{ stats.total_comments }}</div>
                     </div>
                 </div>
 
                 <!-- Secondary stats -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
-                        <div class="text-code-muted mb-1">Bình luận</div>
-                        <div class="text-base font-semibold text-code-text mono">{{ stats.total_comments }}</div>
+                        <div class="text-code-muted mb-1">Quản trị viên</div>
+                        <div class="text-base font-semibold text-code-text mono">{{ stats.admin_count }}</div>
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
-                        <div class="text-code-muted mb-1">Thư trong hệ thống</div>
-                        <div class="text-base font-semibold text-code-text mono">{{ stats.total_mails }}</div>
+                        <div class="text-code-muted mb-1">Cảm ngộ chờ duyệt</div>
+                        <div class="text-base font-semibold text-code-amber mono">{{ stats.pending_reviews }}</div>
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
-                        <div class="text-code-muted mb-1">Phân quyền</div>
-                        <div class="text-base font-semibold text-code-text mono">6 / 50</div>
+                        <div class="text-code-muted mb-1">Phân quyền UI</div>
+                        <div class="text-base font-semibold text-code-accent mono">
+                            {% if let Some(u) = user %}{{ u.permission_count() }}{% else %}0{% endif %} / {% if let Some(u) = user %}{{ u.system_permission_count() }}{% else %}0{% endif %}
+                        </div>
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
                         <div class="text-code-muted mb-1">Phiên bản</div>
-                        <div class="text-base font-semibold text-code-text mono">v0.9.14</div>
+                        <div class="text-base font-semibold text-code-text mono">v0.9.15</div>
                     </div>
+                </div>
+            </section>
+
+            <!-- ─── Điều hành: 2-col nav tiles grid theo ảnh ─── -->
+            <section id="dieu-hanh" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>🛡️</span> Điều hành
+                    <span class="text-xs font-normal text-code-muted">— truy cập nhanh các công cụ quản trị</span>
+                </h2>
+
+                <!-- Nav tiles grid: 2 cols mobile, 3 cols desktop -->
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+
+                    <!-- Hướng dẫn -->
+                    <a href="#huong-dan" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-blue/15 flex items-center justify-center text-lg shrink-0 transition">📖</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Hướng dẫn</div>
+                            <div class="text-[11px] text-code-muted truncate">Tài liệu sử dụng</div>
+                        </div>
+                    </a>
+
+                    <!-- Phê duyệt cảm ngộ -->
+                    <a href="/admin/cong-dong/cam-ngo" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0 transition">📋</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Phê duyệt cảm ngộ</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.pending_reviews }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Quản lý thành viên -->
+                    <a href="/admin/thanh-vien" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-blue/15 flex items-center justify-center text-lg shrink-0 transition">👥</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Thành viên</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.total_users }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Quản lý nhóm -->
+                    <a href="/cong-dong" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0 transition">🏛️</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Quản lý nhóm</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.total_groups }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Quản lý sách -->
+                    <a href="/kinh-sach" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">📚</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Kinh sách</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.total_books }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Báo cáo nội dung -->
+                    <a href="#bao-cao" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-red/15 flex items-center justify-center text-lg shrink-0 transition">⚠️</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Báo cáo nội dung</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">(0)</div>
+                        </div>
+                    </a>
+
+                    <!-- Bình luận -->
+                    <a href="/cong-dong" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0 transition">💬</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Bình luận</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.total_comments }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Từ vựng cấm -->
+                    <a href="#tu-vung-cam" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-red/15 flex items-center justify-center text-lg shrink-0 transition">🚫</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Từ vựng cấm</div>
+                            <div class="text-[11px] text-code-muted truncate">Lọc nội dung</div>
+                        </div>
+                    </a>
+
+                    <!-- Nội dung flagged -->
+                    <a href="#noi-dung" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-pink/15 flex items-center justify-center text-lg shrink-0 transition">🚩</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Nội dung đánh dấu</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">(0)</div>
+                        </div>
+                    </a>
+
+                    <!-- Quản lý tag -->
+                    <a href="#tag" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0 transition">🏷️</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Quản lý tag</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">(9)</div>
+                        </div>
+                    </a>
+
+                    <!-- Quản lý VIP -->
+                    <a href="#vip" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0 transition">👑</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Quản lý VIP</div>
+                            <div class="text-[11px] text-code-coral font-semibold truncate">({{ stats.admin_count }})</div>
+                        </div>
+                    </a>
+
+                    <!-- Quỹ Từ Bi -->
+                    <a href="/quy-tu-bi" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0 transition">🪷</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Quỹ Từ Bi</div>
+                            <div class="text-[11px] text-code-muted truncate">Công khai minh bạch</div>
+                        </div>
+                    </a>
+
+                    <!-- Bảng xếp hạng -->
+                    <a href="/bang-xep-hang" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">🏆</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Bảng xếp hạng</div>
+                            <div class="text-[11px] text-code-muted truncate">Top tu hành</div>
+                        </div>
+                    </a>
+
+                    <!-- Nhật ký hoạt động -->
+                    <a href="/admin/ky-thuat/nhat-ky" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-blue/15 flex items-center justify-center text-lg shrink-0 transition">📋</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Nhật ký hoạt động</div>
+                            <div class="text-[11px] text-code-muted truncate">Audit log</div>
+                        </div>
+                    </a>
+
+                    <!-- Health check -->
+                    <a href="/api/health" target="_blank" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0 transition">💓</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Health check</div>
+                            <div class="text-[11px] text-code-muted truncate">JSON API</div>
+                        </div>
+                    </a>
+
+                    <!-- Thành tích -->
+                    <a href="/thanh-tich" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-pink/15 flex items-center justify-center text-lg shrink-0 transition">🎖️</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Thành tích</div>
+                            <div class="text-[11px] text-code-muted truncate">Hệ thống</div>
+                        </div>
+                    </a>
+
+                </div>
+            </section>
+
+            <!-- ─── Phân quyền chi tiết ─── -->
+            <section id="phan-quyen" class="space-y-3">
+                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
+                    <span>🔐</span> Phân quyền
+                    {% if let Some(u) = user %}
+                    <span class="text-xs font-normal text-code-muted">— {{ u.system_permission_count() }} quyền hệ thống ({{ u.permission_count() }} có UI)</span>
+                    {% else %}
+                    <span class="text-xs font-normal text-code-muted">— 150 quyền hệ thống</span>
+                    {% endif %}
+                </h2>
+
+                <p class="text-xs text-code-soft bg-code-panel/60 border border-code-border rounded-lg p-3 leading-relaxed">
+                    Hệ thống có <strong class="text-code-accent">150 quyền chi tiết</strong> chia 10 nhóm × 10 quyền:
+                    <span class="text-code-muted">system · users · content · community · kinh_sach · fund · achievements · security · media · analytics</span>.
+                    Admin Kỹ Thuật có toàn bộ 150 quyền (cao nhất), Admin Quản Lý 100, Admin Cộng Đồng 75.
+                </p>
+
+                <!-- Permission summary — 10 nhóm, mỗi nhóm 1 card -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {% for perm_group in perm_groups %}
+                    <div class="bg-code-panel border border-code-border rounded-xl p-3">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-base">{{ perm_group.icon }}</span>
+                            <span class="text-xs font-semibold text-code-text truncate">{{ perm_group.label }}</span>
+                        </div>
+                        <div class="text-[11px] text-code-muted mb-1">{{ perm_group.code }}</div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] text-code-soft">10 quyền</span>
+                            <span class="text-xs font-bold text-code-accent">✓ {{ perm_group.ky_thuat }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
             </section>
 
@@ -270,7 +467,7 @@
                             <div class="flex items-center justify-between">
                                 <span class="text-code-muted text-xs">Trạng thái server</span>
                                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-code-accent">
-                                    <span class="w-2 h-2 rounded-full bg-code-accent"></span> Đang chạy
+                                    <span class="w-2 h-2 rounded-full bg-code-accent animate-pulse"></span> Đang chạy
                                 </span>
                             </div>
                             <div class="flex items-center justify-between">
@@ -304,297 +501,6 @@
                                 <span class="text-code-muted text-xs">CI/CD</span>
                                 <span class="text-xs text-code-text mono">GitHub Actions → Coolify</span>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ─── Phân quyền chi tiết ─── -->
-            <section id="phan-quyen" class="space-y-3">
-                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
-                    <span>🔐</span> Phân quyền
-                    <span class="text-xs font-normal text-code-muted">— 50 quyền hệ thống (6 có UI)</span>
-                </h2>
-
-                <p class="text-xs text-code-soft bg-code-panel/60 border border-code-border rounded-lg p-3">
-                    Bảng dưới đây liệt kê đầy đủ 50 quyền hệ thống (6 có giao diện UI), chia theo 5 nhóm chức năng.
-                    Ký hiệu <span class="text-code-accent font-semibold">✓</span> là có quyền,
-                    <span class="text-code-red font-semibold">✗</span> là không.
-                </p>
-
-                <!-- Permission matrix — mobile: cards; desktop: table -->
-                <div class="space-y-3 md:space-y-0">
-
-                    <!-- Mobile: accordion-style cards -->
-                    <div class="md:hidden space-y-3">
-                        <!-- System -->
-                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-code-red/10 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">⚙️</span>
-                                    <span class="font-semibold text-sm text-code-text">Hệ thống</span>
-                                    <span class="chip">10 quyền</span>
-                                </div>
-                                <span class="text-xs text-code-accent font-semibold">chỉ Admin Kỹ Thuật</span>
-                            </div>
-                            <ul class="divide-y divide-code-border text-xs">
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Xem tình trạng hệ thống</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Quản lý cấu hình</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Chạy migration cơ sở dữ liệu</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Xem log hệ thống</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Xoá cơ sở dữ liệu (hard delete)</span>
-                                    <span class="text-code-red font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 5 quyền khác</li>
-                            </ul>
-                        </div>
-
-                        <!-- Users -->
-                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-code-blue/10 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">👥</span>
-                                    <span class="font-semibold text-sm text-code-text">Thành viên</span>
-                                    <span class="chip">10 quyền</span>
-                                </div>
-                                <span class="text-xs text-code-blue font-semibold">KT + QL</span>
-                            </div>
-                            <ul class="divide-y divide-code-border text-xs">
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Xem danh sách thành viên</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Đổi vai trò thành viên</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Khoá / mở khoá tài khoản</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
-                            </ul>
-                        </div>
-
-                        <!-- Content -->
-                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-code-amber/10 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">📝</span>
-                                    <span class="font-semibold text-sm text-code-text">Nội dung</span>
-                                    <span class="chip">10 quyền</span>
-                                </div>
-                                <span class="text-xs text-code-amber font-semibold">tất cả admin</span>
-                            </div>
-                            <ul class="divide-y divide-code-border text-xs">
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Duyệt nội dung</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Ghim / khoá chủ đề</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Kiểm duyệt bình luận</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
-                            </ul>
-                        </div>
-
-                        <!-- Community -->
-                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-code-cyan/10 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">🏛️</span>
-                                    <span class="font-semibold text-sm text-code-text">Cộng đồng</span>
-                                    <span class="chip">10 quyền</span>
-                                </div>
-                                <span class="text-xs text-code-cyan font-semibold">tất cả admin</span>
-                            </div>
-                            <ul class="divide-y divide-code-border text-xs">
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Quản lý nhóm</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Quản lý live chat</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Broadcast thông báo</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
-                            </ul>
-                        </div>
-
-                        <!-- Kinh Sách -->
-                        <div class="bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                            <div class="px-4 py-3 bg-code-purple/10 flex items-center justify-between">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-base">📚</span>
-                                    <span class="font-semibold text-sm text-code-text">Kinh Sách</span>
-                                    <span class="chip">10 quyền</span>
-                                </div>
-                                <span class="text-xs text-code-purple font-semibold">chỉ Admin Kỹ Thuật</span>
-                            </div>
-                            <ul class="divide-y divide-code-border text-xs">
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Thêm / sửa sách</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Quản lý chương sách</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 flex items-center justify-between">
-                                    <span class="text-code-soft">Duyệt cảm ngộ</span>
-                                    <span class="text-code-accent font-bold">✓</span>
-                                </li>
-                                <li class="perm-row px-4 py-2 text-center text-code-muted">+ 7 quyền khác</li>
-                            </ul>
-                        </div>
-                    </div>
-
-                    <!-- Desktop: full table -->
-                    <div class="hidden md:block bg-code-panel border border-code-border rounded-xl overflow-hidden">
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-xs">
-                                <thead class="bg-code-bg/60 text-code-muted">
-                                    <tr class="border-b border-code-border">
-                                        <th class="text-left px-4 py-3 font-semibold uppercase tracking-wider">Nhóm quyền</th>
-                                        <th class="text-left px-4 py-3 font-semibold uppercase tracking-wider">Quyền</th>
-                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Kỹ Thuật</th>
-                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Quản Lý</th>
-                                        <th class="text-center px-4 py-3 font-semibold uppercase tracking-wider">Cộng Đồng</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-code-border/50">
-                                    <!-- System group -->
-                                    <tr class="bg-code-red/5">
-                                        <td class="px-4 py-2 font-semibold text-code-red" rowspan="3">⚙️ Hệ thống <span class="text-code-muted font-normal">(10)</span></td>
-                                        <td class="px-4 py-2 perm-row text-code-soft">Xem tình trạng hệ thống</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-red/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Cấu hình & migration</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-red/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác (log, hard-delete, restart…)</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <!-- Users group -->
-                                    <tr class="bg-code-blue/5">
-                                        <td class="px-4 py-2 font-semibold text-code-blue" rowspan="3">👥 Thành viên <span class="text-code-muted font-normal">(10)</span></td>
-                                        <td class="px-4 py-2 perm-row text-code-soft">Xem danh sách thành viên</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-blue/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Đổi vai trò, khoá / mở khoá</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-blue/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <!-- Content group -->
-                                    <tr class="bg-code-amber/5">
-                                        <td class="px-4 py-2 font-semibold text-code-amber" rowspan="3">📝 Nội dung <span class="text-code-muted font-normal">(10)</span></td>
-                                        <td class="px-4 py-2 perm-row text-code-soft">Duyệt, sửa, xoá nội dung</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <tr class="bg-code-amber/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Ghim / khoá chủ đề, mod bình luận</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <tr class="bg-code-amber/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <!-- Community group -->
-                                    <tr class="bg-code-cyan/5">
-                                        <td class="px-4 py-2 font-semibold text-code-cyan" rowspan="3">🏛️ Cộng đồng <span class="text-code-muted font-normal">(10)</span></td>
-                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý nhóm, sự kiện</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <tr class="bg-code-cyan/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý live chat, broadcast</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <tr class="bg-code-cyan/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                    </tr>
-                                    <!-- Kinh Sách group -->
-                                    <tr class="bg-code-purple/5">
-                                        <td class="px-4 py-2 font-semibold text-code-purple" rowspan="3">📚 Kinh Sách <span class="text-code-muted font-normal">(10)</span></td>
-                                        <td class="px-4 py-2 perm-row text-code-soft">Thêm / sửa / xoá sách</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-purple/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft">Quản lý chương, duyệt cảm ngộ</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                    <tr class="bg-code-purple/5">
-                                        <td class="px-4 py-2 perm-row text-code-soft text-code-muted italic">+ 8 khác</td>
-                                        <td class="px-4 py-2 text-center text-code-accent font-bold">✓</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                        <td class="px-4 py-2 text-center text-code-red font-bold">✗</td>
-                                    </tr>
-                                </tbody>
-                                <tfoot class="bg-code-bg/60 border-t-2 border-code-border">
-                                    <tr class="font-bold">
-                                        <td class="px-4 py-3 text-code-text" colspan="2">Tổng cộng</td>
-                                        <td class="px-4 py-3 text-center text-code-accent">50</td>
-                                        <td class="px-4 py-3 text-center text-code-blue">30</td>
-                                        <td class="px-4 py-3 text-center text-code-cyan">20</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
                         </div>
                     </div>
                 </div>
@@ -645,16 +551,16 @@
                                     <th class="text-left px-4 py-2 font-semibold">Thời gian</th>
                                     <th class="text-left px-4 py-2 font-semibold">Hành động</th>
                                     <th class="text-left px-4 py-2 font-semibold">Người dùng</th>
-                                    <th class="text-left px-4 py-2 font-semibold">Chi tiết</th>
+                                    <th class="text-left px-4 py-2 font-semibold hidden md:table-cell">Chi tiết</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-code-border/50">
                                 {% for log in audit_logs %}
-                                <tr class="perm-row">
+                                <tr class="hover:bg-code-accent/5 transition">
                                     <td class="px-4 py-2 text-code-muted mono whitespace-nowrap">{{ log.created_at }}</td>
                                     <td class="px-4 py-2 text-code-soft">{{ log.action }}</td>
                                     <td class="px-4 py-2 text-code-soft mono">{{ log.user_handle }}</td>
-                                    <td class="px-4 py-2 text-code-muted truncate max-w-[200px]">{{ log.detail }}</td>
+                                    <td class="px-4 py-2 text-code-muted truncate max-w-[200px] hidden md:table-cell">{{ log.detail }}</td>
                                 </tr>
                                 {% endfor %}
                                 {% if audit_logs.is_empty() %}
@@ -673,69 +579,14 @@
                 </div>
             </section>
 
-            <!-- ─── Hành động nhanh ─── -->
-            <section id="hanh-dong" class="space-y-3">
-                <h2 class="text-lg md:text-xl font-bold text-code-text flex items-center gap-2">
-                    <span>⚡</span> Hành động nhanh
-                </h2>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <a href="/admin/thanh-vien"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-blue/15 flex items-center justify-center text-lg shrink-0">👥</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Quản lý thành viên</div>
-                            <div class="text-[11px] text-code-muted">Xem, đổi role, khoá TK</div>
-                        </div>
-                    </a>
-                    <a href="/api/health" target="_blank"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0">💓</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Kiểm tra sức khoẻ</div>
-                            <div class="text-[11px] text-code-muted">JSON API status</div>
-                        </div>
-                    </a>
-                    <a href="/quy-tu-bi"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0">🪷</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Quỹ Từ Bi</div>
-                            <div class="text-[11px] text-code-muted">Xem quỹ cộng đồng</div>
-                        </div>
-                    </a>
-                    <a href="/bang-xep-hang"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0">🏆</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Bảng xếp hạng</div>
-                            <div class="text-[11px] text-code-muted">Top tu hành</div>
-                        </div>
-                    </a>
-                    <a href="/cong-dong"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0">🏛️</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Cộng đồng</div>
-                            <div class="text-[11px] text-code-muted">Nhóm &amp; chủ đề</div>
-                        </div>
-                    </a>
-                    <a href="/kinh-sach"
-                       class="stat-card bg-code-panel border border-code-border rounded-xl p-4 flex items-center gap-3 group">
-                        <div class="w-10 h-10 rounded-lg bg-code-pink/15 flex items-center justify-center text-lg shrink-0">📚</div>
-                        <div class="min-w-0">
-                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition">Kinh Sách</div>
-                            <div class="text-[11px] text-code-muted">Thư viện kinh</div>
-                        </div>
-                    </a>
-                </div>
-            </section>
-
             <!-- Footer -->
             <footer class="pt-6 pb-4 border-t border-code-border">
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.14 · Admin Kỹ Thuật · 6/50 quyền (UI/hệ thống)</span>
+                        <span>Ứng Dụng Từ Bi v0.9.15 · Admin Kỹ Thuật ·
+                            {% if let Some(u) = user %}{{ u.permission_count() }}/{{ u.system_permission_count() }} quyền{% else %}0/0 quyền{% endif %}
+                        </span>
                     </div>
                     <div class="mono">Rust 1.97.1 · Axum 0.8 · PostgreSQL 17</div>
                 </div>

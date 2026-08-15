@@ -1,4 +1,5 @@
 //! Handlers cho Không Gian Cá Nhân — Giai đoạn 13 (v0.9.9).
+//! v0.9.15: Fix bug niệm phật (số lệch, streak không đếm, stats không cập nhật).
 //!
 //! Routes:
 //!   - GET  /khong-gian                  — Trang Không Gian cá nhân (Niệm Phật + Tượng Phật + Nhật ký)
@@ -25,6 +26,12 @@ use crate::models::khong_gian::{
     BuddhaVowForm, DailyNiem, KhongGianStats, PublicVow, VowType,
 };
 use crate::models::user::User;
+
+/// Ngày hiện tại (UTC, naive) — đồng bộ với `CURRENT_DATE` của PostgreSQL
+/// trong Docker container (mặc định TZ=UTC). Tránh mismatch TZ gây bug streak.
+fn today_utc_naive() -> chrono::NaiveDate {
+    Utc::now().date_naive()
+}
 
 /// Template cho trang /khong-gian.
 #[derive(Template)]
@@ -71,7 +78,8 @@ pub async fn khong_gian_index(State(state): State<AppState>, jar: CookieJar) -> 
 
 /// POST /api/niem-phat — Tăng 1 lần niệm Phật (+1 A).
 ///
-/// Dùng HTMX: trả về HTML partial cập nhật counter.
+/// Dùng HTMX: trả về HTML partial cập nhật counter + out-of-band swaps
+/// để cập nhật luôn các stats card (today_niem, total_niem, streak, K).
 pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Response {
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
@@ -90,7 +98,8 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
     };
 
     // Upsert practice_logs (1 row/user/day).
-    let _ = sqlx::query(
+    // v0.9.15: KHÔNG dùng `let _ =` (nuốt error). Nếu upsert fail, log + rollback.
+    if let Err(e) = sqlx::query(
         "INSERT INTO practice_logs (user_id, log_date, niem_count, last_niem_at)
          VALUES ($1, CURRENT_DATE, 1, NOW())
          ON CONFLICT (user_id, log_date)
@@ -99,9 +108,17 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
     )
     .bind(user.id)
     .execute(&mut *tx)
-    .await;
+    .await
+    {
+        log::error!("❌ niem_phat: upsert practice_logs fail: {e}");
+        let _ = tx.rollback().await;
+        return Html(
+            r#"<span class="text-red-600 text-sm">Lỗi ghi nhận nhật ký tu học — vui lòng thử lại.</span>"#
+        )
+        .into_response();
+    }
 
-    // Increment a_balance first.
+    // Increment a_balance.
     let new_a: i64 = match sqlx::query_scalar(
         "UPDATE users SET a_balance = a_balance + 1, updated_at = NOW()
          WHERE id = $1 RETURNING a_balance",
@@ -166,7 +183,9 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
         .into_response();
     }
 
-    // Return HTMX partial: updated A counter + K display.
+    // v0.9.15: Fetch updated stats để trả về cho HTMX out-of-band swap.
+    // Cập nhật ngay lập tức cả counter + stats card (không cần F5).
+    let updated_stats = fetch_khong_gian_stats(&state.pool, user.id).await;
     let k_convert_msg = if k_to_add > 0 {
         format!(
             r#"<div class="text-xs text-amber-600 font-semibold mt-1 animate-pulse">🎉 Chuyển đổi: {k_to_add}×1000 A → {k_to_add} K!</div>"#
@@ -174,12 +193,38 @@ pub async fn niem_phat(State(state): State<AppState>, jar: CookieJar) -> Respons
     } else {
         String::new()
     };
+
+    // Main swap target: #niem-counter — GIỮ NGUYÊN class `text-center mb-4`.
+    // Bug v0.9.14: response mất class này → số bị lệch trái sau click đầu tiên.
+    // + Out-of-band: cập nhật stats card ngay lập tức (không đợi F5).
     let html = format!(
-        r#"<div id="niem-counter" hx-target="this" hx-swap="outerHTML">
+        r#"<div id="niem-counter" class="text-center mb-4">
             <div class="text-5xl md:text-6xl font-bold text-tubi-800 tabular-nums">{final_a}</div>
             <div class="text-xs text-gray-500 mt-1">Niệm Lực A · <span class="text-amber-600 font-semibold">K: {final_k}</span></div>
             {k_convert_msg}
-        </div>"#
+        </div>
+        <div id="stat-today-niem" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div class="text-3xl font-bold text-tubi-700">{today}</div>
+            <div class="text-xs text-gray-500 mt-1">Niệm hôm nay</div>
+        </div>
+        <div id="stat-total-niem" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div class="text-3xl font-bold text-tubi-800">{total}</div>
+            <div class="text-xs text-gray-500 mt-1">Tổng niệm (A)</div>
+        </div>
+        <div id="stat-k-balance" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div class="text-3xl font-bold text-amber-600">{final_k}</div>
+            <div class="text-xs text-gray-500 mt-1">Tiền K</div>
+        </div>
+        <div id="stat-streak" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+            <div class="text-3xl font-bold text-orange-500">🔥 {streak}</div>
+            <div class="text-xs text-gray-500 mt-1">Ngày tu liên tiếp</div>
+        </div>
+        <div id="today-niem-footer" hx-swap-oob="outerHTML" class="text-xs text-gray-400 mt-3">
+            Hôm nay đã niệm: <strong class="text-tubi-700">{today}</strong> lần
+        </div>"#,
+        today = updated_stats.today_niem,
+        total = updated_stats.total_niem,
+        streak = updated_stats.streak_days,
     );
     Html(html).into_response()
 }
@@ -212,6 +257,7 @@ pub async fn tuong_phat_hoi_huong(
 }
 
 /// Helper: tạo vow + thưởng I (Nguyên lực) trong transaction.
+/// v0.9.15: Trả về cả out-of-band update cho #stat-i-balance + #stat-total-vows.
 async fn create_vow(
     state: &AppState,
     jar: &CookieJar,
@@ -250,7 +296,7 @@ async fn create_vow(
         }
     };
 
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO buddha_vows (user_id, vow_type, content, is_public)
          VALUES ($1, $2, $3, $4)",
     )
@@ -259,7 +305,17 @@ async fn create_vow(
     .bind(&content)
     .bind(is_public)
     .execute(&mut *tx)
-    .await;
+    .await
+    {
+        log::error!("❌ create_vow: insert vow fail: {e}");
+        let _ = tx.rollback().await;
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Lỗi lưu nguyện — vui lòng thử lại.
+            </div>"#,
+        )
+        .into_response();
+    }
 
     let new_i: i64 = match sqlx::query_scalar(
         "UPDATE users SET i_balance = i_balance + $1, updated_at = NOW()
@@ -293,18 +349,32 @@ async fn create_vow(
         .into_response();
     }
 
-    // Return HTMX partial: success message + new I balance.
+    // Fetch total vows count for OOB update.
+    let total_vows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM buddha_vows WHERE user_id = $1",
+    )
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+
+    // Return HTMX partial: success message + OOB update cho I balance stat card.
     let icon = vow_type.icon();
     let label = vow_type.display();
-    let color = vow_type.color();
     let html = format!(
         r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
             ✅ {icon} <strong>{label}</strong> đã được ghi nhận. Bạn nhận được <strong>+{i_reward} I</strong> (Nguyên lực).
             <br>Tổng I hiện tại: <strong>{new_i}</strong>
+        </div>
+        <div id="stat-i-balance" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div class="text-3xl font-bold text-purple-600">{new_i}</div>
+            <div class="text-xs text-gray-500 mt-1">Nguyên lực I</div>
+        </div>
+        <div id="stat-total-vows" hx-swap-oob="outerHTML" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+            <div class="text-3xl font-bold text-amber-700">📿 {total_vows}</div>
+            <div class="text-xs text-gray-500 mt-1">Tổng lời nguyện</div>
         </div>"#
     );
-    // Note: không hiển thị content trong response để giữ riêng tư nếu is_public=false.
-    let _ = color; // color available for future UI enhancement
     Html(html).into_response()
 }
 
@@ -386,12 +456,16 @@ async fn fetch_khong_gian_stats(pool: &PgPool, user_id: uuid::Uuid) -> KhongGian
 }
 
 /// Tính số ngày liên tiếp tu học (streak).
-/// Bắt đầu từ today, lùi lại cho đến khi gặp ngày không có niệm.
+/// Bắt đầu từ today (UTC, đồng bộ với `CURRENT_DATE` của PostgreSQL trong Docker),
+/// lùi lại cho đến khi gặp ngày không có niệm.
+///
+/// v0.9.15: FIX bug dùng `chrono::Local::now()` gây mismatch TZ với DB `CURRENT_DATE`
+/// (Docker container TZ=UTC mặc định) → streak luôn = 0 dù user có niệm.
 async fn compute_streak(pool: &PgPool, user_id: uuid::Uuid) -> i32 {
-    // Lấy 30 ngày gần nhất có practice_log.
+    // Lấy 60 ngày gần nhất có practice_log (đủ rộng để bắt bridge ngày thiếu).
     let rows: Vec<DailyNiem> = match sqlx::query_as::<_, DailyNiem>(
         "SELECT log_date, niem_count FROM practice_logs
-         WHERE user_id = $1 AND log_date >= CURRENT_DATE - INTERVAL '30 days'
+         WHERE user_id = $1 AND log_date >= CURRENT_DATE - INTERVAL '60 days'
          ORDER BY log_date DESC",
     )
     .bind(user_id)
@@ -399,32 +473,40 @@ async fn compute_streak(pool: &PgPool, user_id: uuid::Uuid) -> i32 {
     .await
     {
         Ok(r) => r,
-        Err(_) => return 0,
+        Err(e) => {
+            log::warn!("⚠️ compute_streak: query fail: {e}");
+            return 0;
+        }
     };
 
     if rows.is_empty() {
         return 0;
     }
 
-    // Streak logic: nếu today có niệm, đếm lùi; nếu today chưa niệm nhưng yesterday có, đếm từ yesterday.
-    let today = chrono::Local::now().date_naive();
+    // v0.9.15: dùng UTC (đồng bộ với DB CURRENT_DATE trong Docker TZ=UTC).
+    let today = today_utc_naive();
     let mut streak = 0i32;
     let mut cursor = rows[0].log_date;
 
     // Nếu record mới nhất là today hoặc yesterday → bắt đầu đếm.
+    // (Cho phép "today chưa niệm nhưng yesterday có" → vẫn tính streak từ yesterday.)
     let days_diff = (today - cursor).num_days();
     if days_diff > 1 {
-        return 0; // Streak đã đứt.
+        return 0; // Streak đã đứt (record mới nhất là > 1 ngày trước).
     }
 
     for row in &rows {
         if row.log_date == cursor && row.niem_count > 0 {
             streak += 1;
-            cursor = cursor.pred_opt().unwrap_or(cursor);
+            cursor = match cursor.pred_opt() {
+                Some(prev) => prev,
+                None => break,
+            };
         } else if row.log_date < cursor {
-            // Gap detected.
+            // Gap detected — ngày `cursor` không có log → streak đứt.
             break;
         }
+        // Nếu row.log_date > cursor (do duplicate somehow), skip.
     }
     streak
 }

@@ -154,6 +154,33 @@ pub struct AuditLog {
     pub detail: String,
 }
 
+/// Permission group summary for admin dashboard.
+/// v0.9.15: hiển thị 10 nhóm quyền × 10 quyền mỗi nhóm = 150 quyền tổng.
+#[derive(Debug, Clone)]
+pub struct PermGroup {
+    pub code: &'static str,
+    pub label: &'static str,
+    pub icon: &'static str,
+    /// Số quyền admin_ky_thuat có trong nhóm này (luôn = 10).
+    pub ky_thuat: u16,
+}
+
+/// Trả về 10 nhóm quyền (mỗi nhóm 10 quyền) cho dashboard.
+fn all_perm_groups() -> Vec<PermGroup> {
+    vec![
+        PermGroup { code: "system",      label: "Hệ thống",      icon: "⚙️",  ky_thuat: 10 },
+        PermGroup { code: "users",       label: "Thành viên",    icon: "👥",  ky_thuat: 10 },
+        PermGroup { code: "content",     label: "Nội dung",      icon: "📝",  ky_thuat: 10 },
+        PermGroup { code: "community",   label: "Cộng đồng",     icon: "🏛️",  ky_thuat: 10 },
+        PermGroup { code: "kinh_sach",   label: "Kinh Sách",     icon: "📚",  ky_thuat: 10 },
+        PermGroup { code: "fund",        label: "Quỹ Từ Bi",     icon: "🪷",  ky_thuat: 10 },
+        PermGroup { code: "achievements",label: "Thành tích",    icon: "🎖️",  ky_thuat: 10 },
+        PermGroup { code: "security",    label: "Bảo mật",       icon: "🔒",  ky_thuat: 10 },
+        PermGroup { code: "media",       label: "Media",         icon: "🖼️",  ky_thuat: 10 },
+        PermGroup { code: "analytics",   label: "Phân tích",     icon: "📊",  ky_thuat: 10 },
+    ]
+}
+
 /// Admin Kỹ Thuật dashboard — terminal/coder style (KHÔNG extends layout.html)
 #[derive(Template)]
 #[template(path = "admin/ky-thuat/index.html")]
@@ -161,6 +188,7 @@ pub struct AdminKyThuatTemplate {
     pub user: Option<User>,
     pub stats: AdminStats,
     pub audit_logs: Vec<AuditLog>,
+    pub perm_groups: Vec<PermGroup>,
 }
 
 /// Admin Cộng Đồng dashboard — community mod style
@@ -234,11 +262,13 @@ pub async fn admin_ky_thuat_dashboard(State(state): State<AppState>, jar: Cookie
 
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let audit_logs = fetch_audit_logs(&state.pool, 20).await;
+    let perm_groups = all_perm_groups();
 
     let html = AdminKyThuatTemplate {
         user: Some(user),
         stats,
         audit_logs,
+        perm_groups,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -567,7 +597,7 @@ fn render_forbidden(user: &User) -> Response {
   <h1 class="text-xl font-bold text-red-600 mb-2">403 — Không có quyền truy cập</h1>
   <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin.</p>
   <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền UI / {sys_perm_count} quyền hệ thống)</p>
-  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (6/50) &gt; Admin Quản Lý (4/30) &gt; Admin Cộng Đồng (4/20) &gt; Thành Viên (0)</p>
+  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (150/150) &gt; Admin Quản Lý (100/100) &gt; Admin Cộng Đồng (75/75) &gt; Thành Viên (0)</p>
   <a href="/" class="inline-block text-white px-6 py-2 rounded-xl transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </div>
 </body></html>"#,

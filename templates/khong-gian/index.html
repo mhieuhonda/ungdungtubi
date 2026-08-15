@@ -59,15 +59,15 @@
             </p>
             <div class="grid grid-cols-3 gap-2 w-full">
                 <button @click="activeVow = 'prayer'"
-                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition break-words">
                     🙏 Cầu Nguyện
                 </button>
                 <button @click="activeVow = 'repentance'"
-                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition break-words">
                     🙇 Sám Hối
                 </button>
                 <button @click="activeVow = 'dedication'"
-                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition">
+                        class="bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2 px-2 rounded-lg transition break-words">
                     🌸 Hồi Hướng
                 </button>
             </div>
@@ -85,25 +85,63 @@
                     activeVow === 'prayer' ? 'Viết lời cầu nguyện thành tâm. Nhận +1 I.' :
                     activeVow === 'repentance' ? 'Viết nội dung sám hối. Nhận +2 I.' : 'Viết lời hồi hướng công đức. Nhận +3 I.'"></p>
 
-                <!-- HTMX form: action phụ thuộc activeVow -->
-                <form :action="activeVow === 'prayer' ? '/tuong-phat/cau-nguyen' :
-                              activeVow === 'repentance' ? '/tuong-phat/sam-hoi' : '/tuong-phat/hoi-huong'"
-                      method="POST"
-                      hx-post="" hx-swap="outerHTML" hx-target="#vow-result"
-                      class="space-y-2">
-                    <input type="hidden" name="vow_type" :value="activeVow">
-                    <textarea name="content" required minlength="10" maxlength="2000" rows="4"
-                              placeholder="Viết lời của bạn (10–2000 ký tự)…"
-                              class="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
-                    <label class="flex items-center gap-2 text-xs text-gray-600">
-                        <input type="checkbox" name="is_public" value="on" checked class="rounded">
-                        Hiển thị công khai trên bảng Kính Nguyện
-                    </label>
-                    <button type="submit"
-                            class="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold py-2 rounded-lg transition">
-                        Phát nguyện
-                    </button>
-                </form>
+                <!-- v0.9.15: Fix form — dùng 3 form riêng biệt với hx-post URL cố định. -->
+                <!-- Tránh bug v0.9.14: `hx-post=""` (rỗng) chặn submit, vow không gửi được. -->
+                <!-- HTMX đọc attribute lúc init, không đọc được Alpine dynamic binding. -->
+                <div x-show="activeVow === 'prayer'" x-cloak>
+                    <form hx-post="/tuong-phat/cau-nguyen"
+                          hx-target="#vow-result" hx-swap="innerHTML"
+                          class="space-y-2">
+                        <input type="hidden" name="vow_type" value="prayer">
+                        <textarea name="content" required minlength="10" maxlength="2000" rows="4"
+                                  placeholder="Viết lời cầu nguyện của bạn (10–2000 ký tự)…"
+                                  class="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
+                        <label class="flex items-center gap-2 text-xs text-gray-600">
+                            <input type="checkbox" name="is_public" value="on" checked class="rounded">
+                            Hiển thị công khai trên bảng Kính Nguyện
+                        </label>
+                        <button type="submit"
+                                class="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                            🙏 Phát nguyện
+                        </button>
+                    </form>
+                </div>
+                <div x-show="activeVow === 'repentance'" x-cloak>
+                    <form hx-post="/tuong-phat/sam-hoi"
+                          hx-target="#vow-result" hx-swap="innerHTML"
+                          class="space-y-2">
+                        <input type="hidden" name="vow_type" value="repentance">
+                        <textarea name="content" required minlength="10" maxlength="2000" rows="4"
+                                  placeholder="Viết nội dung sám hối của bạn (10–2000 ký tự)…"
+                                  class="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
+                        <label class="flex items-center gap-2 text-xs text-gray-600">
+                            <input type="checkbox" name="is_public" value="on" checked class="rounded">
+                            Hiển thị công khai trên bảng Kính Nguyện
+                        </label>
+                        <button type="submit"
+                                class="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                            🙇 Sám Hối
+                        </button>
+                    </form>
+                </div>
+                <div x-show="activeVow === 'dedication'" x-cloak>
+                    <form hx-post="/tuong-phat/hoi-huong"
+                          hx-target="#vow-result" hx-swap="innerHTML"
+                          class="space-y-2">
+                        <input type="hidden" name="vow_type" value="dedication">
+                        <textarea name="content" required minlength="10" maxlength="2000" rows="4"
+                                  placeholder="Viết lời hồi hướng công đức (10–2000 ký tự)…"
+                                  class="w-full text-sm border border-amber-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-amber-400 outline-none"></textarea>
+                        <label class="flex items-center gap-2 text-xs text-gray-600">
+                            <input type="checkbox" name="is_public" value="on" checked class="rounded">
+                            Hiển thị công khai trên bảng Kính Nguyện
+                        </label>
+                        <button type="submit"
+                                class="w-full bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold py-2 rounded-lg transition">
+                            🌸 Hồi Hướng
+                        </button>
+                    </form>
+                </div>
                 <div id="vow-result" class="mt-2"></div>
             </div>
         </div>
@@ -113,7 +151,7 @@
             <h2 class="text-lg font-bold text-tubi-800 mb-2">🪷 Niệm Phật</h2>
             <p class="text-xs text-gray-500 mb-4 text-center">Nhấn nút để niệm "Nam Mô A Di Đà Phật".<br>Mỗi lần niệm = +1 Niệm Lực A.</p>
 
-            <!-- Counter (HTMX target) -->
+            <!-- Counter (HTMX target) — giữ nguyên class `text-center mb-4` -->
             <div id="niem-counter" class="text-center mb-4">
                 <div class="text-5xl md:text-6xl font-bold text-tubi-800 tabular-nums">{{ u.a_balance }}</div>
                 <div class="text-xs text-gray-500 mt-1">Niệm Lực A</div>
@@ -127,30 +165,34 @@
                     class="niem-btn w-32 h-32 rounded-full text-white text-5xl font-bold active:scale-95 select-none">
                 🪷
             </button>
-            <p class="text-xs text-gray-400 mt-3">Hôm nay đã niệm: <strong class="text-tubi-700">{{ stats.today_niem }}</strong> lần</p>
+            <p id="today-niem-footer" class="text-xs text-gray-400 mt-3">Hôm nay đã niệm: <strong class="text-tubi-700">{{ stats.today_niem }}</strong> lần</p>
         </div>
 
-        <!-- RIGHT: Stats grid -->
+        <!-- RIGHT: Stats grid — mỗi card có ID để HTMX OOB swap cập nhật -->
         <div class="lg:col-span-1 grid grid-cols-2 gap-3 content-start">
-            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div id="stat-today-niem" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <div class="text-3xl font-bold text-tubi-700">{{ stats.today_niem }}</div>
                 <div class="text-xs text-gray-500 mt-1">Niệm hôm nay</div>
             </div>
-            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div id="stat-total-niem" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <div class="text-3xl font-bold text-tubi-800">{{ stats.total_niem }}</div>
                 <div class="text-xs text-gray-500 mt-1">Tổng niệm (A)</div>
             </div>
-            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div id="stat-k-balance" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <div class="text-3xl font-bold text-amber-600">{{ u.k_balance }}</div>
                 <div class="text-xs text-gray-500 mt-1">Tiền K</div>
             </div>
-            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
+            <div id="stat-i-balance" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center">
                 <div class="text-3xl font-bold text-purple-600">{{ u.i_balance }}</div>
                 <div class="text-xs text-gray-500 mt-1">Nguyên lực I</div>
             </div>
-            <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+            <div id="stat-streak" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
                 <div class="text-3xl font-bold text-orange-500">🔥 {{ stats.streak_days }}</div>
                 <div class="text-xs text-gray-500 mt-1">Ngày tu liên tiếp</div>
+            </div>
+            <div id="stat-total-vows" class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
+                <div class="text-3xl font-bold text-amber-700">📿 {{ stats.total_vows }}</div>
+                <div class="text-xs text-gray-500 mt-1">Tổng lời nguyện</div>
             </div>
             <div class="stat-card bg-white rounded-xl border border-gray-200 p-4 text-center col-span-2">
                 <div class="text-xl font-bold text-amber-700">{{ u.rank_icon() }} {{ u.rank_display() }}</div>
@@ -196,16 +238,16 @@
             {% for v in public_vows %}
             <article class="vow-card bg-gray-50 hover:bg-gray-100 rounded-xl p-4 border border-gray-100 transition">
                 <header class="flex items-center justify-between gap-3 mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold"
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold shrink-0"
                               style="background-color: {{ v.color() }}22; color: {{ v.color() }}">
                             <span>{{ v.icon() }}</span><span>{{ v.label() }}</span>
                         </span>
-                        <span class="text-xs text-gray-600 font-medium">{{ v.author_name }}</span>
+                        <span class="text-xs text-gray-600 font-medium truncate">{{ v.author_name }}</span>
                     </div>
-                    <span class="text-[10px] text-gray-400">{{ v.created_at.format("%d/%m/%Y %H:%M") }}</span>
+                    <span class="text-[10px] text-gray-400 whitespace-nowrap">{{ v.created_at.format("%d/%m/%Y %H:%M") }}</span>
                 </header>
-                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{{ v.content }}</p>
+                <p class="text-sm text-gray-700 leading-relaxed whitespace-pre-line break-words">{{ v.content }}</p>
             </article>
             {% endfor %}
         </div>
@@ -214,7 +256,7 @@
 
     <!-- Footer note -->
     <div class="mt-6 text-xs text-gray-400 text-center">
-        🪷 Không Gian Cá Nhân — Giai đoạn 13 (v0.9.14) · Niệm Phật · Tượng Phật · Nhật Ký Tu Học<br>
+        🪷 Không Gian Cá Nhân — v0.9.15 · Niệm Phật · Tượng Phật · Nhật Ký Tu Học<br>
         <span class="text-[10px]">Cập nhật: {{ now.format("%H:%M:%S %d/%m/%Y") }}</span>
     </div>
 </section>

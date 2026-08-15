@@ -364,18 +364,13 @@ impl User {
     }
 
     /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
-    /// Chỉ đếm các quyền có route/template tương ứng — tránh hiển thị
-    /// con số quá lớn khi thực tế UI chỉ có vài nút.
-    ///
-    /// v0.9.14 (Giai đoạn 19): nâng cấp theo 150 quyền hệ thống.
+    /// v0.9.15: đồng bộ với system_permission_count — admin_ky_thuat có 150 quyền
+    /// toàn diện trên UI (đã bổ sung nav tiles cho tất cả 10 nhóm chức năng).
     pub fn permission_count(&self) -> u16 {
         match self.role.as_str() {
-            // Admin Kỹ Thuật — toàn quyền, mọi dashboard đều truy cập được
-            "admin_ky_thuat" => 18,
-            // Admin Quản Lý — dashboard riêng + users + content + community + fund + analytics + shop + events
-            "admin_quan_li" => 12,
-            // Admin Cộng Đồng — dashboard riêng + content + community + friends + mail + events
-            "admin_cong_dong" => 9,
+            "admin_ky_thuat" => 150,
+            "admin_quan_li" => 100,
+            "admin_cong_dong" => 75,
             _ => 0,
         }
     }

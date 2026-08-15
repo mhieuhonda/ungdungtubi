@@ -6,6 +6,45 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.15] — 2026-08-15 — Giai đoạn 20: Niệm Phật Fix + Admin Redesign + Mobile UX
+
+### Sửa (Bug Fixes — Critical)
+
+- **[FIX-1] Niệm Phật counter không bị lệch trái sau click** — HTMX response bị mất class `text-center mb-4` (chỉ có `hx-target="this" hx-swap="outerHTML"`), khiến số `0` ban đầu ở giữa nhưng sau khi niệm +1 thì bị lệch sang trái. v0.9.15 giữ nguyên class `text-center mb-4` trong response.
+- **[FIX-2] Streak (số ngày tu liên tiếp) tính đúng** — `compute_streak()` dùng `chrono::Local::now().date_naive()` nhưng DB `CURRENT_DATE` trong Docker container TZ=UTC → mismatch timezone. Nếu user niệm lúc 23:00 UTC (06:00 hôm sau VN), record được lưu theo UTC nhưng local time lại là ngày hôm sau → `days_diff > 1` → streak = 0 dù user có niệm. Fix: dùng `Utc::now().date_naive()` đồng bộ với DB.
+- **[FIX-3] Tổng niệm / niệm hôm nay cập nhật ngay lập tức** — HTMX response trước đây chỉ swap `#niem-counter`, không cập nhật stats card (`#stat-today-niem`, `#stat-total-niem`, `#stat-streak`, `#stat-k-balance`). User phải F5 mới thấy cập nhật. v0.9.15 dùng `hx-swap-oob="outerHTML"` để swap nhiều element cùng lúc — counter + 4 stats card + footer đều cập nhật ngay sau khi niệm.
+- **[FIX-4] Form Cầu Nguyện / Sám Hối / Hồi Hướng gửi được** — Bug v0.9.14: form có `hx-post=""` (rỗng) → HTMX intercept submit và POST đến URL rỗng → không gửi được. v0.9.15 tách thành 3 form riêng biệt với `hx-post` URL cố định (`/tuong-phat/cau-nguyen`, `/tuong-phat/sam-hoi`, `/tuong-phat/hoi-huong`), Alpine `x-show` toggle hiển thị form tương ứng.
+- **[FIX-5] `practice_logs` upsert không còn nuốt error** — Code cũ `let _ = sqlx::query(...)` bỏ qua kết quả → nếu upsert fail (vd. table không tồn tại), `a_balance` vẫn tăng nhưng `practice_logs` rỗng → `today_niem` luôn = 0, streak không đếm. v0.9.15 log error + rollback nếu fail.
+- **[FIX-6] `create_vow` cũng thêm log error + rollback** thay vì `let _ =` cho insert vow.
+
+### Thay đổi (UI/UX — Admin Redesign)
+
+- **[ADMIN-1] Bảng quản trị Admin Kỹ Thuật redesign theo ảnh tham chiếu** — Dark theme, mobile-first, layout 2 cột:
+  - **Stats grid 2×4**: 4 cards (Người dùng, Nhóm, Sách, Bình luận) với số liệu lớn màu đỏ coral (`#ff6b6b`) — đúng theo ảnh.
+  - **Nav tiles grid 2×8**: 15 tiles điều hành (Hướng dẫn, Phê duyệt, Thành viên, Nhóm, Kinh sách, Báo cáo, Bình luận, Từ vựng cấm, Nội dung đánh dấu, Quản lý tag, VIP, Quỹ Từ Bi, Bảng xếp hạng, Nhật ký, Health check, Thành tích) — mỗi tile có icon + label + count (nếu có).
+  - **Permission matrix 10 nhóm × 10 quyền** — hiển thị đầy đủ 150 quyền chia 10 nhóm (system, users, content, community, kinh_sach, fund, achievements, security, media, analytics).
+- **[ADMIN-2] Hiển thị đúng 150 quyền** — Fix hardcoded "6/50 quyền" trong template → dùng `{{ u.permission_count() }}/{{ u.system_permission_count() }}` → admin_ky_thuat thấy `150/150`, admin_quan_li thấy `100/100`, admin_cong_dong thấy `75/75`.
+- **[ADMIN-3] `permission_count()` đồng bộ với `system_permission_count()`** — Trước đây `permission_count` trả về 18/12/9 (chỉ đếm UI visible), giờ trả về 150/100/75 (đồng bộ với potential permissions) vì UI đã có đủ nav tiles cho tất cả 10 nhóm.
+
+### Thay đổi (UI/UX — Navigation Overhaul)
+
+- **[NAV-1] Menu 3 gạch rút gọn chỉ còn 7 mục** (theo yêu cầu user): Không Gian, Cộng Đồng, Bạn Bè, Kinh Sách, Hồ Sơ, Quản Trị (nếu admin), Thoát. Các mục khác được phân bổ:
+  - **Tổng Quan, Quỹ Từ Bi, Bảng Xếp Hạng, Thành Tích, Thương Thành, Tìm Kiếm** → truy cập qua nút giữa 🪷 (Tổng Quan) trên bottom nav, hoặc qua trang `/tong-quan`.
+  - **Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn** → trong trang `/ban-be` và `/ca-nhan`.
+  - **Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm** → trong trang `/kinh-sach` và `/cong-dong`.
+- **[NAV-2] Bottom nav đổi icon** — Trang Chủ: 🪷 → 🏠 ngôi nhà; nút giữa: 🧭 → 🪷 hoa sen (Tổng Quan).
+- **[NAV-3] Mobile text overflow fix** — Thêm `truncate`, `break-words`, `whitespace-nowrap` cho các button/card/text dễ bị tràn trên mobile.
+- **[NAV-4] Vow card header** — Thêm `min-w-0` + `truncate` cho author_name + `whitespace-nowrap` cho timestamp để không bị tràn trên mobile.
+
+### Bảo trì (Maintenance)
+
+- **[MAINT-1] Cargo.toml version** — `0.9.14` → `0.9.15`.
+- **[MAINT-2] Dockerfile.coolify** — `FROM ghcr.io/mhieuhonda/tubi-app:0.9.14` → `:0.9.15` (tránh Docker cache stale digest).
+- **[MAINT-3] main.rs version string** — `v0.9.14` → `v0.9.15` ở log khởi động + health check JSON.
+- **[MAINT-4] Health check `permission_counts`** — Cập nhật `{admin_ky_thuat: 150, admin_quan_li: 100, admin_cong_dong: 75}` (trước đây là 18/12/9).
+
+---
+
 ## [0.9.14] — 2026-08-15 — Giai đoạn 18 + 19: Navigation Overhaul + 150 Quyền + Thành Tích
 
 ### Thêm (Features — Giai đoạn 18: Navigation Overhaul)

@@ -249,61 +249,62 @@
         </div>
         
         <!-- Mobile Menu (x-cloak để tránh flicker trước khi Alpine init) -->
+        <!-- v0.9.15: Rút gọn menu 3 gạch chỉ còn 7 mục theo yêu cầu user.
+             Các mục khác được phân bổ:
+               - Tổng Quan → nút giữa bottom nav (đổi thành 🪷 hoa sen)
+               - Quỹ Từ Bi, Bảng Xếp Hạng, Thành Tích, Thương Thành, Tìm Kiếm → trang Tong Quan
+               - Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn → trang /ban-be và /ca-nhan
+               - Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm → trang /kinh-sach và /cong-dong -->
         <div x-show="mobileMenu" x-cloak x-transition
              class="md:hidden bg-tubi-900 border-t border-tubi-700 max-h-[calc(100vh-4rem)] overflow-y-auto">
             <div class="px-4 py-3 space-y-1">
-                <!-- 4 chuyên mục chính -->
-                <div class="text-[10px] font-bold text-tubi-300 uppercase tracking-wider pt-2 pb-1">🪷 Chuyên Mục</div>
-                <a href="/khong-gian" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🌍 Không Gian</a>
-                <a href="/cong-dong" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👥 Cộng Đồng</a>
-                <a href="/ban-be" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">👤 Bạn Bè</a>
-                <a href="/kinh-sach" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📚 Kinh Sách</a>
+                <a href="/khong-gian" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">🌍</span>
+                    <span class="text-sm font-medium">Không Gian</span>
+                </a>
+                <a href="/cong-dong" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">👥</span>
+                    <span class="text-sm font-medium">Cộng Đồng</span>
+                </a>
+                <a href="/ban-be" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">👤</span>
+                    <span class="text-sm font-medium">Bạn Bè</span>
+                </a>
+                <a href="/kinh-sach" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">📚</span>
+                    <span class="text-sm font-medium">Kinh Sách</span>
+                </a>
+                <a href="/ca-nhan" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">🪷</span>
+                    <span class="text-sm font-medium">Hồ Sơ</span>
+                </a>
+                {% if let Some(u) = user %}
+                {% if u.is_admin() %}
+                <a href="/admin" class="flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 transition">
+                    <span class="text-xl">
+                        {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% else %}⚙️{% endif %}
+                    </span>
+                    <span class="text-sm font-medium">Quản Trị</span>
+                    <span class="ml-auto px-2 py-0.5 rounded text-[10px] font-bold"
+                          style="background-color: {{ u.role_color() }}; color: white">
+                        {{ u.role_display() }}
+                    </span>
+                </a>
+                {% endif %}
+                {% endif %}
 
-                <!-- Hệ thống -->
-                <div class="text-[10px] font-bold text-tubi-300 uppercase tracking-wider pt-3 pb-1">⚙️ Hệ Thống</div>
-                <a href="/tong-quan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🧭 Tổng Quan</a>
-                <a href="/quy-tu-bi" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🪷 Quỹ Từ Bi</a>
-                <a href="/bang-xep-hang" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🏆 Bảng Xếp Hạng</a>
-                <a href="/thanh-tich" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🎖️ Thành Tích</a>
-                <a href="/thuong-thanh" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🏪 Thương Thành</a>
-                <a href="/tim-kiem" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🔎 Tìm Kiếm</a>
-
-                <!-- Cá nhân -->
-                <div class="text-[10px] font-bold text-tubi-300 uppercase tracking-wider pt-3 pb-1">👤 Cá Nhân</div>
-                <a href="/ca-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🪷 Hồ Sơ</a>
-                <a href="/cai-dat" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">⚙️ Cài Đặt</a>
-                <a href="/ban-be/tin-nhan" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">💬 Tin Nhắn</a>
-                <a href="/ban-be/thu" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">✉️ Hộp Thư</a>
-                <a href="/ban-be/thong-bao" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🔔 Thông Báo</a>
-                <a href="/ban-be/tim-kiem" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🔍 Tìm Bạn</a>
-
-                <!-- Khám phá -->
-                <div class="text-[10px] font-bold text-tubi-300 uppercase tracking-wider pt-3 pb-1">📚 Khám Phá</div>
-                <a href="/kinh-sach/thu-vien/phat-gia" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">🪷 Kinh Phật</a>
-                <a href="/kinh-sach/thu-vien/dao-gia" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">☯️ Kinh Đạo</a>
-                <a href="/kinh-sach/tim-kiem" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">📖 Tìm Sách</a>
-                <a href="/cong-dong/tao-nhom" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">➕ Tạo Nhóm</a>
+                <div class="pt-3 mt-2 border-t border-tubi-700">
+                    <form action="/dang-xuat" method="POST" class="block">
+                        <button type="submit" class="w-full flex items-center gap-3 px-3 py-3 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer transition">
+                            <span class="text-xl">🚪</span>
+                            <span class="text-sm font-medium">Thoát</span>
+                        </button>
+                    </form>
+                </div>
 
                 {% if user.is_none() %}
-                <div class="pt-3 border-t border-tubi-700">
-                    <a href="/auth/google" class="block px-3 py-2 rounded-lg bg-lotus text-tubi-900 mt-1">🪷 Đăng Nhập Bằng Google</a>
-                </div>
-                {% else %}
-                <div class="pt-3 border-t border-tubi-700">
-                    {% if let Some(u) = user %}
-                    {% if u.is_admin() %}
-                    <a href="/admin" class="block px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700">
-                        {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% else %}⚙️{% endif %} Quản Trị
-                        <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold"
-                              style="background-color: {{ u.role_color() }}; color: white">
-                            {{ u.role_display() }}
-                        </span>
-                    </a>
-                    {% endif %}
-                    {% endif %}
-                    <form action="/dang-xuat" method="POST" class="block">
-                        <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-tubi-100 hover:bg-tubi-700 cursor-pointer">🚪 Thoát</button>
-                    </form>
+                <div class="pt-3 mt-2 border-t border-tubi-700">
+                    <a href="/auth/google" class="block px-3 py-3 rounded-lg bg-lotus text-tubi-900 text-center font-semibold">🪷 Đăng Nhập Bằng Google</a>
                 </div>
                 {% endif %}
             </div>
@@ -316,12 +317,12 @@
         {% block content %}{% endblock %}
     </main>
     
-    <!-- Bottom Navigation (Mobile) — grid-cols-5 để logo hoa sen căn giữa chính xác -->
+    <!-- Bottom Navigation (Mobile) — v0.9.15: đổi icon giữa thành hoa sen, trang chủ thành ngôi nhà -->
     <nav class="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
         <div class="grid grid-cols-5 items-end h-16">
             <a href="/" class="flex flex-col items-center justify-center pb-1.5
                {% if active_page == "home" %}text-tubi-700{% else %}text-gray-400{% endif %}">
-                <span class="text-xl leading-none">🪷</span>
+                <span class="text-xl leading-none">🏠</span>
                 <span class="text-[10px] leading-none mt-1">Trang Chủ</span>
             </a>
             <a href="/cong-dong" class="flex flex-col items-center justify-center pb-1.5
@@ -331,7 +332,7 @@
             </a>
             <a href="/tong-quan" class="flex justify-center items-end pb-1.5" aria-label="Tổng quan">
                 <div class="w-12 h-12 -mt-4 bg-tubi-800 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
-                    <span class="text-2xl leading-none">🧭</span>
+                    <span class="text-2xl leading-none">🪷</span>
                 </div>
             </a>
             <a href="/ban-be" class="flex flex-col items-center justify-center pb-1.5
@@ -403,7 +404,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.14 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.15 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
