@@ -97,10 +97,11 @@ USER tubi
 
 EXPOSE 8080
 
-# Healthcheck: gọi /api/ping (public, không cần auth), kỳ vọng HTTP 200 "pong"
-# v0.9.24: đổi từ /api/health → /api/ping vì /api/health giờ yêu cầu admin auth (v0.9.23+)
+# Healthcheck: gọi /api/health, kỳ vọng HTTP 200
+# v0.9.24: /api/health trả 200 minimal cho unauthenticated (chỉ version+status, không lộ data nhạy cảm)
+# Admin/mod auth nhận full response (DB version, features, etc.)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS http://localhost:8080/api/ping || exit 1
+    CMD curl -fsS http://localhost:8080/api/health || exit 1
 
 # Dùng tini làm PID 1 để xử lý signals đúng (graceful shutdown)
 ENTRYPOINT ["/usr/bin/tini", "--"]

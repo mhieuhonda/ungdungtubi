@@ -481,24 +481,29 @@ const HEALTH_FEATURES: &[&str] = &[
     "deploy-fix-v0.9.24",
 ];
 
-/// GET /api/health — Secure health check (admin only).
-/// v0.9.23: Bảo mật — user thường KHÔNG được xem health check.
-/// Trước đây endpoint này công khai, lộ DB version, features, role hierarchy,
-/// user counts — rất nguy hiểm.
+/// GET /api/health — Health check (public minimal + admin full).
+/// v0.9.24: Coolify/Docker health check cần endpoint trả 200 cho unauthenticated.
+/// Trước đây v0.9.23 yêu cầu admin auth → Coolify health check fail → container bị mark unhealthy.
+/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.24"}` (không lộ data nhạy cảm).
+/// Admin/mod auth nhận full response (DB version, features, role hierarchy, user counts).
 async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> Response {
     use crate::handlers::get_user_from_session;
 
-    // Auth required
+    // Check if user is authenticated staff
     let user = get_user_from_session(&state.pool, &jar).await;
-    let Some(user) = user else {
-        return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập.").into_response();
-    };
+    let is_staff = user.as_ref().is_some_and(|u| u.is_staff());
 
-    // Admin only
-    if !user.is_staff() {
-        return (axum::http::StatusCode::FORBIDDEN, "Chỉ admin/mod mới được xem health check.").into_response();
+    if !is_staff {
+        // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
+        return Json(serde_json::json!({
+            "status": "ok",
+            "version": "0.9.24",
+            "app": "Ứng Dụng Từ Bi"
+        }))
+        .into_response();
     }
 
+    // Full response for authenticated staff
     health_check_inner(&state).await
 }
 
