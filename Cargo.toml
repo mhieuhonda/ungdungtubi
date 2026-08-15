@@ -1,8 +1,8 @@
 [package]
 name = "ungdungtubi"
-version = "0.9.20"
+version = "0.9.21"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.97.1"
 
 [dependencies]
 # Web framework ( migrated from actix-web 4 → axum 0.8 )

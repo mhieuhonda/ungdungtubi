@@ -66,20 +66,9 @@ pub struct GroupTemplate {
     pub group: GroupWithCategory,
     pub topics: Vec<TopicWithAuthor>,
     pub membership: Option<GroupMember>,
-    /// 20 tin nhắn chat gần nhất — JSON-serialised cho Alpine.js init.
-    /// [v0.9.2] Live Chat WebSocket
-    pub chat_messages_json: String,
     /// URL ảnh bìa nhóm (nếu có).
     /// [v0.9.3] Cover image upload
     pub cover_image_url: Option<String>,
-    /// v0.9.19: User có thể chat trong nhóm này không?
-    /// True nếu user là active member HOẶC user là staff (admin/mod).
-    /// Dùng trong template để quyết định hiển thị form chat.
-    pub can_chat: bool,
-    /// v0.9.19: User có phải staff (admin/mod) không? Dùng để hiển thị
-    /// form chat cho admin/mod ngay cả khi chưa tham gia nhóm.
-    #[allow(dead_code)]
-    pub is_staff: bool,
 }
 
 #[derive(Template)]
@@ -423,25 +412,6 @@ pub async fn view_group(
         None
     };
 
-    // v0.9.19: Compute can_chat + is_staff cho template.
-    // can_chat = (membership is active) OR (user is staff — admin/mod).
-    // is_staff = user is admin OR mod — dùng để hiển thị form chat cho admin/mod
-    // ngay cả khi chưa tham gia nhóm.
-    let (can_chat, is_staff) = match user.as_ref() {
-        Some(u) => {
-            let staff = u.is_staff();
-            let active_member = membership
-                .as_ref()
-                .is_some_and(|m| m.status == "active");
-            (active_member || staff, staff)
-        }
-        None => (false, false),
-    };
-
-    // [v0.9.2] Lấy 20 tin nhắn chat gần nhất để render SSR
-    let chat_messages = crate::handlers::chat::recent_messages(&state.pool, group.id).await;
-    let chat_messages_json = serde_json::to_string(&chat_messages).unwrap_or_else(|_| "[]".into());
-
     // [v0.9.3] Lấy URL ảnh bìa nhóm (cover_upload_id → images → stored_filename)
     let cover_image_url: Option<String> = sqlx::query_scalar::<_, String>(
         "SELECT i.stored_filename FROM images i JOIN groups g ON g.cover_upload_id = i.id WHERE g.id = $1",
@@ -459,10 +429,7 @@ pub async fn view_group(
         group,
         topics,
         membership,
-        chat_messages_json,
         cover_image_url,
-        can_chat,
-        is_staff,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -483,43 +450,50 @@ pub async fn join_group(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    let group_id: Uuid = match sqlx::query_scalar(
-        "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
+    // Lấy group_id VÀ require_approval — v0.9.21 fix: tôn trọng cờ require_approval
+    let group_info: Option<(Uuid, bool)> = sqlx::query_as(
+        "SELECT id, require_approval FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
     .fetch_optional(&state.pool)
     .await
-    {
-        Ok(Some(id)) => id,
-        Ok(None) => {
-            return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
-        }
-        Err(e) => {
-            log::error!("❌ Lỗi truy vấn nhóm: {e}");
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Lỗi hệ thống",
-            )
-                .into_response();
-        }
+    .ok()
+    .flatten();
+
+    let Some((group_id, require_approval)) = group_info else {
+        return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
     };
+
+    // v0.9.21 fix: Nếu require_approval = true → status = 'pending', ngược lại 'active'
+    let member_status = if require_approval { "pending" } else { "active" };
 
     let status = if sqlx::query(
         "INSERT INTO group_members (group_id, user_id, role, status)
-         VALUES ($1, $2, 'member', 'active')
+         VALUES ($1, $2, 'member', $3)
          ON CONFLICT (group_id, user_id) DO NOTHING",
     )
     .bind(group_id)
     .bind(user.id)
+    .bind(member_status)
     .execute(&state.pool)
     .await
     .map_or(0, |r| r.rows_affected())
         > 0
     {
-        "active"
+        member_status
     } else {
         "already_member"
     };
+
+    // v0.9.21 fix: Cập nhật member_count khi tham gia thành công
+    if status != "already_member" {
+        let _ = sqlx::query(
+            "UPDATE groups SET member_count = member_count + 1 WHERE id = $1",
+        )
+        .bind(group_id)
+        .execute(&state.pool)
+        .await;
+    }
 
     log::info!("👥 User {} tham gia nhóm {slug} — status={status}", user.id);
 
@@ -572,11 +546,22 @@ pub async fn leave_group(
         .into_response();
     }
 
-    let _ = sqlx::query("DELETE FROM group_members WHERE group_id = $1 AND user_id = $2")
+    let rows_deleted = sqlx::query("DELETE FROM group_members WHERE group_id = $1 AND user_id = $2")
         .bind(group_id)
         .bind(user.id)
         .execute(&state.pool)
+        .await
+        .map_or(0, |r| r.rows_affected());
+
+    // v0.9.21 fix: Cập nhật member_count khi rời nhóm thành công
+    if rows_deleted > 0 {
+        let _ = sqlx::query(
+            "UPDATE groups SET member_count = GREATEST(member_count - 1, 0) WHERE id = $1",
+        )
+        .bind(group_id)
+        .execute(&state.pool)
         .await;
+    }
 
     log::info!("👋 User {} rời nhóm {slug}", user.id);
 
@@ -613,8 +598,9 @@ pub async fn create_topic_form(
         }
     };
 
+    // v0.9.21 fix: Chỉ cho phép active member tạo chủ đề (pending/banned không được)
     let membership = get_membership(&state.pool, group_id, user.id).await;
-    if membership.is_none() {
+    if membership.as_ref().is_none_or(|m| m.status != "active") {
         return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
     }
 
@@ -665,8 +651,9 @@ pub async fn create_topic(
         }
     };
 
+    // v0.9.21 fix: Chỉ cho phép active member tạo chủ đề
     let membership = get_membership(&state.pool, group_id, user.id).await;
-    if membership.is_none() {
+    if membership.as_ref().is_none_or(|m| m.status != "active") {
         return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
     }
 

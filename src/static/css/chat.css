@@ -163,31 +163,7 @@
  * 5. Sound toggle button (v0.9.20)
  * ==================================================================== */
 
-.sound-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: inherit;
-    cursor: pointer;
-    font-size: 14px;
-    line-height: 1;
-    transition: background 0.2s ease, transform 0.1s ease;
-    -webkit-user-select: none;
-    user-select: none;
-}
-
-.sound-toggle:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.sound-toggle:active {
-    transform: scale(0.92);
-}
+/* v0.9.21: Sound toggle styles đã bị XÓA (sound effects loại bỏ) */
 
 /* ====================================================================
  * 6. Chat input — focus ring rõ hơn (v0.9.20)

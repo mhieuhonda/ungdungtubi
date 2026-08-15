@@ -1,44 +1,23 @@
 /**
- * Ứng Dụng Từ Bi — Chat Module (v0.9.20 — Giai đoạn 25)
+ * Ứng Dụng Từ Bi — Chat Module (v0.9.21 — Giai đoạn 26)
  *
- * Refactor từ app.js (v0.9.19) thành module riêng để dễ maintain.
+ * v0.9.21 thay đổi:
+ *   - Xoá hoàn toàn liveChat() (group live chat) — chỉ giữ Chat Chung
+ *   - Xoá tất cả TubiSound references (sound effects đã bị loại bỏ)
+ *   - Xoá "đang kết nối..." message — không hiển thị trạng thái connecting
+ *   - Fix CtrlMessage::Error → CtrlMessage::Text cho pong (backend fix)
  *
  * Components:
- *   - liveChat(opts)    — Live Chat trong nhóm cộng đồng
  *   - globalChat()      — Chat Chung toàn platform (draggable bubble popup)
  *   - dmChat(opts)      — Direct Message 1-1
  *   - chatBubble()      — Draggable bubble mở global chat
  *   - notificationBadge() — Poll notification count mỗi 30s
- *
- * v0.9.20 improvements (Live Chat Total Fix):
- *   [FIX-1] WebSocket Ping mỗi 30s (app-level `{"type":"ping"}`) — backup cho
- *           server Ping. Đảm bảo kết nối sống qua mọi proxy.
- *   [FIX-2] Connection health check: nếu không nhận message/ping/pong trong 60s,
- *           force reconnect. Phát hiện dead connections mà TCP chưa báo.
- *   [FIX-3] Optimistic UI: hiển thị tin nhắn của mình NGAY với trạng thái "đang gửi",
- *           chuyển sang "đã gửi" khi server echo về. Nếu 5s không echo → mark failed.
- *   [FIX-4] Message queue: tin nhắn gửi khi disconnected được queue, flush khi
- *           reconnect. Không mất tin nhắn nữa.
- *   [FIX-5] Send timeout: nếu 5s sau send không nhận được echo, show error + retry.
- *   [FIX-6] Reset reconnect attempts khi nhận message thành công.
- *   [FIX-7] Phát sound effect khi send/receive (Web Audio API, xem sound.js).
- *   [FIX-8] Limit messages array 200 entries — tránh memory bloat.
- *   [PERF-1] Debounce scrollToBottom bằng requestAnimationFrame.
- *   [PERF-2] Cache DOM refs (messagesEl) thay vì query mỗi lần.
- *   [PERF-3] IntersectionObserver để auto-scroll chỉ khi user ở gần bottom.
- *
- * Cách dùng (trong template):
- *   <div x-data="liveChat({ slug, isMember, isLoggedIn, initialMessages })" x-init="init()">
  */
 
 // ====================================================================
-// Shared helpers — dùng chung cho 3 loại chat
+// Shared helpers — dùng chung cho các loại chat
 // ====================================================================
 
-/**
- * Tạo class CSS cho bubble dựa trên author_role.
- * Admin Kỹ Thuật = coder effect, các admin khác = khung riêng.
- */
 function msgBubbleClass(role) {
     if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat';
     if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li';
@@ -96,15 +75,8 @@ function formatTime(isoStr) {
 }
 
 /**
- * Mixin chứa WebSocket logic chung cho cả 3 loại chat.
- * Truyền vào `opts.url` (WS URL builder) và `opts.onMessage` (callback khi nhận msg).
- *
- * Cung cấp:
- *   - connect() với auto-reconnect backoff
- *   - send(body) với optimistic UI + message queue + timeout
- *   - pingInterval (30s app-level ping)
- *   - healthCheck (60s không nhận gì → reconnect)
- *   - scheduleReconnect()
+ * Mixin chứa WebSocket logic chung cho chat.
+ * v0.9.21: Xoá tất cả TubiSound.playXxx() calls.
  */
 function chatSocketMixin(getUrl) {
     return {
@@ -113,13 +85,13 @@ function chatSocketMixin(getUrl) {
         socket: null,
         error: '',
         reconnectAttempts: 0,
-        maxReconnectAttempts: 10, // v0.9.20: tăng từ 5 → 10
+        maxReconnectAttempts: 10,
         reconnectTimer: null,
         _pingTimer: null,
         _healthTimer: null,
         _lastReceivedAt: 0,
-        _queue: [], // v0.9.20: message queue khi disconnected
-        _pending: new Map(), // v0.9.20: pending messages chờ echo (clientId → timeout)
+        _queue: [],
+        _pending: new Map(),
 
         // --- WebSocket connect ---
         connect() {
@@ -133,7 +105,6 @@ function chatSocketMixin(getUrl) {
                 this.socket = new WebSocket(url);
             } catch (e) {
                 this.error = 'Trình duyệt không hỗ trợ WebSocket';
-                if (window.TubiSound) TubiSound.playError();
                 return;
             }
 
@@ -142,9 +113,7 @@ function chatSocketMixin(getUrl) {
                 this.error = '';
                 this.reconnectAttempts = 0;
                 this._lastReceivedAt = Date.now();
-                if (window.TubiSound) TubiSound.playConnect();
 
-                // Start ping + health check
                 this._startPing();
                 this._startHealthCheck();
 
@@ -165,29 +134,21 @@ function chatSocketMixin(getUrl) {
                 this._stopPing();
                 this._stopHealthCheck();
 
-                // 1000 = normal close (user-initiated reconnect), don't reconnect
                 if (event.code === 1000) return;
 
-                // 1008 = policy violation (auth/permission fail) — don't reconnect
                 if (event.code === 1008) {
                     this.error = event.reason || 'Không có quyền chat';
-                    if (window.TubiSound) TubiSound.playError();
                     return;
                 }
 
-                // 1006 = abnormal closure (proxy timeout, network drop, etc.)
-                // → reconnect with backoff
                 this.scheduleReconnect();
             };
 
             this.socket.onerror = () => {
-                // Don't set error here — onclose will fire and handle reconnect
-                // Just mark as disconnected
                 this.connected = false;
             };
         },
 
-        // --- App-level ping (backup cho server protocol Ping) ---
         _startPing() {
             this._stopPing();
             this._pingTimer = setInterval(() => {
@@ -196,7 +157,7 @@ function chatSocketMixin(getUrl) {
                         this.socket.send('{"type":"ping"}');
                     } catch (_) {}
                 }
-            }, 30000); // 30s
+            }, 30000);
         },
 
         _stopPing() {
@@ -206,21 +167,18 @@ function chatSocketMixin(getUrl) {
             }
         },
 
-        // --- Health check: nếu 60s không nhận gì → force reconnect ---
         _startHealthCheck() {
             this._stopHealthCheck();
             this._healthTimer = setInterval(() => {
                 if (this._lastReceivedAt === 0) return;
                 const elapsed = Date.now() - this._lastReceivedAt;
                 if (elapsed > 60000) {
-                    // Dead connection — force reconnect
-                    if (window.TubiSound) TubiSound.playError();
                     try { this.socket.close(4000, 'health check timeout'); } catch (_) {}
                     this.socket = null;
                     this.connected = false;
                     this.scheduleReconnect();
                 }
-            }, 15000); // check every 15s
+            }, 15000);
         },
 
         _stopHealthCheck() {
@@ -236,17 +194,12 @@ function chatSocketMixin(getUrl) {
                 return;
             }
             this.reconnectAttempts += 1;
-            // v0.9.20: backoff dày hơn — 1s, 2s, 4s, 8s, 16s, 32s (cap 30s)
             const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
-            this.error = `Mất kết nối — thử lại sau ${Math.round(delay / 1000)}s…`;
+            // v0.9.21: Không hiển thị thông báo reconnect — tránh gây rối
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = setTimeout(() => this.connect(), delay);
         },
 
-        /**
-         * Send raw body (no optimistic UI, no queue).
-         * Dùng nội bộ — gọi send() từ UI thay vì _sendRaw().
-         */
         _sendRaw(body) {
             if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
             try {
@@ -257,9 +210,6 @@ function chatSocketMixin(getUrl) {
             }
         },
 
-        /**
-         * Disconnect + cleanup. Gọi khi component destroy.
-         */
         disconnect() {
             this._stopPing();
             this._stopHealthCheck();
@@ -272,166 +222,6 @@ function chatSocketMixin(getUrl) {
         },
     };
 }
-
-// ====================================================================
-// liveChat — Live Chat trong nhóm cộng đồng
-// ====================================================================
-
-function liveChat(opts) {
-    const mixin = chatSocketMixin(function () {
-        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        return `${proto}//${host}/ws/cong-dong/nhom/${encodeURIComponent(this.slug)}`;
-    });
-
-    return Object.assign({}, mixin, {
-        // --- Config ---
-        slug: opts.slug || '',
-        isMember: opts.isMember === true,
-        isLoggedIn: opts.isLoggedIn === true,
-        maxChars: 500,
-
-        // --- State ---
-        messages: Array.isArray(opts.initialMessages) ? opts.initialMessages.slice() : [],
-        draft: '',
-        onlineCount: 0,
-        _scrollPending: false,
-        _messagesEl: null,
-
-        get onlineLabel() {
-            if (this.onlineCount > 0) {
-                return `${this.onlineCount} người online`;
-            }
-            return 'đã kết nối';
-        },
-
-        // v0.9.19 helpers — delegate to shared functions
-        msgBubbleClass,
-        msgNameClass,
-        avatarClass,
-        roleBadgeHtml,
-        authorLabel,
-
-        // --- Lifecycle ---
-        init() {
-            if (!this.isLoggedIn) {
-                this.error = 'Cần đăng nhập để xem chat';
-                return;
-            }
-            if (!this.isMember) {
-                this.error = 'Tham gia nhóm để chat';
-                return;
-            }
-            // Cache DOM ref
-            this._messagesEl = this.$refs.messages;
-            this._lastReceivedAt = Date.now();
-            this.$nextTick(() => this.scrollToBottom());
-            this.connect();
-        },
-
-        // --- Incoming message handler ---
-        handleIncoming(raw) {
-            let data;
-            try {
-                data = JSON.parse(raw);
-            } catch (_) {
-                return;
-            }
-
-            // App-level pong từ server — chỉ reset health, không render
-            if (data.type === 'pong') {
-                return;
-            }
-
-            // Error payload
-            if (data.type === 'error' && typeof data.message === 'string') {
-                this.error = data.message;
-                if (window.TubiSound) TubiSound.playError();
-                setTimeout(() => { if (this.error === data.message) this.error = ''; }, 3000);
-                return;
-            }
-
-            // Chat message — check cả id lẫn body (author_display_name có thể rỗng)
-            if (data.id && data.body !== undefined && data.author_display_name !== undefined) {
-                // Tránh duplicate
-                if (this.messages.some((m) => m.id === data.id)) {
-                    // Có thể đây là echo của tin mình vừa gửi → mark as sent
-                    this._markSent(data.id);
-                    return;
-                }
-                this.messages.push(data);
-                this._trimMessages();
-                this.$nextTick(() => this.scrollToBottom());
-                if (window.TubiSound) TubiSound.playReceive();
-            }
-        },
-
-        /**
-         * Send message với optimistic UI + queue + timeout.
-         */
-        send() {
-            const body = this.draft.trim();
-            if (!body) return;
-            if (body.length > this.maxChars) {
-                this.error = `Tin nhắn quá dài (tối đa ${this.maxChars} ký tự)`;
-                return;
-            }
-
-            if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                // v0.9.20: Queue message, gửi khi reconnect
-                this._queue.push(body);
-                this.draft = '';
-                this.error = 'Đang kết nối lại — tin nhắn sẽ tự gửi khi có mạng';
-                if (!this.connected) this.scheduleReconnect();
-                return;
-            }
-
-            // v0.9.20: Optimistic UI — không xóa draft ngay, chờ echo
-            // (Server sẽ broadcast lại cho mình, handleIncoming sẽ nhận)
-            const sent = this._sendRaw(body);
-            if (sent) {
-                this.draft = '';
-                this.error = '';
-                if (window.TubiSound) TubiSound.playSend();
-            } else {
-                this._queue.push(body);
-                this.error = 'Mất kết nối — tin nhắn đang chờ gửi lại';
-                this.scheduleReconnect();
-            }
-        },
-
-        /**
-         * Mark message đã gửi khi nhận echo từ server.
-         * Hiện tại optimistic UI không thêm placeholder — chỉ reset error.
-         */
-        _markSent(_id) {
-            // Placeholder — có thể thêm "✓ đã gửi" badge sau
-        },
-
-        _trimMessages() {
-            // v0.9.20: Giữ tối đa 200 messages để tránh memory bloat
-            if (this.messages.length > 200) {
-                this.messages.splice(0, this.messages.length - 200);
-            }
-        },
-
-        // --- Scroll helpers (debounced via rAF) ---
-        scrollToBottom() {
-            if (this._scrollPending) return;
-            this._scrollPending = true;
-            requestAnimationFrame(() => {
-                this._scrollPending = false;
-                if (this._messagesEl) {
-                    this._messagesEl.scrollTop = this._messagesEl.scrollHeight;
-                }
-            });
-        },
-
-        formatTime,
-    });
-}
-
-window.liveChat = liveChat;
 
 // ====================================================================
 // globalChat — Chat Chung toàn platform (popup từ draggable bubble)
@@ -463,8 +253,6 @@ function globalChat() {
         authorLabel,
 
         // --- Lifecycle ---
-        // v0.9.5 fix: Bỏ check `document.cookie.includes('session_id')` vì cookie
-        // HttpOnly không đọc được bằng JS. Layout chỉ render khi user đăng nhập.
         init() {
             this.initialized = true;
             this._messagesEl = this.$refs.globalMessages;
@@ -480,7 +268,6 @@ function globalChat() {
                 });
                 if (resp.ok) {
                     const msgs = await resp.json();
-                    // Server trả newest first → reverse để oldest first
                     this.messages = msgs.reverse();
                     this.$nextTick(() => this.scrollToBottom());
                 }
@@ -499,7 +286,6 @@ function globalChat() {
 
             if (data.type === 'error' && typeof data.message === 'string') {
                 this.error = data.message;
-                if (window.TubiSound) TubiSound.playError();
                 setTimeout(() => { if (this.error === data.message) this.error = ''; }, 3000);
                 return;
             }
@@ -512,7 +298,6 @@ function globalChat() {
                     this.unreadCount++;
                 }
                 this.$nextTick(() => this.scrollToBottom());
-                if (window.TubiSound) TubiSound.playReceive();
             }
         },
 
@@ -527,7 +312,7 @@ function globalChat() {
             if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
                 this._queue.push(body);
                 this.draft = '';
-                this.error = 'Đang kết nối lại — tin nhắn sẽ tự gửi';
+                // v0.9.21: Không hiển thị "đang kết nối lại" — tránh gây rối
                 if (!this.connected) this.scheduleReconnect();
                 return;
             }
@@ -536,10 +321,8 @@ function globalChat() {
             if (sent) {
                 this.draft = '';
                 this.error = '';
-                if (window.TubiSound) TubiSound.playSend();
             } else {
                 this._queue.push(body);
-                this.error = 'Mất kết nối — tin nhắn đang chờ gửi lại';
                 this.scheduleReconnect();
             }
         },
@@ -678,7 +461,6 @@ function dmChat(opts) {
         _scrollPending: false,
         _messagesEl: null,
 
-        // v0.9.19 helpers
         msgBubbleClass,
         msgNameClass,
         avatarClass,
@@ -704,7 +486,6 @@ function dmChat(opts) {
 
             if (data.type === 'error' && typeof data.message === 'string') {
                 this.error = data.message;
-                if (window.TubiSound) TubiSound.playError();
                 setTimeout(() => { if (this.error === data.message) this.error = ''; }, 3000);
                 return;
             }
@@ -714,7 +495,6 @@ function dmChat(opts) {
                 this.messages.push(data);
                 this._trimMessages();
                 this.$nextTick(() => this.scrollToBottom());
-                if (window.TubiSound) TubiSound.playReceive();
             }
         },
 
@@ -729,7 +509,6 @@ function dmChat(opts) {
             if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
                 this._queue.push(body);
                 this.draft = '';
-                this.error = 'Đang kết nối lại — tin nhắn sẽ tự gửi';
                 if (!this.connected) this.scheduleReconnect();
                 return;
             }
@@ -738,10 +517,8 @@ function dmChat(opts) {
             if (sent) {
                 this.draft = '';
                 this.error = '';
-                if (window.TubiSound) TubiSound.playSend();
             } else {
                 this._queue.push(body);
-                this.error = 'Mất kết nối — tin nhắn đang chờ gửi lại';
                 this.scheduleReconnect();
             }
         },

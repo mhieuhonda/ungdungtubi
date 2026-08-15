@@ -1,23 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}{{ group.name }} — Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
 
-{% block head %}
-<style>
-  /* v0.9.20: Live Chat panel sizing chuyển sang chat.css — không override ở đây nữa.
-     Chỉ giữ lại style riêng cho trang nhóm (msg bubble word-wrap, scrollbar). */
-  .chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scroll-behavior: smooth;
-  }
-  .chat-msg-bubble {
-    word-break: break-word;
-    overflow-wrap: anywhere;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
 <section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
@@ -116,7 +99,7 @@
     </div>
   </div>
 
-  <!-- Topics List (~65% height) -->
+  <!-- Topics List -->
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-lg font-bold text-gray-900">📚 Danh Sách Chủ Đề</h2>
@@ -181,177 +164,7 @@
     {% endif %}
   </div>
 
-  <!-- Live Chat Panel — v0.9.20: phóng to (70dvh, max 640px) + animation mượt -->
-  <!-- v0.9.19: Admin/Mod được chat trong mọi nhóm (không cần membership) -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6 chat-panel"
-       x-data="liveChat({
-         slug: '{{ group.slug }}',
-         isMember: {% if can_chat %}true{% else %}false{% endif %},
-         isLoggedIn: {% if user.is_some() %}true{% else %}false{% endif %},
-         initialMessages: {{ chat_messages_json|safe }}
-       })"
-       x-init="init()">
-    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-      <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-        💬 Live Chat
-        <span x-show="connected" class="text-xs text-green-600 font-normal conn-indicator">
-          ● <span x-text="onlineLabel"></span>
-        </span>
-        <span x-show="!connected && !error" class="text-xs text-gray-400 font-normal">đang kết nối…</span>
-        <span x-show="error" class="text-xs text-red-500 font-normal" x-text="error"></span>
-      </h2>
-      <div class="flex items-center gap-2">
-        <!-- v0.9.20: Sound toggle button -->
-        <button type="button"
-                onclick="window.toggleSound && window.toggleSound()"
-                data-sound-toggle
-                class="sound-toggle"
-                style="border-color: #d1d5db; color: #6b7280;"
-                title="Bật/tắt âm thanh">🔊</button>
-        <span class="text-xs text-gray-400">Real-time · tối đa 500 ký tự</span>
-      </div>
-    </div>
-
-    <!-- Messages area -->
-    <div class="chat-messages px-4 py-3 bg-gray-50" x-ref="messages">
-      <template x-for="msg in messages" :key="msg.id">
-        <div class="flex items-start gap-2 mb-3">
-          <!-- Avatar (v0.9.19: viền phát sáng theo role) -->
-          <template x-if="msg.author_avatar_url">
-            <img :src="msg.author_avatar_url" alt="avatar"
-                 :class="avatarClass(msg.author_role) + ' w-7 h-7 rounded-full flex-shrink-0 border border-gray-200'"
-                 referrerpolicy="no-referrer">
-          </template>
-          <template x-if="!msg.author_avatar_url">
-            <div :class="avatarClass(msg.author_role) + ' w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0'"
-                 style="background-color:#E8F5E9;color:#2E7D32"
-                 x-text="msg.author_display_name.charAt(0)"></div>
-          </template>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-baseline gap-2 flex-wrap">
-              <span :class="msgNameClass(msg.author_role) + ' text-xs font-semibold text-gray-700'"
-                    x-text="authorLabel(msg)"></span>
-              <template x-if="msg.author_role">
-                <span x-html="roleBadgeHtml(msg.author_role)"></span>
-              </template>
-              <span class="text-[10px] text-gray-400" x-text="formatTime(msg.created_at)"></span>
-            </div>
-            <div :class="msgBubbleClass(msg.author_role) + ' text-sm text-gray-800 mt-0.5 px-3 py-1.5 rounded-lg bg-white border border-gray-100'"
-                 x-text="msg.body"></div>
-          </div>
-        </div>
-      </template>
-
-      <div x-show="messages.length === 0" class="text-center text-gray-400 text-sm py-8">
-        <span class="text-3xl block mb-2">🪷</span>
-        <p>Chưa có tin nhắn nào. Hãy mở lời đầu tiên!</p>
-      </div>
-    </div>
-
-    <!-- Input area -->
-    <div class="border-t border-gray-200 p-3 bg-white">
-      {% if can_chat %}
-        {% if let Some(m) = &membership %}
-          {% if m.status != "active" %}
-            {# v0.9.19: Admin/Mod đang chat mà không phải active member #}
-            <form @submit.prevent="send()" class="flex items-center gap-2">
-              <input type="text"
-                     x-model="draft"
-                     @keydown.enter.prevent="send()"
-                     maxlength="500"
-                     enterkeyhint="send"
-                     inputmode="text"
-                     autocomplete="off"
-                     autocapitalize="sentences"
-                     placeholder="Nhập tin nhắn… (Enter để gửi)"
-                     class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
-              <button type="submit"
-                      :disabled="!connected || !draft.trim()"
-                      class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      style="background-color:#388E3C">
-                🙏 Gửi
-              </button>
-            </form>
-            {% if let Some(u) = user %}
-            <p class="text-[10px] text-amber-600 mt-1.5">
-              🛡️ Bạn đang chat với tư cách {{ u.role_display() }} — không cần tham gia nhóm.
-            </p>
-            {% endif %}
-          {% else %}
-          <form @submit.prevent="send()" class="flex items-center gap-2">
-            <input type="text"
-                   x-model="draft"
-                   @keydown.enter.prevent="send()"
-                   maxlength="500"
-                   enterkeyhint="send"
-                   inputmode="text"
-                   autocomplete="off"
-                   autocapitalize="sentences"
-                   placeholder="Nhập tin nhắn… (Enter để gửi)"
-                   class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
-            <button type="submit"
-                    :disabled="!connected || !draft.trim()"
-                    class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="background-color:#388E3C">
-              🙏 Gửi
-            </button>
-          </form>
-          <p class="text-[10px] text-gray-400 mt-1.5">
-            Live Chat chỉ để giao lưu. Nội dung quý giá nên tạo thành <a href="/cong-dong/nhom/{{ group.slug }}/tao-chu-de" class="underline hover:text-tubi-700" style="color:#2E7D32">Chủ Đề</a>.
-          </p>
-          {% endif %}
-        {% else %}
-          {# v0.9.19: Admin/Mod chưa tham gia nhóm nhưng vẫn chat được #}
-          <form @submit.prevent="send()" class="flex items-center gap-2">
-            <input type="text"
-                   x-model="draft"
-                   @keydown.enter.prevent="send()"
-                   maxlength="500"
-                   enterkeyhint="send"
-                   inputmode="text"
-                   autocomplete="off"
-                   autocapitalize="sentences"
-                   placeholder="Nhập tin nhắn… (Enter để gửi)"
-                   class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
-            <button type="submit"
-                    :disabled="!connected || !draft.trim()"
-                    class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="background-color:#388E3C">
-              🙏 Gửi
-            </button>
-          </form>
-          {% if let Some(u) = user %}
-          <p class="text-[10px] text-amber-600 mt-1.5">
-            🛡️ Bạn đang chat với tư cách {{ u.role_display() }} — không cần tham gia nhóm.
-          </p>
-          {% endif %}
-        {% endif %}
-      {% else %}
-        {% if let Some(_u) = user %}
-          {% if let Some(m) = &membership %}
-            {% if m.status == "pending" %}
-            <p class="text-sm text-amber-600 text-center py-2">⏳ Đang chờ duyệt thành viên — chưa thể chat.</p>
-            {% else %}
-            <p class="text-sm text-gray-500 text-center py-2">Tài khoản của bạn không thể chat trong nhóm này.</p>
-            {% endif %}
-          {% else %}
-          <p class="text-sm text-gray-500 text-center py-2">
-            <a href="#" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">Tham gia nhóm</a> để bắt đầu chat.
-          </p>
-          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/tham-gia" class="text-center">
-            <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition" style="background-color:#388E3C">
-              {% if group.require_approval %}📝 Yêu cầu tham gia{% else %}✓ Tham gia nhóm{% endif %}
-            </button>
-          </form>
-          {% endif %}
-        {% else %}
-        <p class="text-sm text-gray-500 text-center py-2">
-          <a href="/auth/google" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">🪷 Đăng nhập bằng Google</a> để tham gia chat.
-        </p>
-        {% endif %}
-      {% endif %}
-    </div>
-  </div>
+  <!-- v0.9.21: Đã xoá Live Chat panel — chỉ giữ Chat Chung (trong layout.html) -->
 
   <!-- Back link -->
   <div class="mt-6">
@@ -359,8 +172,4 @@
   </div>
 
 </section>
-
-<style>
-  .truncate { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-</style>
 {% endblock %}

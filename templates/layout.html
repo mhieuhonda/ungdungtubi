@@ -413,14 +413,12 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.20 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.21 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
 
-    <!-- Custom JS — v0.9.20: tách thành 3 files cho gọn gàng.
-         Load order: sound.js → chat.js → app.js (app.js init dùng chat components) -->
-    <script src="/static/js/sound.js"></script>
+    <!-- Custom JS — v0.9.21: xoá sound.js, chỉ giữ chat.js + app.js -->
     <script src="/static/js/chat.js"></script>
     <script src="/static/js/app.js"></script>
 
@@ -454,13 +452,7 @@
           <span class="font-semibold text-sm">💬 Chat Chung</span>
           <div class="flex items-center gap-2">
             <span x-show="connected" class="text-xs opacity-80 conn-indicator">● online</span>
-            <span x-show="!connected && !error" class="text-xs opacity-60">đang kết nối…</span>
-            <!-- v0.9.20: Sound toggle button -->
-            <button type="button"
-                    onclick="window.toggleSound && window.toggleSound()"
-                    data-sound-toggle
-                    class="sound-toggle"
-                    title="Bật/tắt âm thanh">🔊</button>
+            <span x-show="!connected && !error" class="text-xs opacity-60" x-cloak></span>
             <button @click="toggleChat()" class="text-white/80 hover:text-white text-lg leading-none">&times;</button>
           </div>
         </div>

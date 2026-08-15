@@ -15,17 +15,17 @@ mod handlers;
 mod models;
 
 use config::Config;
-use handlers::chat::{ChatHub, DmChatHub, GlobalChatHub};
+use handlers::chat::{DmChatHub, GlobalChatHub};
 
 /// Shared application state — replaces actix-web's `web::Data<T>`.
 ///
 /// v0.9.3: thêm `global_chat_hub` cho Chat Chung toàn platform.
 /// v0.9.5: thêm `dm_chat_hub` cho Direct Messages 1-1 (Giai đoạn 9).
+/// v0.9.21: xoá `chat_hub` (group live chat) — chỉ giữ Chat Chung.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
-    pub chat_hub: ChatHub,
     pub global_chat_hub: GlobalChatHub,
     pub dm_chat_hub: DmChatHub,
 }
@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.20 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.21 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.20 — Giai đoạn 25: Live Chat Total Fix + Sound + Animation + Perf");
+    log::info!("📦 Phiên bản: v0.9.21 — Giai đoạn 26: Remove Group Chat + Remove Sound + Fix UI");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -131,11 +131,10 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
-    // Build shared state (v0.9.3: + chat_hub + global_chat_hub; v0.9.5: + dm_chat_hub)
+    // Build shared state (v0.9.3: + global_chat_hub; v0.9.5: + dm_chat_hub; v0.9.21: - chat_hub)
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
-        chat_hub: ChatHub::default(),
         global_chat_hub: GlobalChatHub::default(),
         dm_chat_hub: DmChatHub::default(),
     };
@@ -216,16 +215,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/cong-dong/chu-de/{id}/binh-luan",
             post(handlers::community::create_comment),
         )
-        // Routes — Live Chat (v0.9.2 — Giai đoạn 7)
-        .route(
-            "/ws/cong-dong/nhom/{slug}",
-            get(handlers::chat::chat_ws_upgrade),
-        )
-        .route(
-            "/api/cong-dong/nhom/{slug}/chat-history",
-            get(handlers::chat::chat_history),
-        )
         // Routes — Chat Chung toàn platform (v0.9.3)
+        // v0.9.21: Đã xoá group live chat routes (chỉ giữ Chat Chung)
         .route(
             "/ws/chat-chung",
             get(handlers::chat::global_chat_ws_upgrade),
@@ -419,17 +410,17 @@ const HEALTH_FEATURES: &[&str] = &[
     "message-queue-offline-v0.9.20",
     "send-timeout-retry-v0.9.20",
     "session-heartbeat-fix-v0.9.20",
-    "sound-effects-web-audio-v0.9.20",
+    "removed-sound-effects-v0.9.21",
     "msg-slide-in-animation-v0.9.20",
     "send-btn-pulse-animation-v0.9.20",
     "conn-indicator-pulse-v0.9.20",
-    "enlarged-live-chat-panel-v0.9.20",
+    "removed-group-live-chat-v0.9.21",
     "enlarged-global-chat-popup-v0.9.20",
     "debounced-scroll-rAF-v0.9.20",
     "messages-array-capped-200-v0.9.20",
     "dom-refs-cached-v0.9.20",
     "reduced-motion-support-v0.9.20",
-    "sound-toggle-button-v0.9.20",
+    "removed-sound-toggle-v0.9.21",
     "css-js-split-modules-v0.9.20",
     "body-data-logged-in-v0.9.20",
     "ws-close-code-1008-handling-v0.9.20",
@@ -455,11 +446,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.20",
+        "version": "0.9.21",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 25,
-        "phase_name": "Giai đoạn 25 — Live Chat Total Fix + Sound Effects + Animations + Performance",
+        "phase": 26,
+        "phase_name": "Giai đoạn 26 — Remove Group Chat + Remove Sound + UI Fix + Logic Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
