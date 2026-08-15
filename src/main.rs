@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.21 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.22 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.21 — Giai đoạn 26: Remove Group Chat + Remove Sound + Fix UI");
+    log::info!("📦 Phiên bản: v0.9.22 — Giai đoạn 27: Đội Ngũ Quản Lí + SQL Fix + UI Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -228,6 +228,7 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         .route("/thuong-thanh", get(handlers::thuong_thanh))
+        .route("/doi-ngu-quan-li", get(handlers::doi_ngu::doi_ngu_quan_li))
         .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
         // Routes — Tổng Quan (User Hub) [v0.9.14 — Giai đoạn 18]
         .route("/tong-quan", get(handlers::tong_quan::tong_quan_index))
@@ -421,6 +422,8 @@ const HEALTH_FEATURES: &[&str] = &[
     "dom-refs-cached-v0.9.20",
     "reduced-motion-support-v0.9.20",
     "removed-sound-toggle-v0.9.21",
+    "doi-ngu-quan-li-page-v0.9.22",
+    "sql-injection-fix-limit-bind-v0.9.22",
     "css-js-split-modules-v0.9.20",
     "body-data-logged-in-v0.9.20",
     "ws-close-code-1008-handling-v0.9.20",
@@ -446,11 +449,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.21",
+        "version": "0.9.22",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 26,
-        "phase_name": "Giai đoạn 26 — Remove Group Chat + Remove Sound + UI Fix + Logic Fix",
+        "phase": 27,
+        "phase_name": "Giai đoạn 27 — Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

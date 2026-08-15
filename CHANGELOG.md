@@ -6,6 +6,34 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.22] — 2026-08-15 — Giai đoạn 27: Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix
+
+### Thêm mới
+
+- **Trang Đội Ngũ Quản Lí** (`GET /doi-ngu-quan-li`) — công khai, không yêu cầu đăng nhập
+  - Hiển thị 4 thành viên đội ngũ quản trị với thông tin chi tiết: họ tên, pháp danh, năm sinh, quê quán, tôn giáo, chức vụ, Facebook
+  - Card grid responsive (1 cột mobile, 2 cột desktop), gradient accent theo role
+  - Hệ thống phân cấp quản lí (5 cấp) hiển thị phía dưới
+  - Link Facebook cho từng thành viên
+  - Thêm vào mega menu (Hệ Thống), footer (Hệ Thống)
+
+### Sửa lỗi
+
+- **[SEC-1] SQL Injection Fix** — `bang_xep_hang.rs` và `quy_tu_bi.rs` dùng `format!()` để interpolate `limit` vào SQL
+  - Fix: Bind `limit` as `$1` parameter trong tất cả queries
+  - Bị ảnh hưởng: `fetch_leaderboard()` (5 tabs), `fetch_streak_leaderboard()`, `fetch_recent_donations()`, `fetch_top_donors()`, `fetch_recent_expenses()`
+
+### Thay đổi
+
+- Cập nhật version v0.9.22, Giai đoạn 27
+- Thêm route `/doi-ngu-quan-li` vào main.rs
+- Thêm module `handlers::doi_ngu`
+- Thêm template `templates/doi-ngu-quan-li/index.html`
+- Thêm link "👥 Đội Ngũ" vào navigation (mega menu + footer)
+- Cập nhật Dockerfile.coolify tag → `:0.9.22`
+
+---
+
 ## [0.9.20] — 2026-08-15 — Giai đoạn 25: Live Chat Total Fix + Sound Effects + Animations + Performance
 
 ### Sửa lỗi (CRITICAL — Live Chat Total Fix)

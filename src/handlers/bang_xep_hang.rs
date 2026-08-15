@@ -160,44 +160,46 @@ pub async fn bang_xep_hang_stats_api(
 // ─── Internal helpers ───────────────────────────────────────────────────
 
 /// Lấy top N users cho leaderboard theo loại.
+/// v0.9.22: Fix SQL injection — bind `limit` as $1 thay vì format!() interpolation.
 async fn fetch_leaderboard(pool: &sqlx::PgPool, tab: &str, limit: i64) -> Vec<LeaderboardEntry> {
     let sql = match tab {
-        "i" => format!(
+        "i" =>
             "SELECT ROW_NUMBER() OVER (ORDER BY u.i_balance DESC)::BIGINT AS rank,
                     u.id AS user_id, u.display_name, u.avatar_url,
                     u.i_balance AS score, u.rank AS user_rank, u.role
              FROM users u WHERE u.is_active = true AND u.i_balance > 0
-             ORDER BY u.i_balance DESC LIMIT {limit}"
-        ),
-        "k" => format!(
+             ORDER BY u.i_balance DESC LIMIT $1"
+        ,
+        "k" =>
             "SELECT ROW_NUMBER() OVER (ORDER BY u.k_balance DESC)::BIGINT AS rank,
                     u.id AS user_id, u.display_name, u.avatar_url,
                     u.k_balance AS score, u.rank AS user_rank, u.role
              FROM users u WHERE u.is_active = true AND u.k_balance > 0
-             ORDER BY u.k_balance DESC LIMIT {limit}"
-        ),
-        "today" => format!(
+             ORDER BY u.k_balance DESC LIMIT $1"
+        ,
+        "today" =>
             "SELECT ROW_NUMBER() OVER (ORDER BY p.niem_count DESC)::BIGINT AS rank,
                     u.id AS user_id, u.display_name, u.avatar_url,
                     p.niem_count AS score, u.rank AS user_rank, u.role
              FROM users u
              JOIN practice_logs p ON p.user_id = u.id AND p.log_date = CURRENT_DATE
              WHERE u.is_active = true AND p.niem_count > 0
-             ORDER BY p.niem_count DESC LIMIT {limit}"
-        ),
+             ORDER BY p.niem_count DESC LIMIT $1"
+        ,
         "streak" => {
             return fetch_streak_leaderboard(pool, limit).await;
         }
-        _ => format!(
+        _ =>
             "SELECT ROW_NUMBER() OVER (ORDER BY u.a_balance DESC)::BIGINT AS rank,
                     u.id AS user_id, u.display_name, u.avatar_url,
                     u.a_balance AS score, u.rank AS user_rank, u.role
              FROM users u WHERE u.is_active = true AND u.a_balance > 0
-             ORDER BY u.a_balance DESC LIMIT {limit}"
-        ),
+             ORDER BY u.a_balance DESC LIMIT $1"
+        ,
     };
 
-    sqlx::query_as::<_, LeaderboardEntry>(&sql)
+    sqlx::query_as::<_, LeaderboardEntry>(sql)
+        .bind(limit)
         .fetch_all(pool)
         .await
         .unwrap_or_else(|e| {
@@ -218,7 +220,8 @@ async fn fetch_streak_leaderboard(pool: &sqlx::PgPool, limit: i64) -> Vec<Leader
         streak: i64,
     }
 
-    let sql = format!(
+    // v0.9.22: Fix SQL injection — bind `limit` as $1 thay vì format!() interpolation.
+    let sql =
         "WITH daily AS (
             SELECT DISTINCT user_id, log_date
             FROM practice_logs
@@ -246,10 +249,11 @@ async fn fetch_streak_leaderboard(pool: &sqlx::PgPool, limit: i64) -> Vec<Leader
         FROM current_streaks cs
         JOIN users u ON u.id = cs.user_id AND u.is_active = true
         ORDER BY cs.streak_len DESC
-        LIMIT {limit}"
-    );
+        LIMIT $1"
+    ;
 
-    let rows: Vec<UserWithStreak> = sqlx::query_as(&sql)
+    let rows: Vec<UserWithStreak> = sqlx::query_as(sql)
+        .bind(limit)
         .fetch_all(pool)
         .await
         .unwrap_or_else(|e| {

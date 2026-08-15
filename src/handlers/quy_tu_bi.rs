@@ -326,7 +326,8 @@ async fn fetch_total_i_in_system(pool: &PgPool) -> i64 {
 
 /// Lấy N đóng góp gần nhất (join với users để lấy display_name + avatar).
 async fn fetch_recent_donations(pool: &PgPool, limit: i64) -> Vec<FundDonationWithUser> {
-    let sql = format!(
+    // v0.9.22: Fix SQL injection — bind limit as $1
+    let sql =
         "SELECT d.id, d.user_id, d.amount_k, d.donation_type, d.message,
                 d.is_anonymous, d.status, d.created_at,
                 CASE WHEN d.is_anonymous THEN NULL ELSE u.display_name END AS display_name,
@@ -335,9 +336,10 @@ async fn fetch_recent_donations(pool: &PgPool, limit: i64) -> Vec<FundDonationWi
          LEFT JOIN users u ON u.id = d.user_id
          WHERE d.status = 'completed'
          ORDER BY d.created_at DESC
-         LIMIT {limit}"
-    );
-    sqlx::query_as::<_, FundDonationWithUser>(&sql)
+         LIMIT $1"
+    ;
+    sqlx::query_as::<_, FundDonationWithUser>(sql)
+        .bind(limit)
         .fetch_all(pool)
         .await
         .unwrap_or_else(|e| {
@@ -349,7 +351,8 @@ async fn fetch_recent_donations(pool: &PgPool, limit: i64) -> Vec<FundDonationWi
 
 /// Lấy top N nhà hảo tâm.
 async fn fetch_top_donors(pool: &PgPool, limit: i64) -> Vec<TopDonor> {
-    let sql = format!(
+    // v0.9.22: Fix SQL injection — bind limit as $1
+    let sql =
         "SELECT d.user_id, u.display_name, u.avatar_url,
                 SUM(d.amount_k)::BIGINT AS total_k,
                 COUNT(*)::BIGINT AS donation_count
@@ -358,9 +361,10 @@ async fn fetch_top_donors(pool: &PgPool, limit: i64) -> Vec<TopDonor> {
          WHERE d.status = 'completed' AND d.is_anonymous = false AND u.is_active = true
          GROUP BY d.user_id, u.display_name, u.avatar_url
          ORDER BY total_k DESC
-         LIMIT {limit}"
-    );
-    sqlx::query_as::<_, TopDonor>(&sql)
+         LIMIT $1"
+    ;
+    sqlx::query_as::<_, TopDonor>(sql)
+        .bind(limit)
         .fetch_all(pool)
         .await
         .unwrap_or_else(|e| {
@@ -371,15 +375,17 @@ async fn fetch_top_donors(pool: &PgPool, limit: i64) -> Vec<TopDonor> {
 
 /// Lấy N khoản chi tiêu gần nhất.
 async fn fetch_recent_expenses(pool: &PgPool, limit: i64) -> Vec<FundExpense> {
-    let sql = format!(
+    // v0.9.22: Fix SQL injection — bind limit as $1
+    let sql =
         "SELECT id, amount_k, expense_type, description, receipt_url,
                 spent_at, approved_by, is_public, created_at
          FROM fund_expenses
          WHERE is_public = true
          ORDER BY spent_at DESC, created_at DESC
-         LIMIT {limit}"
-    );
-    sqlx::query_as::<_, FundExpense>(&sql)
+         LIMIT $1"
+    ;
+    sqlx::query_as::<_, FundExpense>(sql)
+        .bind(limit)
         .fetch_all(pool)
         .await
         .unwrap_or_else(|e| {

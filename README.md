@@ -4,7 +4,34 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.20 — Giai đoạn 25
+## 📦 Phiên bản hiện tại: v0.9.22 — Giai đoạn 27
+
+**Giai đoạn 27: Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix**
+
+### 👥 Trang Đội Ngũ Quản Lí (new feature)
+- **Route**: `GET /doi-ngu-quan-li` — công khai, không yêu cầu đăng nhập
+- **Nội dung**: Hiển thị 4 thành viên đội ngũ quản trị với thông tin chi tiết
+  - Đỗ Minh Đức — 👑 Admin Quản Lí (quản lí chuyên mục hỏi đáp)
+  - Võ Đăng Trọng Nghĩa (Thích Giác Ti) — 🧭 Admin Phát Triển
+  - Đỗ Văn Cường — ⚙️ Admin Kỹ Thuật (hiện tại đã lui về hỗ trợ)
+  - Nguyễn Đình Minh Hiếu — 💻 Admin Kỹ Thuật (hiện tại đang làm chính)
+- **UI**: Card grid responsive (1 cột mobile, 2 cột desktop), gradient accent theo role, Facebook link, hệ thống phân cấp quản lí
+- **Navigation**: Thêm vào mega menu (Khám Phá → Hệ Thống), footer (Hệ Thống), tong_quan hub
+
+### 🐛 Fix SQL Injection (security fix)
+- **Bug**: `bang_xep_hang.rs` và `quy_tu_bi.rs` dùng `format!()` để interpolate `limit` vào SQL — tiềm năng SQL injection nếu giá trị không phải hardcoded
+- **Fix**: Bind `limit` as `$1` parameter thay vì string interpolation
+  - `fetch_leaderboard()` — 5 tab queries (a, i, k, today, streak)
+  - `fetch_streak_leaderboard()` — streak CTE
+  - `fetch_recent_donations()`, `fetch_top_donors()`, `fetch_recent_expenses()` — quỹ từ bi
+
+### 🎨 UI Fix
+- Thêm link "👥 Đội Ngũ" vào mega menu, footer, navigation
+- Cập nhật footer version v0.9.22
+
+---
+
+## 📦 Phiên bản trước: v0.9.20 — Giai đoạn 25
 
 **Giai đoạn 25: Live Chat Total Fix + Sound Effects + Animations + Performance**
 

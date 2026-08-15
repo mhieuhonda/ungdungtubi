@@ -4,6 +4,7 @@ pub mod bang_xep_hang;
 pub mod cai_dat;
 pub mod chat;
 pub mod community;
+pub mod doi_ngu;
 pub mod friends;
 pub mod kinh_sach;
 pub mod khong_gian;
