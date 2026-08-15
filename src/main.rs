@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.25 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.26 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.25 — Giai đoạn 30: Stability Fix + CSRF Block Mode + Bug Fixes (Critical Login + Migration Fix)");
+    log::info!("📦 Phiên bản: v0.9.26 — Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -491,6 +491,19 @@ const HEALTH_FEATURES: &[&str] = &[
     "buddha-vow-char-count-fix-v0.9.25",
     "notifications-toctou-fix-v0.9.25",
     "version-drift-footer-fix-v0.9.25",
+    // v0.9.26 features
+    "hamburger-menu-click-outside-fix-v0.9.26",
+    "hamburger-menu-escape-key-fix-v0.9.26",
+    "hamburger-menu-icon-toggle-fix-v0.9.26",
+    "hamburger-menu-link-click-closes-fix-v0.9.26",
+    "chat-popup-backdrop-overlay-v0.9.26",
+    "chat-popup-mobile-height-reduced-v0.9.26",
+    "chat-popup-body-scroll-lock-v0.9.26",
+    "chat-popup-escape-key-close-v0.9.26",
+    "chat-popup-close-button-bigger-v0.9.26",
+    "deploy-pipeline-single-commit-fix-v0.9.26",
+    "dockerfile-coolify-auto-update-sha-v0.9.26",
+    "duplicate-env-vars-cleanup-v0.9.26",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -509,7 +522,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.25",
+            "version": "0.9.26",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -539,11 +552,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.25",
+        "version": "0.9.26",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 30,
-        "phase_name": "Giai đoạn 30 — Stability Fix + Critical Bug Fixes (Login + Migration + Schema)",
+        "phase": 31,
+        "phase_name": "Giai đoạn 31 — UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

@@ -232,49 +232,63 @@
                     {% endif %}
                 </div>
 
-                <!-- Mobile Menu Button -->
+                <!-- Mobile Menu Button — v0.9.26: đổi icon X khi mở menu,
+                     aria-expanded + aria-label cho accessibility,
+                     x-show đóng khi click outside hoặc ESC -->
                 <button @click.stop="mobileMenu = !mobileMenu"
-                        class="md:hidden text-gray-700 dark:text-slate-300 hover:text-tubi-700 dark:hover:text-tubi-300 p-2 -mr-2">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        :aria-expanded="mobileMenu"
+                        aria-label="Menu"
+                        class="md:hidden text-gray-700 dark:text-slate-300 hover:text-tubi-700 dark:hover:text-tubi-300 p-2 -mr-2 z-50">
+                    <svg x-show="!mobileMenu" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                    <svg x-show="mobileMenu" x-cloak class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
         </div>
 
         <!-- Mobile Menu (3 gạch) — v0.9.17: GIỮ NGUYÊN 7 MỤC + thêm dark mode.
+             v0.9.26 FIX: Thêm @click.outside + @keydown.escape.window để đóng menu
+             khi click ra ngoài hoặc nhấn ESC (trước đây menu bị stuck open vĩnh viễn).
              Các mục khác truy cập qua:
                - Nút giữa 🪷 bottom nav → /tong-quan (hub đầy đủ)
                - /ban-be và /ca-nhan cho Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn
                - /kinh-sach và /cong-dong cho Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm
                - Theme toggle (🌙/☀️) có ở header desktop + nút riêng trên mobile drawer -->
         <div x-show="mobileMenu" x-cloak x-transition
+             @click.outside="mobileMenu = false"
+             @keydown.escape.window="mobileMenu = false"
              class="md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <div class="px-3 py-2 space-y-0.5">
-                <a href="/khong-gian" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <!-- v0.9.26: Mobile menu links tự đóng menu khi click (trước đây click link
+                     vẫn giữ nguyên trang nhưng menu không tự đóng nếu click để scroll) -->
+                <a href="/khong-gian" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🌍</span>
                     <span class="text-sm font-medium">Không Gian</span>
                 </a>
-                <a href="/cong-dong" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <a href="/cong-dong" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👥</span>
                     <span class="text-sm font-medium">Cộng Đồng</span>
                 </a>
-                <a href="/ban-be" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <a href="/ban-be" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👤</span>
                     <span class="text-sm font-medium">Bạn Bè</span>
                 </a>
-                <a href="/kinh-sach" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <a href="/kinh-sach" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">📚</span>
                     <span class="text-sm font-medium">Kinh Sách</span>
                 </a>
                 {% if let Some(u) = user %}
-                <a href="/ca-nhan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <a href="/ca-nhan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🪷</span>
                     <span class="text-sm font-medium">Hồ Sơ</span>
                 </a>
                 {% if u.is_staff() %}
-                <a href="/admin" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                <a href="/admin" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">
                         {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% elif u.is_mod() %}📜{% else %}⚙️{% endif %}
                     </span>
@@ -419,7 +433,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.25 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.26 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -429,9 +443,25 @@
     <script src="/static/js/app.js"></script>
 
     <!-- Global Chat Bubble + Popup — v0.9.3 -->
+    <!-- v0.9.26 FIX: Thêm backdrop overlay trên mobile để chat popup không che hết màn hình.
+         Backdrop đóng popup khi tap outside. ESC đóng popup. -->
     {% if let Some(_u) = user %}
-    <div x-data="globalChat()" x-init="init()" @toggle-global-chat.window="toggleChat()">
+    <div x-data="globalChat()" x-init="init()"
+         @toggle-global-chat.window="toggleChat()"
+         @keydown.escape.window="if (isOpen) toggleChat()">
+      <!-- v0.9.26: Backdrop overlay (mobile only) — tap outside để đóng chat popup -->
+      <div x-show="isOpen" x-cloak
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0"
+           x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
+           @click="toggleChat()"
+           class="chat-chung-backdrop md:hidden"></div>
       <div x-data="chatBubble()" x-init="init()"
+           x-show="!isOpen"
+           x-cloak
            class="chat-bubble"
            :style="bubbleStyle"
            @mousedown="onMouseDown($event)"
@@ -459,7 +489,7 @@
           <div class="flex items-center gap-2">
             <span x-show="connected" class="text-xs opacity-80 conn-indicator">● online</span>
             <span x-show="!connected && !error" class="text-xs opacity-60" x-cloak></span>
-            <button @click="toggleChat()" class="text-white/80 hover:text-white text-lg leading-none">&times;</button>
+            <button @click="toggleChat()" class="text-white/80 hover:text-white text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition" aria-label="Đóng chat">&times;</button>
           </div>
         </div>
         <div class="chat-chung-messages" x-ref="globalMessages">

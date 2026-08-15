@@ -4,7 +4,67 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.25 — Giai đoạn 30
+## 📦 Phiên bản hiện tại: v0.9.26 — Giai đoạn 31
+
+**Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix**
+
+### 🚨 Fix Deploy Pipeline (CRITICAL — "deploy thành công nhưng production không đổi")
+- **[DEPLOY-1] Workflow GitHub Actions không tự update Dockerfile.coolify** — Trước v0.9.26, deploy pipeline dùng 2-commit pattern:
+  1. Code commit X → workflow build image `sha-X` → trigger Coolify deploy
+  2. Coolify clones repo → đọc Dockerfile.coolify từ commit X (vẫn ghi `FROM sha-PREVIOUS`) → pull `sha-PREVIOUS` → deploy OLD code
+  3. Developer phải push commit X+1 manual để update Dockerfile.coolify → `FROM sha-X`
+  4. Coolify deploy lại → lần này mới chạy code mới
+  - **Tác động**: User báo "deploy thành công nhưng tôi vào vẫn y như thế" — vì production vẫn chạy code cũ, chỉ khi nào developer nhớ push commit thứ 2 thì code mới thực sự lên.
+  - **Fix v0.9.26**: Workflow GitHub Actions tự update Dockerfile.coolify với SHA tag mới NGAY SAU khi build image xong, trước khi trigger Coolify deploy. Commit message chứa `[skip ci]` để tránh workflow loop. Developer chỉ cần push 1 commit code, workflow tự lo phần còn lại.
+  - **File**: `.github/workflows/docker.yml` — thêm job `update-coolify-dockerfile` chạy sau `build-and-push`, trước `trigger-coolify`.
+
+### 🐛 Fix UI — Live Chat che hết màn hình (HIGH)
+- **[UI-1] Chat Chung popup che 60% màn hình mobile, không có backdrop, không thể thao tác** — Trước v0.9.26, `.chat-chung-popup` trên mobile có `width: 100%, height: 60dvh, bottom: 72px`, không có backdrop overlay. Khi user mở chat, popup che gần hết màn hình, không có cách nào rõ ràng để đóng (nút × quá nhỏ, không tap outside được).
+  - **Fix v0.9.26**:
+    - Giảm popup height trên mobile từ `60dvh` → `50dvh` (còn không gian trên để tương tác với page)
+    - Giảm min-height từ `340px` → `280px` (fit điện thoại nhỏ)
+    - Thêm backdrop overlay semi-transparent (`.chat-chung-backdrop`) — tap outside để đóng popup
+    - Lock body scroll khi popup mở (class `body.chat-popup-open`) — tránh scroll page bên dưới
+    - ESC key đóng popup (`@keydown.escape.window`)
+    - Nút × to hơn (text-lg → text-2xl, padding + hover bg) — dễ bấm hơn
+  - **File**: `templates/layout.html` (backdrop + ESC handler), `src/static/css/app.css` (backdrop style + body scroll lock), `src/static/css/chat.css` (giảm mobile height), `src/static/js/chat.js` (body scroll lock toggle).
+
+### 🐛 Fix UI — Hamburger Menu stuck open (HIGH)
+- **[UI-2] Mobile menu (3 gạch) bị bật vĩnh viễn, không tự đóng** — Trước v0.9.26, `<div x-show="mobileMenu">` không có `@click.outside` directive. Khi user tap nút 3 gạch, `mobileMenu = true` → menu mở. Nhưng menu chỉ đóng khi:
+  - Tap lại nút 3 gạch (toggle)
+  - Tap vào 1 link trong menu (chuyển trang)
+  - Resize sang desktop
+  - Không có cách nào đóng menu khi tap outside hoặc nhấn ESC.
+  - **Tác động**: User báo "cái ba gạch bị bật vĩnh viễn" — menu stuck open che nội dung.
+  - **Fix v0.9.26**:
+    - Thêm `@click.outside="mobileMenu = false"` → đóng menu khi tap ra ngoài
+    - Thêm `@keydown.escape.window="mobileMenu = false"` → đóng menu khi nhấn ESC
+    - Icon toggle: 3 gạch ⇄ X (đổi icon khi mở/đóng)
+    - Tất cả link trong menu thêm `@click="mobileMenu = false"` → đóng menu khi click link (trước đây click link chỉ chuyển trang, không đóng menu ngay)
+    - `aria-expanded` + `aria-label="Menu"` cho accessibility
+  - **File**: `templates/layout.html`.
+
+### 🐛 Fix UI — Chat bubble đè lên bottom nav (MEDIUM)
+- **[UI-3] Chat bubble trên mobile đè 32px lên bottom nav** — Trước v0.9.26, chat bubble có `top: y = innerHeight - 88` trên mobile. Bubble height = 56px → bottom edge ở `innerHeight - 32`. Bottom nav top ở `innerHeight - 64`. → Bubble bottom (innerHeight - 32) nằm BELOW nav top (innerHeight - 64) → đè lên nav 32px.
+  - **Tác động**: User tap "🙏 Niệm Phật" (rightmost nav item) → vô tình tap chat bubble → mở popup chat.
+  - **Fix v0.9.26**:
+    - Đổi bubble `y = innerHeight - 128` trên mobile → bubble bottom ở `innerHeight - 72` = ngay trên bottom nav top.
+    - Ẩn chat bubble khi chat popup đang mở (`x-show="!isOpen"`) → tránh bubble che popup input area.
+  - **File**: `src/static/js/chat.js`, `templates/layout.html`.
+
+### 📦 Version Sync
+- Bump version `0.9.25` → `0.9.26` ở: `Cargo.toml`, `src/main.rs` (log + health check response + phase 30 → 31), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder footer), `Dockerfile.coolify` (comment).
+- Update phase 30 → 31 trong health check.
+- Update `HEALTH_FEATURES` (+12 features v0.9.26).
+
+### 📋 Ghi chú vận hành
+- **Database**: Vẫn dùng `tubi-postgres` (PostgreSQL 17-alpine) trên Coolify, có persistent volume. Database KHÔNG bị reset khi deploy — migration 021 (TRUNCATE role_permissions) chỉ xoá bảng permissions (re-seed), không chạm vào user data, chat messages, topics, comments.
+- **Mất dữ liệu lịch sử**: Nếu user thấy "mất hết dữ liệu kể từ v0.9.25", nguyên nhân là DB container bị recreate ngày 2026-08-13 (không phải do code v0.9.25). Database hiện tại có persistent volume, sẽ không bị mất khi deploy lại.
+- **Env vars duplicate**: Coolify app hiện có 36 env vars (18 keys × 2 entries). Đây là artifact từ lần migrate hạ tầng trước. Không ảnh hưởng functionality (Coolify dùng giá trị mới nhất), nhưng nên clean up để tránh nhầm lẫn.
+
+---
+
+## 📦 Phiên bản trước: v0.9.25 — Giai đoạn 30
 
 **Giai đoạn 30: Stability Fix + Critical Bug Fixes (Login + Migration + Schema)**
 

@@ -27,11 +27,10 @@
 #   - [v0.9.11] Tránh Docker cache stale digest bằng tag semver unique
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.25 — Giai đoạn 30: Stability Fix + Critical Bug Fixes (Login + Migration + Schema)
-# v0.9.25: Bump SHA tag sang commit mới sau khi push fix login + migration 021.
-# Trước v0.9.25: production chạy v0.9.24 có bug login fail (csrf_token NULL constraint).
-# Fix v0.9.25: csrf_token sinh random trong INSERT session, pgcrypto extension,
-#   schema safety column names, rate limit cleanup, search cover columns,
-#   admin_ky_thuat users_change_role, BuddhaVow char count, notifications TOCTOU.
-# Sẽ update SHA tag tự động sau khi push commit này.
+# v0.9.26 — Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix
+# v0.9.26 FIX (CRITICAL — Deploy pipeline): Workflow GitHub Actions sẽ TỰ ĐỘNG cập nhật
+# SHA tag dưới đây ngay sau khi build image xong, trước khi trigger Coolify deploy.
+# Trước v0.9.26: developer phải push 2 commit (code commit + Dockerfile.coolify update commit)
+# → dễ quên bước 2 → Coolify deploy old code → "deploy thành công nhưng production không đổi".
+# Giờ v0.9.26: chỉ cần push 1 commit code, workflow tự lo phần còn lại.
 FROM ghcr.io/mhieuhonda/tubi-app:sha-a3bca45

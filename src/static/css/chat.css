@@ -74,7 +74,8 @@
  * 2. Global Chat popup — PHÓNG TO (v0.9.20)
  * ==================================================================== */
 
-/* Desktop: 340px → 380px wide, 60dvh → 65dvh, max 480 → 580 */
+/* Desktop: 340px → 380px wide, 60dvh → 65dvh, max 480 → 580
+   v0.9.26: giữ nguyên desktop, chỉ giảm mobile để fix bug che màn hình */
 .chat-chung-popup {
     width: 380px;
     height: 65dvh;
@@ -82,11 +83,14 @@
     min-height: 360px;
 }
 
+/* v0.9.26: Giảm mobile height từ 60dvh → 50dvh để không che hết màn hình.
+   Trước đây: 60dvh + min 340px → che gần hết màn hình điện thoại.
+   Giờ: 50dvh + min 280px → còn không gian trên để tương tác với page. */
 @media (max-width: 768px) {
     .chat-chung-popup {
-        height: 60dvh;
-        max-height: 65dvh;
-        min-height: 340px;
+        height: 50dvh;
+        max-height: 55dvh;
+        min-height: 280px;
     }
 }
 

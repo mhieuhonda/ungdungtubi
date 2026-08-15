@@ -338,6 +338,11 @@ function globalChat() {
             if (this.isOpen) {
                 this.unreadCount = 0;
                 this.$nextTick(() => this.scrollToBottom());
+                // v0.9.26: Lock body scroll khi chat popup mở (mobile)
+                document.body.classList.add('chat-popup-open');
+            } else {
+                // v0.9.26: Unlock body scroll khi chat popup đóng
+                document.body.classList.remove('chat-popup-open');
             }
         },
 
@@ -376,7 +381,12 @@ function chatBubble() {
         init() {
             const isMobile = window.innerWidth < 768;
             this.x = window.innerWidth - 64;
-            this.y = isMobile ? window.innerHeight - 88 : window.innerHeight - 80;
+            // v0.9.26 FIX: Trước đây y = innerHeight - 88 trên mobile → bubble
+            // cao 56px → bottom edge ở innerHeight - 32 → đè lên bottom nav
+            // (chiếm 32px trong vùng nav 64px). Fix: đặt bubble ABOVE bottom nav.
+            // Bottom nav top = innerHeight - 64. Bubble bottom nên <= nav top - 8px margin.
+            // y + 56 (bubble height) = innerHeight - 64 - 8 = innerHeight - 72 → y = innerHeight - 128.
+            this.y = isMobile ? window.innerHeight - 128 : window.innerHeight - 80;
             this.offsetX = this.x;
             this.offsetY = this.y;
         },

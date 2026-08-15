@@ -1,15 +1,29 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Actions — Ứng Dụng Từ Bi v0.9.4
-# Build & push Docker image (Rust 1.97.1) lên GHCR, sau đó gọi Coolify API
-# để trigger deploy — Coolify auto pull image mới nhất và deploy lên
-# tubi.louis.vangioitutien.com
+# GitHub Actions — Ứng Dụng Từ Bi v0.9.26
+# Build & push Docker image (Rust 1.97.1) lên GHCR, sau đó TỰ ĐỘNG cập nhật
+# Dockerfile.coolify với SHA tag mới + gọi Coolify API để trigger deploy.
 #
-# Quy trình:
+# v0.9.26 FIX (CRITICAL — Deploy pipeline):
+#   Trước v0.9.26, deploy pipeline dùng 2-commit pattern:
+#     1. Code commit X (code change) → workflow build image `sha-X` → trigger Coolify
+#     2. Coolify clones repo → đọc Dockerfile.coolify từ commit X
+#        (vẫn ghi `FROM sha-PREVIOUS`) → pull `sha-PREVIOUS` → deploy OLD code
+#     3. Developer phải push commit X+1 manual để update Dockerfile.coolify → `FROM sha-X`
+#     4. Coolify deploy lại → lần này mới chạy code mới
+#   → "Deploy thành công nhưng production vẫn y như cũ" là bug này.
+#
+#   Fix v0.9.26: Workflow tự update Dockerfile.coolify trong cùng workflow
+#   ngay sau khi build image xong, trước khi trigger Coolify.
+#   → Coolify đọc Dockerfile.coolify mới → pull đúng image mới → deploy đúng code.
+#   → Single-commit pattern: developer chỉ cần push 1 commit, deploy tự động đúng.
+#
+# Quy trình v0.9.26:
 #   1. Push code lên branch `main` (hoặc tạo tag `v*`)
 #   2. Workflow build multi-stage Docker image với Rust 1.97.1-slim-bookworm
 #   3. Push image lên GHCR: ghcr.io/mhieuhonda/tubi-app:{latest, sha, tag}
-#   4. Gửi GET request tới Coolify API endpoint /start
-#   5. Coolify nhận yêu cầu → pull image mới nhất từ GHCR → redeploy container
+#   4. Workflow tự update Dockerfile.coolify → `FROM sha-<NEW_SHA>`
+#   5. Workflow commit + push Dockerfile.coolify update (skip ci để tránh loop)
+#   6. Workflow gọi Coolify API /start → Coolify pull Dockerfile.coolify mới → deploy
 #
 # Image name: `ghcr.io/mhieuhonda/tubi-app` (đổi từ `ungdungtubi` sang `tubi-app`
 #   để tránh conflict với GHCR package cũ `ungdungtubi` đã tồn tại từ project khác,
@@ -18,6 +32,9 @@
 # Secrets cần thiết (Settings → Secrets and variables → Actions):
 #   - COOLIFY_API_TOKEN    : API token của Coolify (tạo ở User Settings → API Tokens)
 #   - COOLIFY_APP_UUID     : UUID của application trên Coolify (= xsrqp8xrcwwk57dvtcwt6393)
+#   - GH_PAT               : Personal Access Token của bot để push Dockerfile.coolify update
+#                           (cần contents:write permission; GITHUB_TOKEN không có quyền
+#                            trigger workflow tiếp theo nhưng có quyền push commit thường)
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: Build & Deploy
@@ -30,7 +47,7 @@ on:
 
 # Quyền cần thiết: ghi package lên GHCR, đọc contents repo
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -54,9 +71,17 @@ jobs:
     outputs:
       image_digest: ${{ steps.push.outputs.digest }}
       image_tags: ${{ steps.meta.outputs.tags }}
+      sha_tag: ${{ steps.sha_tag.outputs.sha_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Compute SHA tag (short)
+        id: sha_tag
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          echo "sha_tag=sha-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "SHA Tag will be: sha-${SHORT_SHA}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -97,8 +122,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # cache-from: type=gha  # disabled — GHA cache service unstable (400 errors)
-          # cache-to: type=gha,mode=max  # disabled — failure here fails the whole build
           provenance: false
           sbom: false
 
@@ -112,17 +135,94 @@ jobs:
             echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
             echo "- Digest: \`${{ steps.push.outputs.digest }}\`"
             echo "- Source SHA: \`${{ github.sha }}\`"
+            echo "- Short SHA tag: \`${{ steps.sha_tag.outputs.sha_tag }}\`"
           } >> $GITHUB_STEP_SUMMARY
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Job 2: Trigger Coolify deploy — gọi API /start để Coolify pull image mới
+  # Job 2: Update Dockerfile.coolify với SHA tag mới — CRITICAL FIX v0.9.26
   # ──────────────────────────────────────────────────────────────────────────
-  trigger-coolify:
-    name: Trigger Coolify Deploy
+  # Trước v0.9.26: Workflow chỉ build image + trigger Coolify deploy.
+  # Nhưng Dockerfile.coolify vẫn trỏ tới SHA tag cũ → Coolify pull old image
+  # → "deploy thành công nhưng production không đổi".
+  #
+  # Fix: Workflow tự update Dockerfile.coolify → `FROM sha-<NEW_SHA>` và commit.
+  # Commit message chứa [skip ci] để không trigger workflow mới (tránh loop).
+  # ──────────────────────────────────────────────────────────────────────────
+  update-coolify-dockerfile:
+    name: Update Dockerfile.coolify SHA tag
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Dùng GITHUB_TOKEN để push commit (đã có permissions: contents: write)
+          # token mặc định đủ quyền push branch nếu workflow có permission write
+          fetch-depth: 0
+
+      - name: Update Dockerfile.coolify với SHA tag mới
+        env:
+          SHA_TAG: ${{ needs.build-and-push.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          echo "→ Updating Dockerfile.coolify to FROM ghcr.io/mhieuhonda/tubi-app:${SHA_TAG}"
+
+          # Replace dòng FROM ... bằng SHA tag mới
+          # Dùng perl để hỗ trợ regex thay vì sed (sed trên macOS khác Linux)
+          perl -i -pe "s|^FROM ghcr\.io/mhieuhonda/tubi-app:[^\\s]+|FROM ghcr.io/mhieuhonda/tubi-app:${SHA_TAG}|" Dockerfile.coolify
+
+          echo "→ Dockerfile.coolify sau khi update:"
+          tail -5 Dockerfile.coolify
+
+          # Check xem có thay đổi không
+          if git diff --quiet Dockerfile.coolify; then
+            echo "ℹ️  Dockerfile.coolify đã có SHA tag đúng — không cần commit."
+            echo "needs_update=false" >> $GITHUB_ENV
+          else
+            echo "✅ Dockerfile.coolify cần update."
+            echo "needs_update=true" >> $GITHUB_ENV
+          fi
+
+      - name: Commit + push Dockerfile.coolify update
+        if: env.needs_update == 'true'
+        env:
+          SHA_TAG: ${{ needs.build-and-push.outputs.sha_tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Dockerfile.coolify
+          # [skip ci] để không trigger workflow mới — tránh infinite loop
+          git commit -m "chore(deploy): bump Dockerfile.coolify → ${SHA_TAG} [skip ci]"
+          git push
+
+      - name: Summary
+        if: env.needs_update == 'true'
+        env:
+          SHA_TAG: ${{ needs.build-and-push.outputs.sha_tag }}
+        run: |
+          {
+            echo "### Dockerfile.coolify updated 🪷"
+            echo ""
+            echo "- Updated to: \`FROM ghcr.io/mhieuhonda/tubi-app:${SHA_TAG}\`"
+            echo "- Committed with \`[skip ci]\` to avoid workflow loop"
+            echo "- Coolify will pull the new Dockerfile.coolify + the new image on deploy"
+          } >> $GITHUB_STEP_SUMMARY
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 3: Trigger Coolify deploy — gọi API /start để Coolify pull image mới
+  # Chạy SAU khi Dockerfile.coolify đã được update (dependency: update-coolify-dockerfile)
+  # ──────────────────────────────────────────────────────────────────────────
+  trigger-coolify:
+    name: Trigger Coolify Deploy
+    runs-on: ubuntu-latest
+    needs: [build-and-push, update-coolify-dockerfile]
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Wait for GHCR propagation (10s)
+        run: sleep 10
+
       - name: Call Coolify API /start
         env:
           COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
@@ -171,10 +271,11 @@ jobs:
             echo "### Coolify Deploy Triggered 🚀"
             echo ""
             echo "Coolify will now:"
-            echo "1. Pull the latest image from \`ghcr.io/mhieuhonda/tubi-app:latest\`"
-            echo "2. Stop the old container"
-            echo "3. Start a new container with the new image"
-            echo "4. Run health checks on https://tubi.louis.vangioitutien.com/api/health"
+            echo "1. Pull the latest code from \`main\` (includes updated Dockerfile.coolify)"
+            echo "2. Build Dockerfile.coolify → pulls \`ghcr.io/mhieuhonda/tubi-app:sha-<NEW_SHA>\`"
+            echo "3. Stop the old container"
+            echo "4. Start a new container with the new image"
+            echo "5. Run health checks on https://tubi.louis.vangioitutien.com/api/health"
             echo ""
             echo "Watch the deployment at: https://coolify.buppou.com/project/o11iuvcvbs5394dxxchp4w4c"
           } >> $GITHUB_STEP_SUMMARY

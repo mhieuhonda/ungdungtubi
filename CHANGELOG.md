@@ -6,6 +6,68 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.26] — 2026-08-15 — Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix
+
+### Sửa lỗi (CRITICAL — Deploy pipeline)
+
+- **[DEPLOY-1] Workflow GitHub Actions không tự update Dockerfile.coolify** — Trước v0.9.26, deploy pipeline dùng 2-commit pattern:
+  1. Code commit X → workflow build image `sha-X` → trigger Coolify deploy
+  2. Coolify clones repo → đọc Dockerfile.coolify từ commit X (vẫn ghi `FROM sha-PREVIOUS`) → pull `sha-PREVIOUS` → deploy OLD code
+  3. Developer phải push commit X+1 manual để update Dockerfile.coolify → `FROM sha-X`
+  4. Coolify deploy lại → lần này mới chạy code mới
+  - **Tác động**: User báo "deploy thành công nhưng production vẫn y như cũ" — vì production chạy code cũ, chỉ khi nào developer nhớ push commit thứ 2 thì code mới thực sự lên.
+  - **Fix v0.9.26**: Workflow GitHub Actions tự update Dockerfile.coolify với SHA tag mới NGAY SAU khi build image xong, trước khi trigger Coolify deploy. Commit message chứa `[skip ci]` để tránh workflow loop. Developer chỉ cần push 1 commit code, workflow tự lo phần còn lại.
+  - **File**: `.github/workflows/docker.yml` — thêm job `update-coolify-dockerfile` chạy sau `build-and-push`, trước `trigger-coolify`.
+
+### Sửa lỗi (HIGH — UI)
+
+- **[UI-1] Chat Chung popup che 60% màn hình mobile, không có backdrop, không thể thao tác** — Trước v0.9.26, `.chat-chung-popup` trên mobile có `width: 100%, height: 60dvh, bottom: 72px`, không có backdrop overlay. Khi user mở chat, popup che gần hết màn hình, không có cách nào rõ ràng để đóng (nút × quá nhỏ, không tap outside được).
+  - **Fix v0.9.26**:
+    - Giảm popup height trên mobile từ `60dvh` → `50dvh` (còn không gian trên để tương tác với page)
+    - Giảm min-height từ `340px` → `280px` (fit điện thoại nhỏ)
+    - Thêm backdrop overlay semi-transparent (`.chat-chung-backdrop`) — tap outside để đóng popup
+    - Lock body scroll khi popup mở (class `body.chat-popup-open`) — tránh scroll page bên dưới
+    - ESC key đóng popup (`@keydown.escape.window`)
+    - Nút × to hơn (text-lg → text-2xl, padding + hover bg) — dễ bấm hơn
+  - **File**: `templates/layout.html`, `src/static/css/app.css`, `src/static/css/chat.css`, `src/static/js/chat.js`.
+
+- **[UI-2] Mobile menu (3 gạch) bị bật vĩnh viễn, không tự đóng** — Trước v0.9.26, `<div x-show="mobileMenu">` không có `@click.outside` directive. Khi user tap nút 3 gạch, `mobileMenu = true` → menu mở. Nhưng menu chỉ đóng khi tap lại nút 3 gạch, tap vào 1 link, hoặc resize sang desktop. Không có cách nào đóng menu khi tap outside hoặc nhấn ESC.
+  - **Fix v0.9.26**:
+    - Thêm `@click.outside="mobileMenu = false"` → đóng menu khi tap ra ngoài
+    - Thêm `@keydown.escape.window="mobileMenu = false"` → đóng menu khi nhấn ESC
+    - Icon toggle: 3 gạch ⇄ X (đổi icon khi mở/đóng)
+    - Tất cả link trong menu thêm `@click="mobileMenu = false"` → đóng menu khi click link
+    - `aria-expanded` + `aria-label="Menu"` cho accessibility
+  - **File**: `templates/layout.html`.
+
+### Sửa lỗi (MEDIUM — UI)
+
+- **[UI-3] Chat bubble trên mobile đè 32px lên bottom nav** — Trước v0.9.26, chat bubble có `top: y = innerHeight - 88` trên mobile. Bubble height = 56px → bottom edge ở `innerHeight - 32`. Bottom nav top ở `innerHeight - 64`. → Bubble bottom (innerHeight - 32) nằm BELOW nav top (innerHeight - 64) → đè lên nav 32px. User tap "🙏 Niệm Phật" (rightmost nav item) vô tình tap chat bubble.
+  - **Fix v0.9.26**: Đổi bubble `y = innerHeight - 128` trên mobile → bubble bottom ở `innerHeight - 72` = ngay trên bottom nav top. Ẩn chat bubble khi chat popup đang mở (`x-show="!isOpen"`) → tránh bubble che popup input area.
+  - **File**: `src/static/js/chat.js`, `templates/layout.html`.
+
+### Thay đổi
+
+- Cập nhật version v0.9.25 → v0.9.26, Giai đoạn 30 → 31
+- `Cargo.toml`: bump version 0.9.25 → 0.9.26 (rust-version = "1.97.1" giữ nguyên)
+- `src/main.rs`: cập nhật log info, health check response (version, phase, phase_name), `HEALTH_FEATURES` (+12 features v0.9.26)
+- `templates/layout.html`: update footer version v0.9.25 → v0.9.26, thêm backdrop overlay + ESC handler cho chat popup, thêm `@click.outside` + `@keydown.escape.window` cho mobile menu, icon toggle 3 gạch ⇄ X, link click tự đóng menu, `aria-expanded` + `aria-label` cho accessibility, ẩn chat bubble khi popup mở
+- `src/handlers/mod.rs`: update placeholder footer version v0.9.25 → v0.9.26
+- `src/static/css/app.css`: thêm `.chat-chung-backdrop` class, `body.chat-popup-open` scroll lock, giảm `.chat-chung-popup` mobile height từ 55dvh → 50dvh
+- `src/static/css/chat.css`: giảm `.chat-chung-popup` mobile height từ 60dvh → 50dvh, min-height từ 340px → 280px
+- `src/static/js/chat.js`: `toggleChat()` thêm `document.body.classList` toggle cho scroll lock; `chatBubble.init()` đổi mobile y từ `innerHeight - 88` → `innerHeight - 128` để tránh đè bottom nav
+- `.github/workflows/docker.yml`: thêm job `update-coolify-dockerfile` chạy sau `build-and-push`, trước `trigger-coolify`. Job này tự update Dockerfile.coolify với SHA tag mới, commit + push với `[skip ci]` để tránh workflow loop.
+- `Dockerfile.coolify`: update comment giải thích cơ chế auto-update SHA tag v0.9.26
+- `README.md`: thêm section v0.9.26 — Giai đoạn 31, đẩy v0.9.25 xuống "Phiên bản trước"
+
+### Ghi chú vận hành
+
+- **Database persistence**: Database `tubi-postgres` (PostgreSQL 17-alpine) trên Coolify có persistent volume. Migration 021 (TRUNCATE role_permissions) chỉ xoá bảng permissions (re-seed), KHÔNG chạm vào user data, chat messages, topics, comments.
+- **Mất dữ liệu lịch sử**: Nếu user thấy "mất hết dữ liệu kể từ v0.9.25", nguyên nhân thực tế là DB container bị recreate ngày 2026-08-13 (không phải do code v0.9.25). Database hiện tại có persistent volume, sẽ không bị mất khi deploy lại.
+- **Env vars duplicate**: Coolify app hiện có 36 env vars (18 keys × 2 entries). Đây là artifact từ lần migrate hạ tầng trước, không ảnh hưởng functionality (Coolify dùng giá trị mới nhất).
+
+---
+
 ## [0.9.25] — 2026-08-15 — Giai đoạn 30: Stability Fix + Critical Bug Fixes (Login + Migration + Schema)
 
 ### Sửa lỗi (CRITICAL — Production-down)
