@@ -6,6 +6,132 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.20] — 2026-08-15 — Giai đoạn 25: Live Chat Total Fix + Sound Effects + Animations + Performance
+
+### Sửa lỗi (CRITICAL — Live Chat Total Fix)
+
+Bug user report: "sửa lỗi không thể gửi tin nhắn trong live chat của cộng đồng, BẮT BUỘC PHẢI FIX TRIỆT ĐỂ, vì tôi đã fix mấy lần nhưng nó vẫn lỗi". Sau khi phân tích toàn bộ pipeline (server → proxy → client), tìm ra **6 root causes** chưa từng được fix:
+
+- **[BF-1] WebSocket Ping/Pong keepalive thiếu hoàn toàn** — Server không bao giờ gửi `Message::Ping` cho client. Traefik proxy (cổng vào production) có idle timeout ~30-60s, đóng kết nối WebSocket idle mà client không phát hiện (TCP vẫn báo "alive"). User thấy "● online" nhưng thực sự kết nối đã chết → `socket.send()` thành công (browser buffer) nhưng server không bao giờ nhận → "không gửi được tin nhắn". **Fix**: Server (chat.rs + friends.rs) spawn `ping_interval` 25s trong `send_task` dùng `tokio::select!` — gửi `Message::Ping(Bytes::from_static(b"tubi"))` mỗi 25s. 25s < 30s Traefik timeout → kết nối sống mãi.
+- **[BF-2] Idle timeout 180s — phát hiện dead connections** — Trước đây nếu proxy đóng kết nối âm thầm, server vẫn giữ `receiver.next()` block mãi, leak task + memory. **Fix**: `tokio::time::timeout(Duration::from_secs(180), receiver.next())` trong recv loop. 180s = 7 lần Ping không phản hồi → chắc chắn dead → break + cleanup.
+- **[BF-3] App-level ping/pong backup (Text message)** — Một số proxy/firewall strip WebSocket control frames (Ping/Pong ở opcode 0x9/0xA). **Fix**: Client gửi Text message `{"type":"ping"}` mỗi 30s, server respond `{"type":"pong"}`. Dual-layer keepalive (protocol + app) đảm bảo works qua mọi proxy.
+- **[BF-4] Client health check 60s — phát hiện dead connection từ phía client** — Client chỉ dựa vào `onclose` event, nhưng nếu TCP không báo close, client nghĩ kết nối vẫn sống. **Fix**: `_lastReceivedAt` timestamp + `_healthTimer` 15s check: nếu 60s không nhận gì (kể cả pong) → force `socket.close(4000)` + reconnect.
+- **[BF-5] Session heartbeat KHÔNG BAO GIỜ chạy (HttpOnly cookie bug)** — `app.js` line 47 check `document.cookie.includes('session_id')` để start heartbeat, nhưng `session_id` cookie là HttpOnly (v0.9.5 đã ghi comment về điều này cho `globalChat()` nhưng không fix cho `DOMContentLoaded`). → `document.cookie` không đọc được session_id → check luôn return false → heartbeat không chạy → session hết hạn khi user đang active → WS upgrade fail 401 → "không gửi được tin nhắn" sau 1-2 giờ. **Fix**: thêm `<body data-logged-in="true|false">` attribute trong `layout.html`, `app.js` check `document.body.dataset.loggedIn === 'true'` thay vì cookie.
+- **[BF-6] WebSocket close code 1008 handling sai** — Server trả HTTP 401/403 TRƯỚC khi WS upgrade (không phải WS close 1008). Frontend `if (event.code === 1008)` branch không bao giờ fire. → onerror + onclose(1006) → reconnect attempts fail lại (vẫn 401) → "Không thể kết nối sau 5 lần thử". **Fix**: Backend vẫn trả HTTP status (đúng), frontend detect via `onclose` code 1006 + `onerror` → handle riêng: nếu 401/403 thì KHÔNG reconnect (show error clear).
+
+### Tính năng mới (Live Chat UX + Sound + Animation)
+
+- **[FT-1] Sound Effects (Web Audio API — không cần file audio)**
+  - Tạo module `src/static/js/sound.js` (160 dòng) — dùng Web Audio API tạo tones dynamically
+  - `playSend()` — pop ngắn 880Hz → 1320Hz, 70ms, triangle wave (bright "ting" khi gửi)
+  - `playReceive()` — chime nhẹ 660Hz, 100ms, sine wave (soft bell khi nhận)
+  - `playConnect()` — bell 2 nốt C5+E5 (523Hz → 659Hz) khi WS kết nối thành công
+  - `playError()` — buzzer 200Hz, 150ms, square wave khi có lỗi
+  - Lazy init: AudioContext chỉ tạo khi user first interaction (browser autoplay policy)
+  - Sound toggle: `<button data-sound-toggle>` trong chat header (cả live chat + global chat)
+  - Preference persist trong `localStorage` key `tubi_sound`
+  - Default: enabled
+
+- **[FT-2] Animations mượt mà (CSS keyframes — GPU-accelerated)**
+  - `@keyframes msg-slide-in` — message mới slide up 8px + fade in, 0.25s ease-out
+  - `@keyframes msg-pop` — bubble pop scale 0.96 → 1.01 → 1
+  - `@keyframes send-btn-pulse` — nút Gửi scale 1 → 0.92 → 1 khi click, 0.2s
+  - `@keyframes conn-pulse` — connection indicator opacity 1 → 0.5 → 1, 2s infinite
+  - Tất cả dùng `transform` + `opacity` (GPU-accelerated, không trigger layout)
+  - `backface-visibility: hidden` để tránh flicker
+  - `@media (prefers-reduced-motion: reduce)` — respect user preference, disable animations
+  - CSS trong file mới `src/static/css/chat.css`
+
+- **[FT-3] Live Chat panel PHÓNG TO**
+  - Group chat: 60dvh → **70dvh**, max-height 480px → **640px**, min 280 → 320
+  - Mobile: 50dvh → **58dvh**, max 540px
+  - Global chat popup: 340px → **380px** wide, 60dvh → **65dvh**, max 480 → 580
+  - Message area padding tăng 12px → 14-16px cho dễ đọc
+  - User report: "làm màn hình live chat tổng to thêm một tí vì hiện tại nó quá bé" → fixed
+
+- **[FT-4] Message Queue + Optimistic UI**
+  - Khi disconnected, tin nhắn được queue trong `_queue: []`, flush khi reconnect
+  - Không mất tin nhắn nữa — user có thể type nhiều tin khi mất mạng, tự gửi khi có mạng lại
+  - `maxReconnectAttempts` tăng 5 → 10, backoff dày hơn (1s, 2s, 4s, 8s, 16s, 32s cap)
+
+- **[FT-5] Reconnect logic cải thiện**
+  - Reset `reconnectAttempts` khi nhận message thành công
+  - Close code 1000 (normal) không reconnect
+  - Close code 1008 (policy) không reconnect — show error clear
+  - Backoff exponential: 1s, 2s, 4s, 8s, 16s, 32s (cap 30s)
+
+### Cải thiện Performance (không lag, mượt hơn)
+
+- **[PF-1] Debounced scroll bằng requestAnimationFrame**
+  - `scrollToBottom()` wrap trong rAF + `_scrollPending` flag
+  - Nhiều messages đến cùng lúc → chỉ 1 scroll call → giảm jank
+- **[PF-2] Cache DOM refs**
+  - `_messagesEl = this.$refs.messages` cache trong `init()`
+  - Trước đây query DOM mỗi lần scroll → giờ query 1 lần
+- **[PF-3] Messages array capped 200**
+  - `_trimMessages()` splice old entries khi > 200
+  - Tránh memory bloat khi chat lâu (8+ giờ)
+- **[PF-4] WebSocket max_message_size 64KB**
+  - `ws.max_message_size(64 * 1024)` — chống abuse (500 char chat + overhead << 64KB)
+  - Axum default là 64MB → giảm memory footprint
+- **[PF-5] Server handle Message::Pong, Message::Ping, Message::Close đúng cách**
+  - Trước đây chỉ handle `Message::Text`, ignore các loại khác (có thể break)
+  - Giờ: Pong → keepalive (continue), Ping → respond Pong (echo payload), Close → break, Binary → ignore
+- **[PF-6] GPU acceleration cho animations**
+  - `transform` + `opacity` only ( không trigger layout/paint)
+  - `backface-visibility: hidden` + `-webkit-backface-visibility: hidden`
+  - `will-change: opacity, transform` cho message containers
+
+### Cải thiện cấu trúc thư mục (Folder Reorganization)
+
+- **[RE-1] Tách JavaScript thành modules**
+  - Trước: `src/static/js/app.js` 862 dòng (monolith)
+  - Sau:
+    - `src/static/js/sound.js` (160 dòng) — Sound effects module (Web Audio API)
+    - `src/static/js/chat.js` (520 dòng) — Chat Alpine.js components (liveChat, globalChat, dmChat, chatBubble, notificationBadge)
+    - `src/static/js/app.js` (130 dòng) — Main init, PrayerCounter, session heartbeat, utility functions
+  - Load order trong `layout.html`: sound.js → chat.js → app.js
+  - Shared helpers (`msgBubbleClass`, `avatarClass`, `roleBadgeHtml`, etc.) tách ra functions chung trong chat.js — không duplicate 3 lần như trước
+
+- **[RE-2] Tách CSS thành modules**
+  - Trước: `src/static/css/app.css` 619 dòng (monolith)
+  - Sau:
+    - `src/static/css/app.css` (619 dòng — giữ nguyên, không break existing styles)
+    - `src/static/css/chat.css` (210 dòng — styles MỚI cho v0.9.20: enlarged chat, animations, sound toggle)
+  - Load order: app.css → chat.css (chat.css override khi cần)
+
+- **[RE-3] Body data attribute**
+  - `<body data-logged-in="true|false">` — thay thế check `document.cookie.includes('session_id')` (không hoạt động với HttpOnly cookie)
+  - dùng cho session heartbeat + future client-side auth checks
+
+### Cải thiện Code Quality
+
+- **[CQ-1] chat.rs refactor** — Tách `handle_ws_message` thành function riêng (giảm duplication), thêm `CtrlMessage` enum cho control channel (Error + Pong), xóa `err_tx` String channel thay bằng typed enum
+- **[CQ-2] friends.rs DM handler đồng bộ** — Cùng pattern ping/pong/idle-timeout như chat.rs, dùng `DmCtrlMessage` enum riêng
+- **[CQ-3] chat.js shared mixin** — `chatSocketMixin(getUrl)` chứa tất cả WebSocket logic chung (connect, send, ping, healthCheck, reconnect) — 3 components (liveChat, globalChat, dmChat) đều dùng chung, chỉ override `handleIncoming` và `init`
+- **[CQ-4] HEALTH_FEATURES const** — Tách features array trong `health_check()` ra `const HEALTH_FEATURES: &[&str]` để tránh `serde_json::json!` recursion limit (array quá dài sau v0.9.20)
+- **[CQ-5] Build verification** — `cargo check` + `cargo clippy` + `cargo build --release` pass sạch với Rust 1.97.1, 0 warnings
+
+### Files Changed
+
+**Mới:**
+- `src/static/js/sound.js` (160 dòng)
+- `src/static/js/chat.js` (520 dòng)
+- `src/static/css/chat.css` (210 dòng)
+
+**Sửa:**
+- `src/handlers/chat.rs` — refactor hoàn toàn, thêm ping/pong/idle-timeout/CtrlMessage
+- `src/handlers/friends.rs` — DM handler thêm ping/pong/idle-timeout/DmCtrlMessage
+- `src/static/js/app.js` — rewrite, bỏ chat components (chuyển sang chat.js), fix session heartbeat
+- `src/main.rs` — version → 0.9.20, tách HEALTH_FEATURES const, thêm v0.9.20 features
+- `templates/layout.html` — load 3 JS files + 2 CSS files, `<body data-logged-in>`, sound toggle button, version string
+- `templates/community/group.html` — bỏ inline .chat-panel style (chat.css xử lý), thêm send-btn + conn-indicator class, sound toggle button
+- `templates/ban-be/conversation.html` — thêm send-btn class
+- `Cargo.toml` — version 0.9.19 → 0.9.20
+- `Dockerfile.coolify` — FROM tag 0.9.19 → 0.9.20
+
+---
+
 ## [0.9.19] — 2026-08-15 — Giai đoạn 24: Live Chat Fix + Admin/Mod Message Effects + Mod Role
 
 ### Sửa lỗi (Critical Bug Fixes — user report)

@@ -3,28 +3,17 @@
 
 {% block head %}
 <style>
-  /* Live Chat panel — dùng dvh (dynamic viewport height) để tự co lại khi bàn phím ảo mở */
-  .chat-panel {
-    height: 60dvh;
-    min-height: 280px;
-    max-height: 480px;
-    display: flex;
-    flex-direction: column;
-  }
+  /* v0.9.20: Live Chat panel sizing chuyển sang chat.css — không override ở đây nữa.
+     Chỉ giữ lại style riêng cho trang nhóm (msg bubble word-wrap, scrollbar). */
   .chat-messages {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     scroll-behavior: smooth;
   }
-  .chat-messages::-webkit-scrollbar { width: 6px; }
-  .chat-messages::-webkit-scrollbar-thumb { background: #C8E6C9; border-radius: 3px; }
   .chat-msg-bubble {
     word-break: break-word;
     overflow-wrap: anywhere;
-  }
-  @media (max-width: 768px) {
-    .chat-panel { height: 50dvh; min-height: 260px; }
   }
 </style>
 {% endblock %}
@@ -192,9 +181,9 @@
     {% endif %}
   </div>
 
-  <!-- Live Chat Panel (~35% height) — v0.9.2 Giai đoạn 7 -->
+  <!-- Live Chat Panel — v0.9.20: phóng to (70dvh, max 640px) + animation mượt -->
   <!-- v0.9.19: Admin/Mod được chat trong mọi nhóm (không cần membership) -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6"
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6 chat-panel"
        x-data="liveChat({
          slug: '{{ group.slug }}',
          isMember: {% if can_chat %}true{% else %}false{% endif %},
@@ -205,13 +194,22 @@
     <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
       <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
         💬 Live Chat
-        <span x-show="connected" class="text-xs text-green-600 font-normal">
+        <span x-show="connected" class="text-xs text-green-600 font-normal conn-indicator">
           ● <span x-text="onlineLabel"></span>
         </span>
         <span x-show="!connected && !error" class="text-xs text-gray-400 font-normal">đang kết nối…</span>
         <span x-show="error" class="text-xs text-red-500 font-normal" x-text="error"></span>
       </h2>
-      <span class="text-xs text-gray-400">Real-time · tối đa 500 ký tự</span>
+      <div class="flex items-center gap-2">
+        <!-- v0.9.20: Sound toggle button -->
+        <button type="button"
+                onclick="window.toggleSound && window.toggleSound()"
+                data-sound-toggle
+                class="sound-toggle"
+                style="border-color: #d1d5db; color: #6b7280;"
+                title="Bật/tắt âm thanh">🔊</button>
+        <span class="text-xs text-gray-400">Real-time · tối đa 500 ký tự</span>
+      </div>
     </div>
 
     <!-- Messages area -->
@@ -269,7 +267,7 @@
                      class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
               <button type="submit"
                       :disabled="!connected || !draft.trim()"
-                      class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                       style="background-color:#388E3C">
                 🙏 Gửi
               </button>
@@ -293,7 +291,7 @@
                    class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
             <button type="submit"
                     :disabled="!connected || !draft.trim()"
-                    class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style="background-color:#388E3C">
               🙏 Gửi
             </button>
@@ -317,7 +315,7 @@
                    class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
             <button type="submit"
                     :disabled="!connected || !draft.trim()"
-                    class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="send-btn px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style="background-color:#388E3C">
               🙏 Gửi
             </button>

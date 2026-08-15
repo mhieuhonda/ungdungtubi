@@ -30,6 +30,7 @@ use axum_extra::extract::CookieJar;
 use askama::Template;
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -45,6 +46,18 @@ const MAX_DM_BODY_CHARS: usize = 1000;
 
 /// Số tin nhắn / thư hiển thị trên 1 trang.
 const PAGE_SIZE: i64 = 50;
+
+/// v0.9.20: Server gửi WebSocket Ping mỗi 25s để giữ kết nối qua proxy.
+const WS_PING_INTERVAL_SECS: u64 = 25;
+
+/// v0.9.20: Đóng kết nối nếu không nhận được gì trong 180s.
+const WS_IDLE_TIMEOUT_SECS: u64 = 180;
+
+/// v0.9.20: Control message từ recv loop → send_task.
+enum DmCtrlMessage {
+    Error(String),
+    Pong(bytes::Bytes),
+}
 
 // ====================================================================
 // Trang chính Bạn Bè — GET /ban-be
@@ -739,10 +752,11 @@ pub async fn dm_ws_upgrade(
             .into_response();
     }
 
-    ws.on_upgrade(move |socket| handle_dm_socket(socket, state, conversation_id, user))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_dm_socket(socket, state, conversation_id, user))
 }
 
-/// Handler cho DM WebSocket session — pattern giống group chat.
+/// Handler cho DM WebSocket session — v0.9.20: ping/pong keepalive + idle timeout.
 #[allow(clippy::too_many_lines)]
 async fn handle_dm_socket(
     socket: axum::extract::ws::WebSocket,
@@ -763,9 +777,12 @@ async fn handle_dm_socket(
         conversation_id
     );
 
-    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<String>();
+    let (ctrl_tx, mut ctrl_rx) = mpsc::unbounded_channel::<DmCtrlMessage>();
 
     let send_task = tokio::spawn(async move {
+        let mut ping_interval = tokio::time::interval(Duration::from_secs(WS_PING_INTERVAL_SECS));
+        ping_interval.tick().await;
+
         loop {
             tokio::select! {
                 msg = rx.recv() => {
@@ -783,9 +800,9 @@ async fn handle_dm_socket(
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                     }
                 }
-                err = err_rx.recv() => {
-                    match err {
-                        Some(err_payload) => {
+                ctrl = ctrl_rx.recv() => {
+                    match ctrl {
+                        Some(DmCtrlMessage::Error(err_payload)) => {
                             if sender
                                 .send(axum::extract::ws::Message::Text(err_payload.into()))
                                 .await
@@ -794,7 +811,27 @@ async fn handle_dm_socket(
                                 break;
                             }
                         }
+                        Some(DmCtrlMessage::Pong(payload)) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Pong(payload))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
                         None => break,
+                    }
+                }
+                _ = ping_interval.tick() => {
+                    if sender
+                        .send(axum::extract::ws::Message::Ping(
+                            bytes::Bytes::from_static(b"tubi"),
+                        ))
+                        .await
+                        .is_err()
+                    {
+                        break;
                     }
                 }
             }
@@ -807,71 +844,104 @@ async fn handle_dm_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
-    // v0.9.19: lưu author_role để render hiệu ứng đặc biệt cho admin/mod.
     let user_role = user.role.clone();
 
-    while let Some(msg_result) = receiver.next().await {
-        let Ok(msg) = msg_result else { break };
+    loop {
+        let next_msg = tokio::time::timeout(
+            Duration::from_secs(WS_IDLE_TIMEOUT_SECS),
+            receiver.next(),
+        )
+        .await;
 
-        if let axum::extract::ws::Message::Text(text) = msg {
-            let body = text.trim().to_string();
-            if body.is_empty() || body.chars().count() > MAX_DM_BODY_CHARS {
-                let err_payload = serde_json::json!({
-                    "type": "error",
-                    "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_DM_BODY_CHARS} ký tự).")
-                })
-                .to_string();
-                let _ = err_tx.send(err_payload);
-                continue;
+        match next_msg {
+            Err(_) => {
+                log::info!(
+                    "💬 DM WS idle timeout ({WS_IDLE_TIMEOUT_SECS}s), đóng: user={} conv={}",
+                    user_id, conversation_id
+                );
+                break;
             }
+            Ok(None) => break,
+            Ok(Some(Err(_))) => break,
+            Ok(Some(Ok(msg))) => {
+                use axum::extract::ws::Message;
+                match msg {
+                    Message::Text(text) => {
+                        let body = text.trim().to_string();
 
-            // Persist vào DB
-            let saved: Option<DirectMessageWithAuthor> = match sqlx::query_as::<_, DirectMessage>(
-                "INSERT INTO direct_messages (conversation_id, author_id, body)
-                 VALUES ($1, $2, $3)
-                 RETURNING id, conversation_id, author_id, body, is_active, created_at",
-            )
-            .bind(conversation_id)
-            .bind(user_id)
-            .bind(&body)
-            .fetch_one(&pool)
-            .await
-            {
-                Ok(m) => Some(DirectMessageWithAuthor {
-                    id: m.id,
-                    conversation_id: m.conversation_id,
-                    author_id: m.author_id,
-                    body: m.body,
-                    is_active: m.is_active,
-                    created_at: m.created_at,
-                    author_display_name: user_display_name.clone(),
-                    author_avatar_url: user_avatar_url.clone(),
-                    author_rank: user_rank.clone(),
-                    author_role: Some(user_role.clone()),
-                }),
-                Err(e) => {
-                    log::error!("❌ Lỗi lưu DM message: {e}");
-                    let err_payload = serde_json::json!({
-                        "type": "error",
-                        "message": "Không lưu được tin nhắn. Vui lòng thử lại."
-                    })
-                    .to_string();
-                    let _ = err_tx.send(err_payload);
-                    None
+                        // v0.9.20: App-level ping
+                        if body == "{\"type\":\"ping\"}" || body == "ping" {
+                            let _ = ctrl_tx.send(DmCtrlMessage::Error(
+                                r#"{"type":"pong"}"#.to_string(),
+                            ));
+                            continue;
+                        }
+
+                        if body.is_empty() || body.chars().count() > MAX_DM_BODY_CHARS {
+                            let err_payload = serde_json::json!({
+                                "type": "error",
+                                "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_DM_BODY_CHARS} ký tự).")
+                            })
+                            .to_string();
+                            let _ = ctrl_tx.send(DmCtrlMessage::Error(err_payload));
+                            continue;
+                        }
+
+                        let saved: Option<DirectMessageWithAuthor> = match sqlx::query_as::<_, DirectMessage>(
+                            "INSERT INTO direct_messages (conversation_id, author_id, body)
+                             VALUES ($1, $2, $3)
+                             RETURNING id, conversation_id, author_id, body, is_active, created_at",
+                        )
+                        .bind(conversation_id)
+                        .bind(user_id)
+                        .bind(&body)
+                        .fetch_one(&pool)
+                        .await
+                        {
+                            Ok(m) => Some(DirectMessageWithAuthor {
+                                id: m.id,
+                                conversation_id: m.conversation_id,
+                                author_id: m.author_id,
+                                body: m.body,
+                                is_active: m.is_active,
+                                created_at: m.created_at,
+                                author_display_name: user_display_name.clone(),
+                                author_avatar_url: user_avatar_url.clone(),
+                                author_rank: user_rank.clone(),
+                                author_role: Some(user_role.clone()),
+                            }),
+                            Err(e) => {
+                                log::error!("❌ Lỗi lưu DM message: {e}");
+                                let err_payload = serde_json::json!({
+                                    "type": "error",
+                                    "message": "Không lưu được tin nhắn. Vui lòng thử lại."
+                                })
+                                .to_string();
+                                let _ = ctrl_tx.send(DmCtrlMessage::Error(err_payload));
+                                None
+                            }
+                        };
+
+                        if let Some(msg) = saved {
+                            let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
+                            let _ = dm_chat_hub.broadcast(conversation_id, payload).await;
+
+                            let _ = sqlx::query(
+                                "UPDATE conversations SET updated_at = NOW() WHERE id = $1",
+                            )
+                            .bind(conversation_id)
+                            .execute(&pool)
+                            .await;
+                        }
+                    }
+                    Message::Pong(_) => continue,
+                    Message::Ping(payload) => {
+                        let _ = ctrl_tx.send(DmCtrlMessage::Pong(payload));
+                        continue;
+                    }
+                    Message::Close(_) => break,
+                    Message::Binary(_) => continue,
                 }
-            };
-
-            if let Some(msg) = saved {
-                let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
-                let _ = dm_chat_hub.broadcast(conversation_id, payload).await;
-
-                // Update conversation.updated_at để inbox sort đúng
-                let _ = sqlx::query(
-                    "UPDATE conversations SET updated_at = NOW() WHERE id = $1",
-                )
-                .bind(conversation_id)
-                .execute(&pool)
-                .await;
             }
         }
     }

@@ -1,0 +1,293 @@
+/* ====================================================================
+ * Ứng Dụng Từ Bi — Chat Styles (v0.9.20 — Giai đoạn 25)
+ * 
+ * File này chứa các style MỚI cho v0.9.20:
+ *   - Live Chat panel PHÓNG TO (60dvh → 70dvh, max 480 → 640)
+ *   - Global Chat popup PHÓNG TO (340px → 380px, max 480 → 580)
+ *   - Message slide-in animation (mượt mà, không lag)
+ *   - Send button pulse animation
+ *   - Connection indicator pulse
+ *   - Sound toggle button
+ *   - Scrollbar styling cho chat
+ *
+ * Không sửa app.css — giữ nguyên để tránh break existing styles.
+ * Load SAU app.css trong layout.html.
+ * ==================================================================== */
+
+/* ====================================================================
+ * 1. Live Chat panel — PHÓNG TO (v0.9.20)
+ * ==================================================================== */
+
+/* Group chat panel — tăng từ 60dvh → 70dvh, max 480 → 640 */
+.chat-panel {
+    height: 70dvh;
+    min-height: 320px;
+    max-height: 640px;
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 768px) {
+    .chat-panel {
+        height: 58dvh;
+        min-height: 300px;
+        max-height: 540px;
+    }
+}
+
+/* Message area — tăng padding + line-height cho dễ đọc */
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    padding: 12px 16px;
+    -webkit-overflow-scrolling: touch; /* iOS smooth scroll */
+}
+
+.chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+.chat-messages::-webkit-scrollbar-thumb {
+    background: #C8E6C9;
+    border-radius: 3px;
+}
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #A5D6A7;
+}
+
+.dark .chat-messages::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+/* Message bubble — word wrap + max width */
+.chat-msg-bubble {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+}
+
+/* ====================================================================
+ * 2. Global Chat popup — PHÓNG TO (v0.9.20)
+ * ==================================================================== */
+
+/* Desktop: 340px → 380px wide, 60dvh → 65dvh, max 480 → 580 */
+.chat-chung-popup {
+    width: 380px;
+    height: 65dvh;
+    max-height: 580px;
+    min-height: 360px;
+}
+
+@media (max-width: 768px) {
+    .chat-chung-popup {
+        height: 60dvh;
+        max-height: 65dvh;
+        min-height: 340px;
+    }
+}
+
+/* Message area cho global chat — padding + smooth scroll */
+.chat-chung-messages {
+    padding: 14px 16px;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ====================================================================
+ * 3. Message animations — MƯỢT MÀ, KHÔNG LAG (v0.9.20)
+ * ==================================================================== */
+
+/* Slide-in + fade-in cho message mới — dùng transform (GPU-accelerated) */
+@keyframes msg-slide-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Apply cho tất cả chat message containers */
+.chat-messages > div,
+.chat-chung-messages > div {
+    animation: msg-slide-in 0.25s ease-out;
+    will-change: opacity, transform;
+}
+
+/* Cho riêng message bubble — pop nhẹ khi appear */
+@keyframes msg-pop {
+    0% {
+        transform: scale(0.96);
+        opacity: 0;
+    }
+    60% {
+        transform: scale(1.01);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* ====================================================================
+ * 4. Send button + connection indicator animations (v0.9.20)
+ * ==================================================================== */
+
+/* Pulse khi click send */
+@keyframes send-btn-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.92); }
+    100% { transform: scale(1); }
+}
+
+.send-btn:active {
+    animation: send-btn-pulse 0.2s ease-out;
+}
+
+/* Connection indicator — pulse nhẹ khi connected */
+@keyframes conn-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.conn-indicator {
+    animation: conn-pulse 2s ease-in-out infinite;
+}
+
+/* ====================================================================
+ * 5. Sound toggle button (v0.9.20)
+ * ==================================================================== */
+
+.sound-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: inherit;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    transition: background 0.2s ease, transform 0.1s ease;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.sound-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.sound-toggle:active {
+    transform: scale(0.92);
+}
+
+/* ====================================================================
+ * 6. Chat input — focus ring rõ hơn (v0.9.20)
+ * ==================================================================== */
+
+.chat-input:focus,
+input[class*="focus:ring-tubi-300"]:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(134, 239, 172, 0.4);
+}
+
+/* ====================================================================
+ * 7. Performance optimizations (v0.9.20)
+ * ==================================================================== */
+
+/* Tắt transition khi đang scroll để tránh jank */
+.is-scrolling .chat-messages,
+.is-scrolling .chat-chung-messages {
+    pointer-events: none;
+}
+
+/* GPU acceleration cho transform/opacity animations */
+.chat-messages > div,
+.chat-chung-messages > div,
+.send-btn,
+.conn-indicator {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Reduce motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+    .chat-messages > div,
+    .chat-chung-messages > div {
+        animation: none;
+    }
+    .conn-indicator {
+        animation: none;
+    }
+}
+
+/* ====================================================================
+ * 8. Empty state styling (v0.9.20)
+ * ==================================================================== */
+
+.chat-empty-state {
+    text-align: center;
+    padding: 32px 16px;
+    color: #9CA3AF;
+}
+
+.chat-empty-state .emoji {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 8px;
+    animation: float 3s ease-in-out infinite;
+}
+
+.dark .chat-empty-state {
+    color: #64748B;
+}
+
+/* ====================================================================
+ * 9. Typing indicator (v0.9.20 — placeholder for future)
+ * ==================================================================== */
+
+.typing-indicator {
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+    padding: 4px 8px;
+}
+
+.typing-indicator span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #9CA3AF;
+    animation: typing-dot 1.4s infinite;
+}
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes typing-dot {
+    0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+    }
+    30% {
+        transform: translateY(-4px);
+        opacity: 1;
+    }
+}
+
+/* ====================================================================
+ * End v0.9.20 — Chat Styles
+ * ==================================================================== */

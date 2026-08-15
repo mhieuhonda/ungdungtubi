@@ -1,19 +1,21 @@
 //! Handlers cho Live Chat real-time (v0.9.3 — Giai đoạn 7+).
 //!
+//! v0.9.20 — Giai đoạn 25: Live Chat Total Fix
+//!   * Server gửi WebSocket Ping mỗi 25s để giữ kết nối qua proxy (Traefik).
+//!   * Server xử lý Pong/Ping/Close từ client đúng cách.
+//!   * Idle timeout 180s: đóng kết nối nếu không nhận được gì (kể cả Pong).
+//!   * App-level ping/pong (Text message `{"type":"ping"}`) làm backup.
+//!   * Close code chuẩn: 1008 (policy) cho auth/permission fail, 1011 (server error).
+//!
 //! Bao gồm:
 //!   * GET  /ws/cong-dong/nhom/{slug}                       — WebSocket upgrade (nhóm)
 //!   * GET  /api/cong-dong/nhom/{slug}/chat-history         — Lấy 50 tin nhắn gần nhất (nhóm)
 //!   * GET  /ws/chat-chung                                 — WebSocket upgrade (chat chung toàn platform) [v0.9.3]
 //!   * GET  /api/chat-chung/history                        — Lấy 50 tin nhắn chat chung gần nhất [v0.9.3]
-//!
-//! Theo thiết kế trong `HieuLouis/Giao Diện Cộng Đồng Trong Ứng Dụng.docx`:
-//!   * Live Chat kết hợp với list Chủ Đề trong mỗi nhóm
-//!   * Live Chat chỉ để giao lưu, kết bạn, tán gẫu, hỏi nhanh
-//!   * Mọi nội dung có giá trị nên được chuyển thành Chủ Đề
-//!   * Live Chat panel chiếm ~30-40% chiều cao, list Chủ Đề chiếm 60-70%
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     extract::{Path, Query, State},
@@ -33,27 +35,29 @@ use crate::models::community::{ChatMessage, ChatMessageWithAuthor};
 use crate::models::user::User;
 
 /// Sức chứa tối đa của broadcast channel cho một nhóm.
-/// 256 là đủ dư cho một nhóm hoạt động — tin nhắn cũ bị drop nếu client chậm.
 const BROADCAST_CHANNEL_CAPACITY: usize = 256;
 
 /// Giới hạn tin nhắn chat (ký tự) — chống spam / lạm dụng.
 const MAX_CHAT_BODY_CHARS: usize = 500;
 
+/// Server gửi WebSocket Ping mỗi 25s để giữ kết nối qua proxy.
+/// 25s < 30s (default Traefik idle timeout) → kết nối không bị đóng.
+const WS_PING_INTERVAL_SECS: u64 = 25;
+
+/// Đóng kết nối nếu không nhận được message nào (kể cả Pong) trong 180s.
+/// 180s = 7 lần Ping không phản hồi → chắc chắn kết nối đã chết.
+const WS_IDLE_TIMEOUT_SECS: u64 = 180;
+
 /// Tin nhắn broadcast qua WebSocket — đã kèm author info.
 type BroadcastPayload = String; // JSON-serialised ChatMessageWithAuthor
 
 /// Hub quản lý các broadcast channel theo nhóm.
-///
-/// Mỗi nhóm có một `broadcast::Sender<BroadcastPayload>`. Khi client kết nối
-/// WebSocket, nó `subscribe()` để lấy `Receiver`. Bất kỳ tin nhắn nào gửi vào
-/// channel sẽ được forward đến tất cả client đang online trong nhóm đó.
 #[derive(Clone, Default)]
 pub struct ChatHub {
     channels: Arc<Mutex<HashMap<Uuid, broadcast::Sender<BroadcastPayload>>>>,
 }
 
 impl ChatHub {
-    /// Lấy (hoặc tạo nếu chưa có) broadcast sender cho nhóm.
     pub async fn subscribe(&self, group_id: Uuid) -> broadcast::Sender<BroadcastPayload> {
         let mut map = self.channels.lock().await;
         map.entry(group_id)
@@ -64,9 +68,6 @@ impl ChatHub {
             .clone()
     }
 
-    /// Broadcast một payload JSON đến tất cả client trong nhóm.
-    /// Bỏ qua lỗi "no receivers" vì là tình huống bình thường
-    /// (không ai online khi tin nhắn được gửi).
     pub async fn broadcast(&self, group_id: Uuid, payload: BroadcastPayload) {
         let tx = self.subscribe(group_id).await;
         let _ = tx.send(payload);
@@ -74,31 +75,23 @@ impl ChatHub {
 }
 
 // --- Column list (đồng bộ với model) ---
-// v0.9.19: thêm u.role AS author_role để frontend render hiệu ứng đặc biệt cho admin/mod.
 const CHAT_LIST_COLUMNS: &str = "m.id, m.group_id, m.author_id, m.body, m.is_active, m.created_at, \
     u.display_name AS author_display_name, u.avatar_url AS author_avatar_url, \
     u.rank AS author_rank, u.role AS author_role";
 
-/// Query params cho GET /api/cong-dong/nhom/{slug}/chat-history.
 #[derive(Debug, serde::Deserialize)]
 pub struct ChatHistoryQuery {
-    /// Số tin nhắn tối đa (mặc định 50, max 100).
     pub limit: Option<i64>,
-    /// Lấy tin nhắn có `created_at` < `before` (ISO 8601) — pagination.
     pub before: Option<String>,
 }
 
-/// GET /api/cong-dong/nhom/{slug}/chat-history — Lấy chat history của nhóm.
-///
-/// Trả về JSON array các tin nhắn (mới nhất trước). Public (ai cũng xem được
-/// chat history của nhóm public), nhưng chỉ member mới chat được qua WebSocket.
+/// GET /api/cong-dong/nhom/{slug}/chat-history
 #[allow(clippy::too_many_lines)]
 pub async fn chat_history(
     State(state): State<AppState>,
     Path(slug): Path<String>,
     Query(q): Query<ChatHistoryQuery>,
 ) -> Response {
-    // Resolve group_id + visibility check
     let group_row: Option<(Uuid, String)> = sqlx::query_as(
         "SELECT id, visibility FROM groups WHERE slug = $1 AND is_active = true",
     )
@@ -168,14 +161,6 @@ pub async fn chat_history(
 }
 
 /// GET /ws/cong-dong/nhom/{slug} — WebSocket upgrade cho Live Chat.
-///
-/// Quy trình:
-///   1. Auth bằng session_id cookie — chỉ user đã đăng nhập mới chat được
-///   2. Resolve group_id từ slug — nhóm phải active
-///   3. Kiểm tra user có membership active trong nhóm không
-///   4. Upgrade WebSocket — spawn 2 task:
-///      - send_task: forward broadcast → client
-///      - recv loop: đọc tin nhắn từ client → persist DB → broadcast
 #[allow(clippy::too_many_lines)]
 pub async fn chat_ws_upgrade(
     State(state): State<AppState>,
@@ -186,6 +171,7 @@ pub async fn chat_ws_upgrade(
     // 1. Auth
     let user = get_user_from_session(&state.pool, &jar).await;
     let Some(user) = user else {
+        // v0.9.20: trả 401 rõ ràng — frontend sẽ phát hiện WS upgrade fail
         return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập để chat.").into_response();
     };
 
@@ -211,10 +197,7 @@ pub async fn chat_ws_upgrade(
         }
     };
 
-    // 3. Membership check — chỉ member active mới chat được.
-    //    v0.9.19: Admin + Mod được chat trong BẤT KỲ nhóm nào (không cần membership).
-    //    Fix bug user report: admin không gửi được tin nhắn trong live chat cộng đồng
-    //    vì admin chưa tham gia nhóm.
+    // 3. Membership check — v0.9.19: Admin + Mod bypass.
     let is_member: bool = if user.can_chat_any_group() {
         log::info!(
             "💬 Admin/Mod bypass membership check: user={} role={} group={}",
@@ -241,17 +224,17 @@ pub async fn chat_ws_upgrade(
             .into_response();
     }
 
-    // 4. Upgrade
-    ws.on_upgrade(move |socket| handle_chat_socket(socket, state, group_id, user))
+    // 4. Upgrade — thêm max_message_size để chống abuse
+    ws.max_message_size(64 * 1024) // 64KB — đủ cho 500 ký tự + overhead
+        .on_upgrade(move |socket| handle_chat_socket(socket, state, group_id, user))
 }
 
 /// Handler cho WebSocket session sau khi upgrade thành công.
 ///
-/// Chia socket thành sender + receiver, spawn 2 task song song:
-///   * send_task: forward từ broadcast channel → client (tin nhắn từ người khác)
-///   * recv loop: đọc từ client → persist DB → broadcast (tin nhắn của mình)
-///
-/// Khi một trong hai task kết thúc (client ngắt hoặc error), task còn lại bị abort.
+/// v0.9.20 architecture:
+///   * send_task: forward broadcast + error + Ping (periodic) → client
+///   * recv loop: đọc từ client → persist → broadcast, có idle timeout
+///   * Khi bất kỳ task nào kết thúc, task còn lại bị abort
 #[allow(clippy::too_many_lines)]
 async fn handle_chat_socket(
     socket: axum::extract::ws::WebSocket,
@@ -261,22 +244,19 @@ async fn handle_chat_socket(
 ) {
     let (mut sender, mut receiver) = socket.split();
 
-    // Subscribe broadcast channel cho nhóm này
     let tx = state.chat_hub.subscribe(group_id).await;
     let mut rx = tx.subscribe();
 
-    log::info!(
-        "💬 WS connected: user={} group={}",
-        user.id,
-        group_id
-    );
+    log::info!("💬 WS connected: user={} group={}", user.id, group_id);
 
-    // Channel gửi error messages từ recv loop → send_task
-    // (Không thể clone SplitSink, nên dùng mpsc channel thay thế)
-    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<String>();
+    // Channel gửi error/pong messages từ recv loop → send_task
+    let (ctrl_tx, mut ctrl_rx) = mpsc::unbounded_channel::<CtrlMessage>();
 
-    // send_task: forward broadcast → client + gửi error messages
+    // send_task: forward broadcast + control + Ping periodic → client
     let send_task = tokio::spawn(async move {
+        let mut ping_interval = tokio::time::interval(Duration::from_secs(WS_PING_INTERVAL_SECS));
+        ping_interval.tick().await; // consume first immediate tick
+
         loop {
             tokio::select! {
                 msg = rx.recv() => {
@@ -291,17 +271,23 @@ async fn handle_chat_socket(
                             }
                         }
                         Err(broadcast::error::RecvError::Closed) => break,
-                        Err(broadcast::error::RecvError::Lagged(_)) => {
-                            // Client chậm — bỏ qua tin nhắn cũ, tiếp tục
-                            continue;
-                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     }
                 }
-                err = err_rx.recv() => {
-                    match err {
-                        Some(err_payload) => {
+                ctrl = ctrl_rx.recv() => {
+                    match ctrl {
+                        Some(CtrlMessage::Error(err_payload)) => {
                             if sender
                                 .send(axum::extract::ws::Message::Text(err_payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Some(CtrlMessage::Pong(payload)) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Pong(payload))
                                 .await
                                 .is_err()
                             {
@@ -311,39 +297,134 @@ async fn handle_chat_socket(
                         None => break,
                     }
                 }
+                _ = ping_interval.tick() => {
+                    // v0.9.20: Gửi WebSocket Ping để giữ kết nối qua proxy
+                    if sender
+                        .send(axum::extract::ws::Message::Ping(
+                            bytes::Bytes::from_static(b"tubi"),
+                        ))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
             }
         }
     });
 
-    // recv loop: đọc từ client → persist → broadcast
+    // recv loop: đọc từ client → persist → broadcast, có idle timeout
     let chat_hub = state.chat_hub.clone();
     let pool = state.pool.clone();
     let user_id = user.id;
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
-    // v0.9.19: lưu author_role để frontend render hiệu ứng đặc biệt cho admin/mod.
     let user_role = user.role.clone();
 
-    while let Some(msg_result) = receiver.next().await {
-        let Ok(msg) = msg_result else { break };
+    loop {
+        // v0.9.20: idle timeout — nếu không nhận được gì (kể cả Pong) trong 180s, đóng
+        let next_msg = tokio::time::timeout(
+            Duration::from_secs(WS_IDLE_TIMEOUT_SECS),
+            receiver.next(),
+        )
+        .await;
 
-        if let axum::extract::ws::Message::Text(text) = msg {
-            // Strip whitespace + validate length
+        match next_msg {
+            Err(_) => {
+                log::info!(
+                    "💬 WS idle timeout ({WS_IDLE_TIMEOUT_SECS}s không có message), đóng: user={} group={}",
+                    user_id, group_id
+                );
+                break;
+            }
+            Ok(None) => break, // stream closed
+            Ok(Some(Err(_))) => break, // stream error
+            Ok(Some(Ok(msg))) => {
+                if !handle_ws_message(
+                    msg,
+                    &ctrl_tx,
+                    group_id,
+                    user_id,
+                    &user_display_name,
+                    &user_avatar_url,
+                    &user_rank,
+                    &user_role,
+                    &pool,
+                    &chat_hub,
+                    MAX_CHAT_BODY_CHARS,
+                    ChatKind::Group,
+                )
+                .await
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    send_task.abort();
+    log::info!("💬 WS disconnected: user={} group={}", user_id, group_id);
+}
+
+/// Loại tin nhắn control từ recv loop → send_task.
+enum CtrlMessage {
+    Error(String),
+    Pong(bytes::Bytes),
+}
+
+/// Loại chat (group / global / dm) — dùng cho message handler chung.
+#[allow(dead_code)]
+enum ChatKind {
+    Group,
+    Global,
+    Dm,
+}
+
+/// Xử lý một WebSocket message từ client.
+///
+/// Trả về `false` nếu nên đóng kết nối (Close message), `true` để tiếp tục.
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
+async fn handle_ws_message(
+    msg: axum::extract::ws::Message,
+    ctrl_tx: &mpsc::UnboundedSender<CtrlMessage>,
+    group_id: Uuid,
+    user_id: Uuid,
+    user_display_name: &str,
+    user_avatar_url: &Option<String>,
+    user_rank: &str,
+    user_role: &str,
+    pool: &PgPool,
+    chat_hub: &ChatHub,
+    max_chars: usize,
+    _kind: ChatKind,
+) -> bool {
+    use axum::extract::ws::Message;
+
+    match msg {
+        Message::Text(text) => {
             let body = text.trim().to_string();
-            if body.is_empty() || body.chars().count() > MAX_CHAT_BODY_CHARS {
-                // v0.9.3 fix: gửi error trực tiếp cho client (không broadcast cho tất cả)
-                let err_payload = serde_json::json!({
-                    "type": "error",
-                    "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_CHAT_BODY_CHARS} ký tự).")
-                })
-                .to_string();
-                let _ = err_tx.send(err_payload);
-                continue;
+
+            // v0.9.20: App-level ping từ client — respond bằng pong (không persist)
+            if body == "{\"type\":\"ping\"}" || body == "ping" {
+                let _ = ctrl_tx.send(CtrlMessage::Error(
+                    r#"{"type":"pong"}"#.to_string(),
+                ));
+                return true;
             }
 
-            // Persist vào DB — dùng ChatMessage (không có author info) vì
-            // INSERT RETURNING không trả về columns từ users table.
+            // Validate length
+            if body.is_empty() || body.chars().count() > max_chars {
+                let err_payload = serde_json::json!({
+                    "type": "error",
+                    "message": format!("Tin nhắn không hợp lệ (tối đa {max_chars} ký tự).")
+                })
+                .to_string();
+                let _ = ctrl_tx.send(CtrlMessage::Error(err_payload));
+                return true;
+            }
+
+            // Persist vào DB
             let saved: Option<ChatMessageWithAuthor> = match sqlx::query_as::<_, ChatMessage>(
                 "INSERT INTO group_chat_messages (group_id, author_id, body)
                  VALUES ($1, $2, $3)
@@ -352,7 +433,7 @@ async fn handle_chat_socket(
             .bind(group_id)
             .bind(user_id)
             .bind(&body)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             {
                 Ok(m) => Some(ChatMessageWithAuthor {
@@ -362,20 +443,19 @@ async fn handle_chat_socket(
                     body: m.body,
                     is_active: m.is_active,
                     created_at: m.created_at,
-                    author_display_name: user_display_name.clone(),
+                    author_display_name: user_display_name.to_string(),
                     author_avatar_url: user_avatar_url.clone(),
-                    author_rank: user_rank.clone(),
-                    author_role: Some(user_role.clone()),
+                    author_rank: user_rank.to_string(),
+                    author_role: Some(user_role.to_string()),
                 }),
                 Err(e) => {
-                    // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop
                     log::error!("❌ Lỗi lưu group chat message: {e}");
                     let err_payload = serde_json::json!({
                         "type": "error",
                         "message": "Không lưu được tin nhắn. Vui lòng thử lại."
                     })
                     .to_string();
-                    let _ = err_tx.send(err_payload);
+                    let _ = ctrl_tx.send(CtrlMessage::Error(err_payload));
                     None
                 }
             };
@@ -384,17 +464,23 @@ async fn handle_chat_socket(
                 let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
                 let _ = chat_hub.broadcast(group_id, payload).await;
             }
+            true
         }
-        // Bỏ qua Binary / Ping / Pong — chỉ xử lý Text
+        Message::Pong(_) => {
+            // Keepalive response — connection is alive, continue
+            true
+        }
+        Message::Ping(payload) => {
+            // v0.9.20: Respond với Pong (echo payload) — giữ đúng WebSocket protocol
+            let _ = ctrl_tx.send(CtrlMessage::Pong(payload));
+            true
+        }
+        Message::Close(_) => false, // client đóng → thoát loop
+        Message::Binary(_) => true, // ignore binary messages
     }
-
-    // Cleanup: abort send_task khi client ngắt
-    send_task.abort();
-    log::info!("💬 WS disconnected: user={} group={}", user_id, group_id);
 }
 
 /// Helper: lấy 20 tin nhắn gần nhất cho render SSR trang nhóm.
-/// Dùng trong `community::view_group` để inject vào template.
 pub async fn recent_messages(pool: &PgPool, group_id: Uuid) -> Vec<ChatMessageWithAuthor> {
     sqlx::query_as::<_, ChatMessageWithAuthor>(&format!(
         "SELECT {CHAT_LIST_COLUMNS}
@@ -415,25 +501,17 @@ pub async fn recent_messages(pool: &PgPool, group_id: Uuid) -> Vec<ChatMessageWi
 
 // ====================================================================
 // Global Chat (Chat Chung) — v0.9.3
-// Platform-wide chat accessible from any page via draggable bubble
 // ====================================================================
 
-/// Sức chứa broadcast channel cho chat chung.
 const GLOBAL_CHAT_CHANNEL_CAPACITY: usize = 512;
-
-/// Số tin nhắn tối đa được lưu — tự động xoá cũ khi vượt quá.
 const GLOBAL_CHAT_MAX_MESSAGES: i64 = 500;
 
-/// Hub quản lý broadcast channel cho Chat Chung toàn platform.
-///
-/// Khác với ChatHub (nhiều nhóm → nhiều channel), GlobalChatHub chỉ có 1 channel.
 #[derive(Clone, Default)]
 pub struct GlobalChatHub {
     channel: Arc<Mutex<Option<broadcast::Sender<BroadcastPayload>>>>,
 }
 
 impl GlobalChatHub {
-    /// Lấy (hoặc tạo nếu chưa có) broadcast sender cho chat chung.
     pub async fn subscribe(&self) -> broadcast::Sender<BroadcastPayload> {
         let mut guard = self.channel.lock().await;
         guard
@@ -444,7 +522,6 @@ impl GlobalChatHub {
             .clone()
     }
 
-    /// Broadcast một payload JSON đến tất cả client đang kết nối chat chung.
     pub async fn broadcast(&self, payload: BroadcastPayload) {
         let tx = self.subscribe().await;
         let _ = tx.send(payload);
@@ -453,22 +530,16 @@ impl GlobalChatHub {
 
 // ====================================================================
 // DM Chat Hub — v0.9.5 Giai đoạn 9
-// Quản lý broadcast channel per-conversation cho Direct Messages 1-1
 // ====================================================================
 
-/// Sức chứa broadcast channel cho một conversation.
 const DM_CHANNEL_CAPACITY: usize = 128;
 
-/// Hub quản lý các broadcast channel cho Direct Messages (1-1 chat).
-///
-/// Tương tự ChatHub (per-group), nhưng dùng conversation_id thay vì group_id.
 #[derive(Clone, Default)]
 pub struct DmChatHub {
     channels: Arc<Mutex<HashMap<Uuid, broadcast::Sender<BroadcastPayload>>>>,
 }
 
 impl DmChatHub {
-    /// Lấy (hoặc tạo nếu chưa có) broadcast sender cho conversation.
     pub async fn subscribe(&self, conversation_id: Uuid) -> broadcast::Sender<BroadcastPayload> {
         let mut map = self.channels.lock().await;
         map.entry(conversation_id)
@@ -479,29 +550,22 @@ impl DmChatHub {
             .clone()
     }
 
-    /// Broadcast một payload JSON đến tất cả client trong conversation.
     pub async fn broadcast(&self, conversation_id: Uuid, payload: BroadcastPayload) {
         let tx = self.subscribe(conversation_id).await;
         let _ = tx.send(payload);
     }
 }
 
-/// Column list cho global_chat_messages + join users.
-/// v0.9.19: thêm u.role AS author_role.
 const GLOBAL_CHAT_LIST_COLUMNS: &str = "m.id, m.author_id, m.body, m.is_active, m.created_at, \
     u.display_name AS author_display_name, u.avatar_url AS author_avatar_url, \
     u.rank AS author_rank, u.role AS author_role";
 
-/// Query params cho GET /api/chat-chung/history.
 #[derive(Debug, serde::Deserialize)]
 pub struct GlobalChatHistoryQuery {
-    /// Số tin nhắn tối đa (mặc định 50, max 100).
     pub limit: Option<i64>,
 }
 
-/// GET /api/chat-chung/history — Lấy chat chung history.
-///
-/// Public endpoint — ai cũng xem được (không cần đăng nhập).
+/// GET /api/chat-chung/history — Public endpoint
 pub async fn global_chat_history(
     State(state): State<AppState>,
     Query(q): Query<GlobalChatHistoryQuery>,
@@ -536,24 +600,22 @@ pub async fn global_chat_history(
 }
 
 /// GET /ws/chat-chung — WebSocket upgrade cho Chat Chung toàn platform.
-///
-/// Chỉ cần đăng nhập (không cần membership).
 pub async fn global_chat_ws_upgrade(
     State(state): State<AppState>,
     jar: CookieJar,
     ws: axum::extract::ws::WebSocketUpgrade,
 ) -> Response {
-    // Auth
     let user = get_user_from_session(&state.pool, &jar).await;
     let Some(user) = user else {
         return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập để chat.").into_response();
     };
 
-    // Upgrade
-    ws.on_upgrade(move |socket| handle_global_chat_socket(socket, state, user))
+    ws.max_message_size(64 * 1024)
+        .on_upgrade(move |socket| handle_global_chat_socket(socket, state, user))
 }
 
 /// Handler cho global chat WebSocket session.
+/// v0.9.20: same architecture as handle_chat_socket — ping + idle timeout.
 #[allow(clippy::too_many_lines)]
 async fn handle_global_chat_socket(
     socket: axum::extract::ws::WebSocket,
@@ -562,17 +624,17 @@ async fn handle_global_chat_socket(
 ) {
     let (mut sender, mut receiver) = socket.split();
 
-    // Subscribe broadcast channel
     let tx = state.global_chat_hub.subscribe().await;
     let mut rx = tx.subscribe();
 
     log::info!("💬 Global WS connected: user={}", user.id);
 
-    // Channel gửi error messages từ recv loop → send_task
-    let (err_tx, mut err_rx) = mpsc::unbounded_channel::<String>();
+    let (ctrl_tx, mut ctrl_rx) = mpsc::unbounded_channel::<CtrlMessage>();
 
-    // send_task: forward broadcast → client + gửi error messages
     let send_task = tokio::spawn(async move {
+        let mut ping_interval = tokio::time::interval(Duration::from_secs(WS_PING_INTERVAL_SECS));
+        ping_interval.tick().await;
+
         loop {
             tokio::select! {
                 msg = rx.recv() => {
@@ -590,11 +652,20 @@ async fn handle_global_chat_socket(
                         Err(broadcast::error::RecvError::Lagged(_)) => continue,
                     }
                 }
-                err = err_rx.recv() => {
-                    match err {
-                        Some(err_payload) => {
+                ctrl = ctrl_rx.recv() => {
+                    match ctrl {
+                        Some(CtrlMessage::Error(err_payload)) => {
                             if sender
                                 .send(axum::extract::ws::Message::Text(err_payload.into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Some(CtrlMessage::Pong(payload)) => {
+                            if sender
+                                .send(axum::extract::ws::Message::Pong(payload))
                                 .await
                                 .is_err()
                             {
@@ -604,36 +675,110 @@ async fn handle_global_chat_socket(
                         None => break,
                     }
                 }
+                _ = ping_interval.tick() => {
+                    if sender
+                        .send(axum::extract::ws::Message::Ping(
+                            bytes::Bytes::from_static(b"tubi"),
+                        ))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
             }
         }
     });
 
-    // recv loop: đọc từ client → persist → prune → broadcast
     let global_chat_hub = state.global_chat_hub.clone();
     let pool = state.pool.clone();
     let user_id = user.id;
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
-    // v0.9.19: lưu author_role để render hiệu ứng đặc biệt cho admin/mod.
     let user_role = user.role.clone();
 
-    while let Some(msg_result) = receiver.next().await {
-        let Ok(msg) = msg_result else { break };
+    loop {
+        let next_msg = tokio::time::timeout(
+            Duration::from_secs(WS_IDLE_TIMEOUT_SECS),
+            receiver.next(),
+        )
+        .await;
 
-        if let axum::extract::ws::Message::Text(text) = msg {
+        match next_msg {
+            Err(_) => {
+                log::info!(
+                    "💬 Global WS idle timeout ({WS_IDLE_TIMEOUT_SECS}s), đóng: user={}",
+                    user_id
+                );
+                break;
+            }
+            Ok(None) => break,
+            Ok(Some(Err(_))) => break,
+            Ok(Some(Ok(msg))) => {
+                if !handle_global_ws_message(
+                    msg,
+                    &ctrl_tx,
+                    user_id,
+                    &user_display_name,
+                    &user_avatar_url,
+                    &user_rank,
+                    &user_role,
+                    &pool,
+                    &global_chat_hub,
+                    MAX_CHAT_BODY_CHARS,
+                )
+                .await
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    send_task.abort();
+    log::info!("💬 Global WS disconnected: user={}", user_id);
+}
+
+/// Xử lý WebSocket message cho global chat.
+/// Tách riêng vì global chat không có group_id + có auto-prune.
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
+async fn handle_global_ws_message(
+    msg: axum::extract::ws::Message,
+    ctrl_tx: &mpsc::UnboundedSender<CtrlMessage>,
+    user_id: Uuid,
+    user_display_name: &str,
+    user_avatar_url: &Option<String>,
+    user_rank: &str,
+    user_role: &str,
+    pool: &PgPool,
+    global_chat_hub: &GlobalChatHub,
+    max_chars: usize,
+) -> bool {
+    use axum::extract::ws::Message;
+
+    match msg {
+        Message::Text(text) => {
             let body = text.trim().to_string();
-            if body.is_empty() || body.chars().count() > MAX_CHAT_BODY_CHARS {
-                let err_payload = serde_json::json!({
-                    "type": "error",
-                    "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_CHAT_BODY_CHARS} ký tự).")
-                })
-                .to_string();
-                let _ = err_tx.send(err_payload);
-                continue;
+
+            // v0.9.20: App-level ping
+            if body == "{\"type\":\"ping\"}" || body == "ping" {
+                let _ = ctrl_tx.send(CtrlMessage::Error(
+                    r#"{"type":"pong"}"#.to_string(),
+                ));
+                return true;
             }
 
-            // Persist vào DB
+            if body.is_empty() || body.chars().count() > max_chars {
+                let err_payload = serde_json::json!({
+                    "type": "error",
+                    "message": format!("Tin nhắn không hợp lệ (tối đa {max_chars} ký tự).")
+                })
+                .to_string();
+                let _ = ctrl_tx.send(CtrlMessage::Error(err_payload));
+                return true;
+            }
+
             use crate::models::community::{GlobalChatMessage, GlobalChatMessageWithAuthor};
             let saved: Option<GlobalChatMessageWithAuthor> = match sqlx::query_as::<_, GlobalChatMessage>(
                 "INSERT INTO global_chat_messages (author_id, body)
@@ -642,7 +787,7 @@ async fn handle_global_chat_socket(
             )
             .bind(user_id)
             .bind(&body)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             {
                 Ok(m) => Some(GlobalChatMessageWithAuthor {
@@ -651,20 +796,19 @@ async fn handle_global_chat_socket(
                     body: m.body,
                     is_active: m.is_active,
                     created_at: m.created_at,
-                    author_display_name: user_display_name.clone(),
+                    author_display_name: user_display_name.to_string(),
                     author_avatar_url: user_avatar_url.clone(),
-                    author_rank: user_rank.clone(),
-                    author_role: Some(user_role.clone()),
+                    author_rank: user_rank.to_string(),
+                    author_role: Some(user_role.to_string()),
                 }),
                 Err(e) => {
-                    // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop
                     log::error!("❌ Lỗi lưu global chat message: {e}");
                     let err_payload = serde_json::json!({
                         "type": "error",
                         "message": "Không lưu được tin nhắn. Vui lòng thử lại."
                     })
                     .to_string();
-                    let _ = err_tx.send(err_payload);
+                    let _ = ctrl_tx.send(CtrlMessage::Error(err_payload));
                     None
                 }
             };
@@ -673,7 +817,7 @@ async fn handle_global_chat_socket(
                 let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
                 let _ = global_chat_hub.broadcast(payload).await;
 
-                // Auto-prune: xoá tin nhắn cũ nếu vượt quá giới hạn
+                // Auto-prune
                 let _ = sqlx::query(
                     "DELETE FROM global_chat_messages
                      WHERE id IN (
@@ -684,13 +828,17 @@ async fn handle_global_chat_socket(
                      )",
                 )
                 .bind(GLOBAL_CHAT_MAX_MESSAGES)
-                .execute(&pool)
+                .execute(pool)
                 .await;
             }
+            true
         }
+        Message::Pong(_) => true,
+        Message::Ping(payload) => {
+            let _ = ctrl_tx.send(CtrlMessage::Pong(payload));
+            true
+        }
+        Message::Close(_) => false,
+        Message::Binary(_) => true,
     }
-
-    // Cleanup
-    send_task.abort();
-    log::info!("💬 Global WS disconnected: user={}", user_id);
 }

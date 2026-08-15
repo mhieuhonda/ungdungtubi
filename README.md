@@ -4,9 +4,9 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.19 — Giai đoạn 24
+## 📦 Phiên bản hiện tại: v0.9.20 — Giai đoạn 25
 
-**Giai đoạn 24: Live Chat Fix + Admin/Mod Message Effects + Mod Role**
+**Giai đoạn 25: Live Chat Total Fix + Sound Effects + Animations + Performance**
 
 ### 🐛 Fix Live Chat Cộng Đồng (bug user report)
 - **Bug**: Admin/Mod không gửi được tin nhắn trong live chat của nhóm cộng đồng khi chưa tham gia nhóm
@@ -728,6 +728,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.16** — Giai đoạn 21: UI Redesign (header gọn, footer 6 cột, mega menu 4 cột) + Route Hub mở rộng (Health Check, 5 thư viện Kinh Sách, 5 BXH tabs, Admin quick links) + Code Quality (0 warnings, 0 clippy)
 - **v0.9.18** — Giai đoạn 23: Mobile UI Overhaul (admin dashboards responsive) + Admin Nav Logic Fix (placeholder back button role-aware) + Logout/Profile state bug fix (mobile drawer shows correct auth state) + Quan-li tabs fix (Tổng quan & Nhóm tabs no longer 403)
 - **v0.9.19** — Giai đoạn 24: Live Chat Cộng Đồng Fix (admin/mod bypass membership) + Hiệu ứng tin nhắn Admin/Mod (coder effect cho admin_ky_thuat, gold/blue/teal frame cho các role khác) + Chức vụ Mod mới (dưới admin, trên member, có quyền quản trị cơ bản) + author_role field trong chat messages
+- **v0.9.20** — Giai đoạn 25: Live Chat Total Fix (6 root causes: WebSocket Ping/Pong keepalive 25s, idle timeout 180s, app-level ping/pong backup, client health check 60s, session heartbeat HttpOnly cookie fix, WS close code 1008 handling) + Sound Effects (Web Audio API, 4 sounds: send/receive/connect/error) + Animations (msg-slide-in, send-btn-pulse, conn-pulse, GPU-accelerated) + Live Chat panel phóng to (60→70dvh) + Message Queue + Optimistic UI + Performance (debounced scroll rAF, DOM cache, messages capped 200, max_message_size 64KB) + Folder reorganization (JS tách thành sound.js + chat.js + app.js, CSS tách thành app.css + chat.css) + Body data-logged-in attribute
 
 ---
 

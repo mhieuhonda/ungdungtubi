@@ -60,8 +60,9 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="apple-touch-icon" href="/static/favicon.svg">
 
-    <!-- Custom CSS -->
+    <!-- Custom CSS — v0.9.20: tách thành 2 files cho gọn gàng -->
     <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="stylesheet" href="/static/css/chat.css">
 
     <!-- Alpine.js x-cloak -->
     <style>[x-cloak] { display: none !important; }</style>
@@ -69,6 +70,7 @@
     {% block head %}{% endblock %}
 </head>
 <body class="bg-paper dark:bg-slate-900 text-ink dark:text-slate-100 min-h-screen flex flex-col transition-colors"
+      data-logged-in="{% if user.is_some() %}true{% else %}false{% endif %}"
       x-data="{ mobileMenu: false, megaMenu: false, currentTab: 'home', theme: document.documentElement.classList.contains('dark') ? 'dark' : 'lotus' }">
 
     <!-- Header — compact, ít chữ hơn, mobile-first (v0.9.17: + dark mode + theme toggle) -->
@@ -411,12 +413,15 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.19 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.20 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
 
-    <!-- Custom JS -->
+    <!-- Custom JS — v0.9.20: tách thành 3 files cho gọn gàng.
+         Load order: sound.js → chat.js → app.js (app.js init dùng chat components) -->
+    <script src="/static/js/sound.js"></script>
+    <script src="/static/js/chat.js"></script>
     <script src="/static/js/app.js"></script>
 
     <!-- Global Chat Bubble + Popup — v0.9.3 -->
@@ -448,8 +453,14 @@
         <div class="chat-chung-header">
           <span class="font-semibold text-sm">💬 Chat Chung</span>
           <div class="flex items-center gap-2">
-            <span x-show="connected" class="text-xs opacity-80">● online</span>
+            <span x-show="connected" class="text-xs opacity-80 conn-indicator">● online</span>
             <span x-show="!connected && !error" class="text-xs opacity-60">đang kết nối…</span>
+            <!-- v0.9.20: Sound toggle button -->
+            <button type="button"
+                    onclick="window.toggleSound && window.toggleSound()"
+                    data-sound-toggle
+                    class="sound-toggle"
+                    title="Bật/tắt âm thanh">🔊</button>
             <button @click="toggleChat()" class="text-white/80 hover:text-white text-lg leading-none">&times;</button>
           </div>
         </div>
@@ -499,7 +510,7 @@
                    class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
             <button type="submit"
                     :disabled="!connected || !draft.trim()"
-                    class="px-3 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="send-btn px-3 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style="background-color:#15803d">
               🙏
             </button>
