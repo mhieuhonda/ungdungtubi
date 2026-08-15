@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="vi" class="">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content, viewport-fit=cover">
@@ -7,10 +7,25 @@
     <meta name="theme-color" content="#0f766e">
     <title>{% block title %}Ứng Dụng Từ Bi{% endblock %}</title>
 
+    <!-- v0.9.17: Anti-FOUC — apply theme class BEFORE paint để tránh flash sáng/tối -->
+    <script>
+        (function() {
+            try {
+                var c = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+                var t = c ? c[1] : localStorage.getItem('tubi_theme');
+                if (!t) t = 'lotus';
+                if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -53,11 +68,11 @@
 
     {% block head %}{% endblock %}
 </head>
-<body class="bg-paper text-ink min-h-screen flex flex-col"
-      x-data="{ mobileMenu: false, megaMenu: false, currentTab: 'home' }">
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-slate-100 min-h-screen flex flex-col transition-colors"
+      x-data="{ mobileMenu: false, megaMenu: false, currentTab: 'home', theme: document.documentElement.classList.contains('dark') ? 'dark' : 'lotus' }">
 
-    <!-- Header — compact, ít chữ hơn -->
-    <header class="bg-white/95 backdrop-blur border-b border-gray-200 sticky top-0 z-50">
+    <!-- Header — compact, ít chữ hơn, mobile-first (v0.9.17: + dark mode + theme toggle) -->
+    <header class="bg-white/95 dark:bg-slate-800 backdrop-blur border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 transition-colors">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-14">
                 <!-- Logo -->
@@ -154,8 +169,14 @@
                         </div>
                     </div>
 
-                    <!-- Search icon -->
-                    <a href="/tim-kiem" class="px-2.5 py-1.5 rounded-lg text-gray-700 hover:bg-gray-100 transition" title="Tìm kiếm">🔎</a>
+                    <!-- Search icon + Theme toggle (v0.9.17) -->
+                    <a href="/tim-kiem" class="px-2.5 py-1.5 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition" title="Tìm kiếm">🔎</a>
+                    <!-- Theme toggle button (v0.9.17): lotus/dark -->
+                    <button @click="theme = theme === 'dark' ? 'lotus' : 'dark'; document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('tubi_theme', theme); fetch('/api/theme', { method: 'POST', body: new URLSearchParams({ theme: theme }), headers: {'Content-Type': 'application/x-www-form-urlencoded'} }).catch(()=>{})"
+                            class="px-2.5 py-1.5 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+                            :title="theme === 'dark' ? '🌙 Tối — chuyển sang sáng' : '☀️ Sáng — chuyển sang tối'">
+                        <span x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
+                    </button>
                 </nav>
 
                 <!-- User Menu -->
@@ -206,7 +227,7 @@
 
                 <!-- Mobile Menu Button -->
                 <button @click.stop="mobileMenu = !mobileMenu"
-                        class="md:hidden text-gray-700 hover:text-tubi-700 p-2 -mr-2">
+                        class="md:hidden text-gray-700 dark:text-slate-300 hover:text-tubi-700 dark:hover:text-tubi-300 p-2 -mr-2">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M4 6h16M4 12h16M4 18h16"/>
@@ -215,37 +236,38 @@
             </div>
         </div>
 
-        <!-- Mobile Menu (3 gạch) — v0.9.15: GIỮ NGUYÊN 7 MỤC theo yêu cầu user.
+        <!-- Mobile Menu (3 gạch) — v0.9.17: GIỮ NGUYÊN 7 MỤC + thêm dark mode.
              Các mục khác truy cập qua:
                - Nút giữa 🪷 bottom nav → /tong-quan (hub đầy đủ)
                - /ban-be và /ca-nhan cho Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn
-               - /kinh-sach và /cong-dong cho Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm -->
+               - /kinh-sach và /cong-dong cho Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm
+               - Theme toggle (🌙/☀️) có ở header desktop + nút riêng trên mobile drawer -->
         <div x-show="mobileMenu" x-cloak x-transition
-             class="md:hidden bg-white border-t border-gray-200 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
+             class="md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <div class="px-3 py-2 space-y-0.5">
-                <a href="/khong-gian" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/khong-gian" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🌍</span>
                     <span class="text-sm font-medium">Không Gian</span>
                 </a>
-                <a href="/cong-dong" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/cong-dong" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👥</span>
                     <span class="text-sm font-medium">Cộng Đồng</span>
                 </a>
-                <a href="/ban-be" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/ban-be" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👤</span>
                     <span class="text-sm font-medium">Bạn Bè</span>
                 </a>
-                <a href="/kinh-sach" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/kinh-sach" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">📚</span>
                     <span class="text-sm font-medium">Kinh Sách</span>
                 </a>
-                <a href="/ca-nhan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/ca-nhan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🪷</span>
                     <span class="text-sm font-medium">Hồ Sơ</span>
                 </a>
                 {% if let Some(u) = user %}
                 {% if u.is_admin() %}
-                <a href="/admin" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition">
+                <a href="/admin" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">
                         {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% else %}⚙️{% endif %}
                     </span>
@@ -258,9 +280,16 @@
                 {% endif %}
                 {% endif %}
 
-                <div class="pt-2 mt-1 border-t border-gray-200">
+                <!-- Theme toggle trên mobile drawer (v0.9.17) -->
+                <button @click="theme = theme === 'dark' ? 'lotus' : 'dark'; document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('tubi_theme', theme); fetch('/api/theme', { method: 'POST', body: new URLSearchParams({ theme: theme }), headers: {'Content-Type': 'application/x-www-form-urlencoded'} }).catch(()=>{})"
+                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer">
+                    <span class="text-xl" x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
+                    <span class="text-sm font-medium" x-text="theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"></span>
+                </button>
+
+                <div class="pt-2 mt-1 border-t border-gray-200 dark:border-slate-700">
                     <form action="/dang-xuat" method="POST" class="block">
-                        <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer transition">
+                        <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer transition">
                             <span class="text-xl">🚪</span>
                             <span class="text-sm font-medium">Thoát</span>
                         </button>
@@ -268,7 +297,7 @@
                 </div>
 
                 {% if user.is_none() %}
-                <div class="pt-2 mt-1 border-t border-gray-200">
+                <div class="pt-2 mt-1 border-t border-gray-200 dark:border-slate-700">
                     <a href="/auth/google" class="block px-3 py-2.5 rounded-lg bg-tubi-700 text-white text-center text-sm font-semibold">🪷 Đăng Nhập Bằng Google</a>
                 </div>
                 {% endif %}
@@ -281,31 +310,31 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Bottom Navigation (Mobile) — v0.9.15 -->
-    <nav class="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-50">
+    <!-- Bottom Navigation (Mobile) — v0.9.17: + dark mode, larger touch targets -->
+    <nav class="md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 fixed bottom-0 left-0 right-0 z-50 transition-colors">
         <div class="grid grid-cols-5 items-end h-16">
-            <a href="/" class="flex flex-col items-center justify-center pb-1.5
-               {% if active_page == "home" %}text-tubi-700{% else %}text-gray-400{% endif %}">
+            <a href="/" class="flex flex-col items-center justify-center pb-1.5 min-h-[44px]
+               {% if active_page == "home" %}text-tubi-700 dark:text-tubi-300{% else %}text-gray-400 dark:text-slate-500{% endif %}">
                 <span class="text-xl leading-none">🏠</span>
                 <span class="text-[10px] leading-none mt-1">Trang Chủ</span>
             </a>
-            <a href="/cong-dong" class="flex flex-col items-center justify-center pb-1.5
-               {% if active_page == "community" %}text-tubi-700{% else %}text-gray-400{% endif %}">
+            <a href="/cong-dong" class="flex flex-col items-center justify-center pb-1.5 min-h-[44px]
+               {% if active_page == "community" %}text-tubi-700 dark:text-tubi-300{% else %}text-gray-400 dark:text-slate-500{% endif %}">
                 <span class="text-xl leading-none">👥</span>
                 <span class="text-[10px] leading-none mt-1">Cộng Đồng</span>
             </a>
             <a href="/tong-quan" class="flex justify-center items-end pb-1.5" aria-label="Tổng quan">
-                <div class="w-12 h-12 -mt-4 bg-gradient-to-br from-tubi-700 to-tubi-900 rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                <div class="w-12 h-12 -mt-4 bg-gradient-to-br from-tubi-700 to-tubi-900 rounded-full flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-800">
                     <span class="text-2xl leading-none">🪷</span>
                 </div>
             </a>
-            <a href="/ban-be" class="flex flex-col items-center justify-center pb-1.5
-               {% if active_page == "friends" %}text-tubi-700{% else %}text-gray-400{% endif %}">
+            <a href="/ban-be" class="flex flex-col items-center justify-center pb-1.5 min-h-[44px]
+               {% if active_page == "friends" %}text-tubi-700 dark:text-tubi-300{% else %}text-gray-400 dark:text-slate-500{% endif %}">
                 <span class="text-xl leading-none">👤</span>
                 <span class="text-[10px] leading-none mt-1">Bạn Bè</span>
             </a>
-            <a href="/khong-gian" class="flex flex-col items-center justify-center pb-1.5
-               {% if active_page == "khong_gian" %}text-tubi-700{% else %}text-gray-400{% endif %}">
+            <a href="/khong-gian" class="flex flex-col items-center justify-center pb-1.5 min-h-[44px]
+               {% if active_page == "khong_gian" %}text-tubi-700 dark:text-tubi-300{% else %}text-gray-400 dark:text-slate-500{% endif %}">
                 <span class="text-xl leading-none">🙏</span>
                 <span class="text-[10px] leading-none mt-1">Niệm Phật</span>
             </a>
@@ -382,7 +411,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.16 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.17 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

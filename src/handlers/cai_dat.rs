@@ -291,3 +291,87 @@ async fn render_settings_error(pool: &sqlx::PgPool, user: User, error: &str) -> 
     });
     Html(html).into_response()
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// v0.9.17 — Giai đoạn 22: Theme Toggle API
+// ════════════════════════════════════════════════════════════════════════════
+//
+// POST /api/theme — Cập nhật theme preference của user (dark/lotus/minimal)
+//
+// Workflow:
+//   1. Frontend Alpine.js gọi fetch('/api/theme', { method: 'POST', body: ... })
+//   2. Server đọc user từ session
+//   3. Upsert user_settings.theme trong DB
+//   4. Trả về JSON { ok: true, theme: "dark" }
+//
+// Cookie `theme` cũng được set (SameSite=Lax, 1 năm) để server render đúng
+// theme ngay từ lần load đầu tiên (tránh FOUC — flash of unstyled content).
+// Cookie này được đọc trong layout.html thông qua Askama templating.
+
+/// Form data cho POST /api/theme.
+#[derive(Debug, Deserialize)]
+pub struct ThemeToggleForm {
+    pub theme: String,
+}
+
+/// POST /api/theme — Cập nhật theme preference.
+///
+/// Theme hợp lệ: "lotus" (light default) | "dark" | "minimal".
+/// Trả về JSON { ok: true, theme: ... }.
+/// Nếu user chưa login, vẫn set cookie nhưng không lưu DB (cho khách).
+pub async fn api_theme_toggle(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<ThemeToggleForm>,
+) -> Response {
+    use axum_extra::extract::cookie::{Cookie, SameSite};
+    use time::Duration;
+
+    let theme = form.theme.trim().to_string();
+    if !matches!(theme.as_str(), "lotus" | "dark" | "minimal") {
+        return axum::Json(serde_json::json!({
+            "ok": false,
+            "error": "Theme không hợp lệ. Phải là lotus | dark | minimal"
+        }))
+        .into_response();
+    }
+
+    // Build cookie — đọc ở layout.html để render đúng theme ngay từ server side.
+    // http_only=false để JS có thể đọc fallback khi user chưa login.
+    let theme_cookie = Cookie::build(("theme", theme.clone()))
+        .path("/")
+        .max_age(Duration::days(365))
+        .http_only(false)
+        .same_site(SameSite::Lax)
+        .build();
+    // Clone jar trước khi add vì CookieJar::add consumes self — ta cần jar gốc
+    // để query user session ở bước tiếp theo.
+    let new_jar = jar.clone().add(theme_cookie);
+
+    // Nếu user đã login, upsert DB
+    if let Some(user) = get_user_from_session(&state.pool, &jar).await {
+        let _ = sqlx::query(
+            "INSERT INTO user_settings (user_id, theme) VALUES ($1, $2)
+             ON CONFLICT (user_id) DO UPDATE SET theme = EXCLUDED.theme, updated_at = NOW()",
+        )
+        .bind(user.id)
+        .bind(&theme)
+        .execute(&state.pool)
+        .await;
+        log::info!("🎨 User {} đổi theme → {}", user.display_name, theme);
+    }
+
+    // Combine JSON + Set-Cookie header (the same pattern as auth.rs logout)
+    let mut resp = axum::Json(serde_json::json!({
+        "ok": true,
+        "theme": theme
+    }))
+    .into_response();
+    let headers = resp.headers_mut();
+    for c in new_jar.iter() {
+        if let Ok(s) = c.encoded().to_string().try_into() {
+            headers.append(axum::http::header::SET_COOKIE, s);
+        }
+    }
+    resp
+}

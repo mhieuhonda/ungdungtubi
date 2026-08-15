@@ -6,6 +6,102 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.17] — 2026-08-15 — Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix
+
+### Thay đổi (Dark Mode — chế độ sáng/tối)
+
+- **[DM-1] Toggle button trong header** — icon 🌙 (chuyển sang tối) / ☀️ (chuyển sang sáng), đặt ở vị trí dễ thấy trên cả desktop và mobile.
+- **[DM-2] Toggle trong mobile drawer** — nút riêng full-width dễ chạm, label "Chế độ tối" / "Chế độ sáng" thay đổi theo trạng thái hiện tại.
+- **[DM-3] Anti-FOUC script** — apply `class="dark"` lên `<html>` TRƯỚC khi paint, tránh hiện tượng flash sáng/tối khi load trang. Script inline trong `<head>` đọc cookie `theme` trước, fallback localStorage, fallback tiếp `prefers-color-scheme`.
+- **[DM-4] Cookie persistence** — `theme=lotus|dark` set với `max-age=1 năm`, `SameSite=Lax`, `http_only=false` (JS đọc được để fallback). Server có thể đọc cookie này để render đúng theme ngay từ server side (future improvement).
+- **[DM-5] localStorage fallback** — khách chưa login vẫn nhớ theme preference qua `localStorage.tubi_theme`.
+- **[DM-6] API endpoint `POST /api/theme`** — nhận form `{ theme: "lotus"|"dark"|"minimal" }`, upsert `user_settings.theme` trong DB (sync giữa các thiết bị), set cookie, trả về JSON `{ ok: true, theme }`.
+- **[DM-7] Tailwind `darkMode: 'class'`** — config chính thức trong `tailwind.config` ở layout.html và placeholder.html.
+- **[DM-8] CSS overrides cho dark mode** trong `app.css`:
+  - Scrollbar (track, thumb, hover)
+  - Chat popup (background, header, messages, input, message bubble)
+  - Prayer ripple (màu sáng hơn cho visibility)
+  - HTMX indicator
+  - Chat bubble badge
+  - Active nav tab
+  - Selection color
+- **[DM-9] Smooth transitions** — `transition: background-color, border-color, color` 150ms ease-out cho mọi element, nhưng giữ animation (pulse, float, glow, prayer-pulse, prayer-ripple) không bị transition chậm.
+- **[DM-10] Admin placeholder page** (`templates/admin/placeholder.html`) có dark mode built-in đầy đủ.
+
+### Thay đổi (Admin Nav Fix — bug user report)
+
+- **[AN-1] Bug mô tả**: User report "tôi vào quản lí cộng đồng thì nó không vào phần quản lí mà nó lại vào phần Cộng đồng bình thường của user". Tương tự cho Quản lý Kinh Sách, Quản lý Bình luận, Quản lý Quỹ Từ Bi.
+- **[AN-2] Root cause**: các nav tile trong 3 admin dashboard (ky-thuat, cong-dong, quan-li) trỏ tới USER pages (`/cong-dong`, `/kinh-sach`, `/quy-tu-bi`, `/bang-xep-hang`) — admin click vào rồi bị redirect ra khỏi admin context.
+- **[AN-3] Fix — tạo 4 route admin placeholder mới**:
+  - `GET /admin/cong-dong/nhom` — Quản lý Nhóm Cộng Đồng (read-only list 20 nhóm mới nhất + stats)
+  - `GET /admin/kinh-sach` — Quản lý Kinh Sách (read-only list 20 sách mới nhất + stats)
+  - `GET /admin/binh-luan` — Quản lý Bình luận (read-only list 20 comment mới nhất + stats)
+  - `GET /admin/quy-tu-bi` — Quản lý Quỹ Từ Bi (read-only list 20 đóng góp mới nhất + stats)
+- **[AN-4] Mỗi trang placeholder có**: header với icon + tên module + back button, stats grid 2x2 (mobile) / 4 (desktop), banner "Module đang được phát triển" với danh sách tính năng sắp ra (duyệt, ẩn, xóa, ghim, khoá, tìm kiếm, lọc), danh sách items read-only với link tới trang chi tiết, nút "Trở về [dashboard]".
+- **[AN-5] Permission**: tất cả admin role (admin_ky_thuat, admin_quan_li, admin_cong_dong) đều có quyền xem placeholder pages. Module moderation đầy đủ sẽ ra mắt ở các phiên bản tiếp theo.
+- **[AN-6] Template struct `AdminPlaceholderTemplate`** — shared template với 4 module_key (groups/books/comments/fund), conditional render theo module.
+- **[AN-7] Helper functions**: `fetch_admin_groups_list`, `fetch_admin_books_list`, `fetch_admin_comments_list`, `fetch_admin_funds_list` — mỗi hàm fetch 20 items mới nhất với JOIN để lấy thông tin liên quan (member count, topic count, author name, topic title, v.v.).
+- **[AN-8] Nav links cập nhật**:
+  - `admin/ky-thuat/index.html` — 4 tiles (Quản lý nhóm, Kinh sách, Bình luận, Quỹ Từ Bi) trỏ tới admin pages thay vì user pages
+  - `admin/cong-dong/index.html` — 2 tabs (Quản lý Nhóm, Kiểm duyệt) + 1 quick action card (Quản lý Nhóm) trỏ tới admin pages
+  - `admin/quan-li/index.html` — 3 tabs (Nhóm & Cộng đồng, Kinh Sách, Báo cáo quỹ) + 2 quick action cards (Kinh Sách, Quỹ Từ Bi) trỏ tới admin pages; quick actions grid đổi từ 2 cột → 3 cột
+
+### Thay đổi (Mobile-first Polish)
+
+- **[MF-1] Bottom nav touch targets** — mỗi nút có `min-h-[44px]` (Apple HIG minimum tap target size).
+- **[MF-2] Border cho nút giữa 🪷** — `dark:border-slate-800` để đúng contrast trong dark mode (trước đây `border-white` bị hòa với nền tối).
+- **[MF-3] Mobile drawer dark mode** — tất cả 7 mục (Không Gian, Cộng Đồng, Bạn Bè, Kinh Sách, Hồ Sơ, Quản Trị nếu admin, Thoát) + theme toggle + nút đăng nhập Google có đầy đủ `dark:` variants.
+- **[MF-4] Header dark mode** — `bg-white/95 dark:bg-slate-800 backdrop-blur border-b border-gray-200 dark:border-slate-700` cho header sticky.
+- **[MF-5] Body dark mode** — `bg-paper dark:bg-slate-900 text-ink dark:text-slate-100` cho body chính.
+- **[MF-6] Theme toggle button trên mobile** — đặt trong mobile drawer (vì header mobile đã có 3 gạch + logo, không còn chỗ cho nút toggle).
+- **[MF-7] Theme toggle button trên desktop** — đặt trong header nav, cạnh nút search 🔎.
+
+### Thay đổi (Cleanup & Version Sync)
+
+- **[CL-1] Version strings đồng bộ 0.9.17 ở mọi nơi**:
+  - `Cargo.toml` — `version = "0.9.17"`
+  - `src/main.rs` — 3 nơi (log line 45, log line 52, health_check JSON line 335)
+  - `templates/layout.html` — footer line 414
+  - `templates/admin/ky-thuat/index.html` — 4 nơi (title, comment, chip, stat card, footer)
+  - `templates/admin/cong-dong/index.html` — footer + permission count
+  - `templates/admin/quan-li/index.html` — footer + permission count + dashboard subtitle
+  - `templates/admin/placeholder.html` — title + footer (NEW file)
+  - `templates/khong-gian/index.html` — footer line 259
+  - `src/handlers/mod.rs` — placeholder page footer line 579
+  - `README.md` — version header
+  - `CHANGELOG.md` — new entry
+- **[CL-2] Permission counts chính xác**: trước đây hiển thị hardcoded sai "4/20 quyền", "4/30 quyền", "100/100 quyền", "75/75 quyền". Giờ dùng `{{ u.permission_count() }}/{{ u.system_permission_count() }}` tự động theo role:
+  - admin_ky_thuat: 150/150
+  - admin_quan_li: 100/150
+  - admin_cong_dong: 75/150
+  - member: 0/0
+- **[CL-3] Health check API** bổ sung 6 features mới trong mảng `features`: `admin-nav-fix-v0.9.17`, `dark-mode-toggle`, `theme-cookie-persistence`, `admin-groups-placeholder`, `admin-kinh-sach-placeholder`, `admin-binh-luan-placeholder`, `admin-quy-tu-bi-placeholder`, `mobile-first-touch-targets`.
+- **[CL-4] `cargo check --release` sạch** — 0 errors, 0 warnings.
+- **[CL-5] `cargo clippy --release` sạch** — 0 warnings.
+- **[CL-6] Rust 1.97.1** — `rust-version = "1.97"` trong Cargo.toml, Dockerfile dùng `rust:1.97.1-slim-bookworm`, rustup toolchain `1.97.1` (8bab26f4f 2026-07-14).
+
+### Routes mới (v0.9.17)
+
+| Method | Path | Mô tả | Auth |
+|--------|------|-------|------|
+| GET | `/admin/cong-dong/nhom` | **[v0.9.17]** Quản lý Nhóm Cộng Đồng (placeholder, read-only list) | Auth + admin |
+| GET | `/admin/kinh-sach` | **[v0.9.17]** Quản lý Kinh Sách (placeholder, read-only list) | Auth + admin |
+| GET | `/admin/binh-luan` | **[v0.9.17]** Quản lý Bình luận (placeholder, read-only list) | Auth + admin |
+| GET | `/admin/quy-tu-bi` | **[v0.9.17]** Quản lý Quỹ Từ Bi (placeholder, read-only list) | Auth + admin |
+| POST | `/api/theme` | **[v0.9.17]** Cập nhật theme preference (lotus/dark/minimal) | Public (cookie only) hoặc Auth (DB sync) |
+
+### Mục tiêu đạt được
+
+- ✅ Fix bug admin nav → user pages (user report)
+- ✅ Thêm dark/light mode với persistence (cookie + localStorage + DB)
+- ✅ Mobile-first polish (touch targets, dark mode variants, smooth transitions)
+- ✅ Version sync 0.9.17 ở mọi nơi
+- ✅ Permission counts chính xác theo role
+- ✅ cargo check + clippy sạch
+- ✅ Rust 1.97.1 verified
+
+---
+
 ## [0.9.16] — 2026-08-15 — Giai đoạn 21: UI Redesign + Route Hub + Polish
 
 ### Thay đổi (UI/UX — Redesign tổng thể)

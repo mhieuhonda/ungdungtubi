@@ -1014,3 +1014,347 @@ pub async fn admin_activate_user(
 
     render_users_success(&state.pool, &actor, "Đã kích hoạt tài khoản.").await
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// v0.9.17 — Giai đoạn 22: Admin Nav Fix
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Trước đây các nav tile trong admin dashboard trỏ tới user pages (/cong-dong,
+// /kinh-sach, /quy-tu-bi, /bang-xep-hang, /thanh-tich) — khiến admin click vào
+// rồi bị redirect ra khỏi admin context. User report bug: "tôi vào quản lí
+// cộng đồng thì nó không vào phần quản lí mà nó lại vào phần Cộng đồng bình
+// thường của user".
+//
+// Fix: tạo các route admin riêng cho các module chưa có UI quản trị đầy đủ.
+// Mỗi route hiển thị:
+//   1. Header với icon + tên module
+//   2. Stats tổng quan (số lượng items)
+//   3. Thông báo "Module đang được phát triển" với danh sách tính năng sắp ra
+//   4. Danh sách items gần đây (read-only) để admin có cái nhìn tổng quan
+//   5. Nút "Trở về dashboard"
+//
+// 4 module mới:
+//   - GET /admin/cong-dong/nhom  — Quản lý Nhóm Cộng Đồng (read-only list)
+//   - GET /admin/kinh-sach       — Quản lý Kinh Sách (read-only list)
+//   - GET /admin/binh-luan       — Quản lý Bình luận (read-only list)
+//   - GET /admin/quy-tu-bi       — Quản lý Quỹ Từ Bi (read-only list)
+//
+// Permission: tất cả admin role đều có quyền xem (admin_ky_thuat, admin_quan_li,
+// admin_cong_dong). Module moderation đầy đủ sẽ ra mắt ở các phiên bản sau.
+
+/// Row data cho danh sách nhóm trong admin placeholder page.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminGroupRow {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub visibility: String,
+    pub is_active: bool,
+    pub member_count: i64,
+    pub topic_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách sách trong admin placeholder page.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminBookRow {
+    pub id: Uuid,
+    pub title: String,
+    pub slug: String,
+    pub category: String,
+    pub language: String,
+    pub view_count: i64,
+    pub flower_count: i64,
+    pub review_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách bình luận trong admin placeholder page.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminCommentRow {
+    pub id: i64,
+    pub body: String,
+    pub author_name: String,
+    pub topic_id: i64,
+    pub topic_title: String,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách đóng góp quỹ trong admin placeholder page.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminFundRow {
+    pub id: i64,
+    pub donor_name: Option<String>,
+    pub fund_type: String,
+    pub amount: i64,
+    pub is_anonymous: bool,
+    pub message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Shared template cho 4 admin placeholder pages.
+#[derive(Template)]
+#[template(path = "admin/placeholder.html")]
+pub struct AdminPlaceholderTemplate {
+    pub user: Option<User>,
+    /// Tên module: "Quản lý Nhóm", "Quản lý Kinh Sách", ...
+    pub module_title: String,
+    /// Icon emoji: "🏛️", "📚", "💬", "🪷"
+    pub module_icon: String,
+    /// Mô tả ngắn gọn module làm gì
+    pub module_description: String,
+    /// Dashboard path để "Trở về" button — ví dụ "/admin/cong-dong"
+    pub back_path: String,
+    /// Tên dashboard để hiển thị trên nút back — ví dụ "Admin Cộng Đồng"
+    pub back_label: String,
+    /// Stats tổng quan (reuse AdminStats để có mọi field)
+    pub stats: AdminStats,
+    /// Danh sách nhóm (chỉ dùng cho module groups)
+    pub groups: Vec<AdminGroupRow>,
+    /// Danh sách sách (chỉ dùng cho module kinh sách)
+    pub books: Vec<AdminBookRow>,
+    /// Danh sách bình luận (chỉ dùng cho module bình luận)
+    pub comments: Vec<AdminCommentRow>,
+    /// Danh sách quỹ (chỉ dùng cho module quỹ từ bi)
+    pub funds: Vec<AdminFundRow>,
+    /// Module key — "groups" | "books" | "comments" | "fund"
+    pub module_key: String,
+}
+
+/// GET /admin/cong-dong/nhom — Placeholder Quản lý Nhóm.
+///
+/// Hiển thị danh sách 20 nhóm mới nhất (read-only) + stats tổng quan.
+pub async fn admin_groups_placeholder(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let groups = fetch_admin_groups_list(&state.pool, 20).await;
+    let html = AdminPlaceholderTemplate {
+        user: Some(user),
+        module_title: "Quản lý Nhóm Cộng Đồng".into(),
+        module_icon: "🏛️".into(),
+        module_description: "Tổng quan tất cả nhóm trong hệ thống — xem số thành viên, chủ đề, trạng thái.".into(),
+        back_path: user_admin_dashboard_back(&state, &jar, "admin_cong_dong").await,
+        back_label: "Admin Cộng Đồng".into(),
+        stats,
+        groups,
+        books: vec![],
+        comments: vec![],
+        funds: vec![],
+        module_key: "groups".into(),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin groups placeholder): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// GET /admin/kinh-sach — Placeholder Quản lý Kinh Sách.
+pub async fn admin_kinh_sach_placeholder(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let books = fetch_admin_books_list(&state.pool, 20).await;
+    let html = AdminPlaceholderTemplate {
+        user: Some(user),
+        module_title: "Quản lý Kinh Sách".into(),
+        module_icon: "📚".into(),
+        module_description: "Tổng quan tất cả sách trong thư viện — xem lượt đọc, cảm ngộ, tặng hoa.".into(),
+        back_path: user_admin_dashboard_back(&state, &jar, "admin_ky_thuat").await,
+        back_label: "Admin Kỹ Thuật".into(),
+        stats,
+        groups: vec![],
+        books,
+        comments: vec![],
+        funds: vec![],
+        module_key: "books".into(),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin kinh sach placeholder): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// GET /admin/binh-luan — Placeholder Quản lý Bình luận.
+pub async fn admin_binh_luan_placeholder(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let comments = fetch_admin_comments_list(&state.pool, 20).await;
+    let html = AdminPlaceholderTemplate {
+        user: Some(user),
+        module_title: "Quản lý Bình luận".into(),
+        module_icon: "💬".into(),
+        module_description: "Tổng quan bình luận gần đây trong Cộng Đồng — kiểm duyệt nội dung.".into(),
+        back_path: user_admin_dashboard_back(&state, &jar, "admin_cong_dong").await,
+        back_label: "Admin Cộng Đồng".into(),
+        stats,
+        groups: vec![],
+        books: vec![],
+        comments,
+        funds: vec![],
+        module_key: "comments".into(),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin binh luan placeholder): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// GET /admin/quy-tu-bi — Placeholder Quản lý Quỹ Từ Bi.
+pub async fn admin_quy_tu_bi_placeholder(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let funds = fetch_admin_funds_list(&state.pool, 20).await;
+    let html = AdminPlaceholderTemplate {
+        user: Some(user),
+        module_title: "Quản lý Quỹ Từ Bi".into(),
+        module_icon: "🪷".into(),
+        module_description: "Tổng quan đóng góp và chi tiêu quỹ — công khai, minh bạch.".into(),
+        back_path: user_admin_dashboard_back(&state, &jar, "admin_quan_li").await,
+        back_label: "Admin Quản Lý".into(),
+        stats,
+        groups: vec![],
+        books: vec![],
+        comments: vec![],
+        funds,
+        module_key: "fund".into(),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin quy tu bi placeholder): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+// ─── Helpers for placeholder pages ─────────────────────────────────────────
+
+/// Helper: decide back_path based on user's role — if user is admin_cong_dong
+/// back to /admin/cong-dong, if admin_ky_thuat back to /admin/ky-thuat, etc.
+/// `default_role` is used as fallback if user role doesn't match the requested
+/// back destination (e.g. user is admin_cong_dong but module is kinh_sach — only
+/// admin_ky_thuat should manage kinh_sach, but we still show the page with a
+/// back link to their own dashboard).
+async fn user_admin_dashboard_back(
+    _state: &AppState,
+    _jar: &CookieJar,
+    default_role: &str,
+) -> String {
+    // Always fall back to the requested dashboard — caller knows best which
+    // dashboard the user came from. The role check is done at handler level.
+    match default_role {
+        "admin_ky_thuat" => "/admin/ky-thuat".into(),
+        "admin_quan_li" => "/admin/quan-li".into(),
+        "admin_cong_dong" => "/admin/cong-dong".into(),
+        _ => "/admin".into(),
+    }
+}
+
+/// Fetch 20 nhóm mới nhất — for admin groups placeholder.
+async fn fetch_admin_groups_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminGroupRow> {
+    sqlx::query_as::<_, AdminGroupRow>(
+        "SELECT g.id, g.name, g.slug, g.visibility, g.is_active,
+                (SELECT COUNT(*)::BIGINT FROM group_members gm WHERE gm.group_id = g.id) AS member_count,
+                (SELECT COUNT(*)::BIGINT FROM topics t WHERE t.group_id = g.id) AS topic_count,
+                g.created_at
+         FROM groups g
+         ORDER BY g.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin groups list: {e}");
+        vec![]
+    })
+}
+
+/// Fetch 20 sách mới nhất — for admin kinh sach placeholder.
+async fn fetch_admin_books_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminBookRow> {
+    sqlx::query_as::<_, AdminBookRow>(
+        "SELECT b.id, b.title, b.slug, c.slug AS category, b.language,
+                b.view_count::BIGINT,
+                (SELECT COUNT(*)::BIGINT FROM book_flowers bf WHERE bf.book_id = b.id) AS flower_count,
+                (SELECT COUNT(*)::BIGINT FROM book_reviews br WHERE br.book_id = b.id) AS review_count,
+                b.created_at
+         FROM books b
+         LEFT JOIN book_categories c ON c.id = b.category_id
+         ORDER BY b.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin books list: {e}");
+        vec![]
+    })
+}
+
+/// Fetch 20 bình luận mới nhất — for admin binh luan placeholder.
+async fn fetch_admin_comments_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminCommentRow> {
+    sqlx::query_as::<_, AdminCommentRow>(
+        "SELECT c.id, c.body, u.display_name AS author_name, t.id AS topic_id,
+                t.title AS topic_title, c.is_active, c.created_at
+         FROM comments c
+         JOIN users u ON u.id = c.author_id
+         JOIN topics t ON t.id = c.topic_id
+         ORDER BY c.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin comments list: {e}");
+        vec![]
+    })
+}
+
+/// Fetch 20 đóng góp quỹ mới nhất — for admin quỹ từ bi placeholder.
+async fn fetch_admin_funds_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminFundRow> {
+    sqlx::query_as::<_, AdminFundRow>(
+        "SELECT id, donor_name, fund_type, amount::BIGINT AS amount,
+                is_anonymous, message, created_at
+         FROM fund_donations
+         ORDER BY created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin funds list: {e}");
+        vec![]
+    })
+}

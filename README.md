@@ -4,7 +4,45 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.16 — Giai đoạn 21
+## 📦 Phiên bản hiện tại: v0.9.17 — Giai đoạn 22
+
+**Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix**
+
+### 🎨 Dark Mode (chế độ sáng/tối)
+- **Toggle button trong header** — 🌙 (chuyển sang tối) / ☀️ (chuyển sang sáng)
+- **Toggle trong mobile drawer** — nút riêng dễ chạm, full-width
+- **Anti-FOUC script** — apply theme class BEFORE paint, không bị flash sáng/tối khi load
+- **Cookie persistence** — `theme=lotus|dark` set 1 năm, server đọc được
+- **localStorage fallback** — khách chưa login vẫn nhớ theme
+- **API endpoint** `POST /api/theme` — upsert `user_settings.theme` trong DB (sync giữa các thiết bị)
+- **Tailwind `darkMode: 'class'`** — config chính thức trong tailwind.config
+- **CSS overrides** cho chat bubble, scrollbar, prayer ripple, chat popup
+
+### 🐛 Admin Nav Fix (bug user report)
+- **Bug**: các nav tile trong admin dashboard trỏ tới USER pages (`/cong-dong`, `/kinh-sach`, `/quy-tu-bi`) — admin click vào rồi bị redirect ra khỏi admin context
+- **Fix**: tạo 4 route admin placeholder mới
+  - `GET /admin/cong-dong/nhom` — Quản lý Nhóm Cộng Đồng (read-only list 20 nhóm mới nhất)
+  - `GET /admin/kinh-sach` — Quản lý Kinh Sách (read-only list 20 sách mới nhất)
+  - `GET /admin/binh-luan` — Quản lý Bình luận (read-only list 20 comment mới nhất)
+  - `GET /admin/quy-tu-bi` — Quản lý Quỹ Từ Bi (read-only list 20 đóng góp mới nhất)
+- Mỗi trang có: header, stats tổng quan, banner "Module đang phát triển", danh sách items, nút "Trở về dashboard"
+- Tất cả 3 dashboard (ky-thuat / cong-dong / quan-li) đã cập nhật nav links trỏ tới admin pages thay vì user pages
+
+### 📱 Mobile-first Polish
+- **Bottom nav touch targets** — mỗi nút có `min-h-[44px]` (Apple HIG)
+- **Border dark:border-slate-800** cho nút giữa 🪷 — đúng contrast trong dark mode
+- **Mobile drawer dark mode** — tất cả 7 mục + theme toggle + logout có `dark:` variants
+- **Smooth transitions** — `transition-colors` 150ms cho body, header, footer, nav
+- **Animations preserved** — pulse/float/glow không bị transition chậm
+
+### 🔧 Cleanup & Version Sync
+- **Version strings đồng bộ 0.9.17 ở mọi nơi**: Cargo.toml, main.rs (3 nơi), layout.html, admin templates (4 files), khong-gian, handlers/mod.rs, README, CHANGELOG
+- **Permission counts chính xác**: admin_ky_thuat 150/150, admin_quan_li 100/150, admin_cong_dong 75/150 (trước đây hiển thị sai "4/20", "4/30")
+- **Permission summary trong template** dùng `{{ u.permission_count() }}` thay vì hardcode
+- **`cargo check` sạch** — 0 warnings
+- **`cargo clippy --release` sạch** — 0 warnings
+
+## 📦 Phiên bản trước: v0.9.16 — Giai đoạn 21
 
 **Giai đoạn 21: UI Redesign + Route Hub + Polish**
 
@@ -610,6 +648,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.11** — Giai đoạn 15: Quỹ Từ Bi (đóng góp K + dashboard + 5 loại quỹ) + Fix Docker cache stale (CRITICAL deploy fix cho login)
 - **v0.9.14** — Giai đoạn 18 + 19: Navigation Overhaul (User Hub + Mega Menu + Mobile Drawer + Settings) + 150 Quyền chi tiết + Hệ thống Thành Tích + Tìm Kiếm toàn cục
 - **v0.9.16** — Giai đoạn 21: UI Redesign (header gọn, footer 6 cột, mega menu 4 cột) + Route Hub mở rộng (Health Check, 5 thư viện Kinh Sách, 5 BXH tabs, Admin quick links) + Code Quality (0 warnings, 0 clippy)
+- **v0.9.17** — Giai đoạn 22: Mobile-first Polish + Dark Mode (toggle button, anti-FOUC, cookie+DB persistence, CSS overrides) + Admin Nav Fix (4 route admin placeholder mới: nhóm/kinh-sách/bình-luận/quỹ-từ-bi) + Version sync 0.9.17 + Permission counts chính xác
 
 ---
 

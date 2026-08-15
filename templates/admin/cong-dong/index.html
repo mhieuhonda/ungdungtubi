@@ -44,7 +44,7 @@
             <div class="flex items-center gap-4 text-sm">
                 {% if let Some(u) = user %}
                 <span class="px-2 py-1 bg-comm-900 rounded text-[10px] font-bold">
-                    🛡️ {{ u.role_display() }} · 4/20 quyền
+                    🛡️ {{ u.role_display() }} · {{ u.permission_count() }}/{{ u.system_permission_count() }} quyền
                 </span>
                 {% endif %}
                 <a href="/" class="text-comm-300 hover:text-white transition text-sm">← Về trang chủ</a>
@@ -59,11 +59,11 @@
                 <a href="/admin/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-comm-500 text-comm-700">
                     📊 Tổng quan
                 </a>
-                <a href="/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                <a href="/admin/cong-dong/nhom" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     👥 Quản lý Nhóm
                 </a>
-                <a href="/cong-dong" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
-                    📝 Kiểm duyệt
+                <a href="/admin/binh-luan" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
+                    📝 Bình luận
                 </a>
                 <a href="/admin/cong-dong/cam-ngo" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-comm-700 hover:border-comm-300 transition">
                     🪷 Kiểm duyệt
@@ -131,7 +131,7 @@
                     </div>
                 </div>
             </a>
-            <a href="/cong-dong" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
+            <a href="/admin/cong-dong/nhom" class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 card-hover group">
                 <div class="flex items-center gap-3">
                     <div class="w-12 h-12 rounded-xl bg-comm-100 flex items-center justify-center text-2xl group-hover:bg-comm-200 transition">🏛️</div>
                     <div>
@@ -153,7 +153,7 @@
 
         <!-- Permission Summary -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h3 class="font-bold text-comm-800 mb-4">🛡️ Quyền của bạn — 4/20 quyền (UI/hệ thống)</h3>
+            <h3 class="font-bold text-comm-800 mb-4">🛡️ Quyền của bạn — 75/150 quyền (UI/hệ thống)</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
                     <h4 class="font-semibold text-gray-700 mb-2">📝 Content (10 quyền)</h4>
@@ -182,7 +182,7 @@
 
     <footer class="bg-gray-100 border-t border-gray-200 mt-8">
         <div class="max-w-7xl mx-auto px-6 py-4 text-center text-xs text-gray-500">
-            🪷 Ứng Dụng Từ Bi v0.9.15 · Admin Cộng Đồng · 75/75 quyền (UI/hệ thống) · Nguyện công đức vô lượng
+            🪷 Ứng Dụng Từ Bi v0.9.17 · Admin Cộng Đồng · 75/150 quyền (UI/hệ thống) · Nguyện công đức vô lượng
         </div>
     </footer>
 

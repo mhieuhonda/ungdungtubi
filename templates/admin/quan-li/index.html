@@ -40,7 +40,7 @@
                 <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl backdrop-blur-sm">👑</div>
                 <div>
                     <h1 class="text-lg font-bold tracking-wide">ADMIN QUẢN LÝ</h1>
-                    <p class="text-[11px] text-white/80">Bảng điều khiển — 4/30 quyền</p>
+                    <p class="text-[11px] text-white/80">Bảng điều khiển — 100/150 quyền</p>
                 </div>
             </div>
             <div class="flex items-center gap-6">
@@ -62,19 +62,19 @@
     <div class="bg-white border-b border-gray-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-8">
             <nav class="flex gap-1">
-                <a href="/admin/quan-li" class="px-5 py-3.5 text-sm font-semibold border-b-2 border-exec-800 text-exec-900">
+                <a href="/admin/cong-dong" class="px-5 py-3.5 text-sm font-semibold border-b-2 border-exec-800 text-exec-900">
                     📊 Tổng quan
                 </a>
                 <a href="/admin/thanh-vien" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
                     👥 Quản lý Thành viên
                 </a>
-                <a href="/cong-dong" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
+                <a href="/admin/cong-dong" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
                     🏛️ Nhóm &amp; Cộng đồng
                 </a>
-                <a href="/kinh-sach" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
+                <a href="/admin/kinh-sach" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
                     📚 Kinh Sách
                 </a>
-                <a href="/quy-tu-bi" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
+                <a href="/admin/quy-tu-bi" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
                     📈 Báo cáo quỹ
                 </a>
             </nav>
@@ -120,7 +120,7 @@
         </div>
 
         <!-- Quick Actions -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <a href="/admin/thanh-vien" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
                 <div class="w-14 h-14 rounded-xl bg-exec-50 flex items-center justify-center text-3xl group-hover:bg-exec-100 transition">👥</div>
                 <div class="flex-1">
@@ -129,11 +129,19 @@
                 </div>
                 <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
             </a>
-            <a href="/kinh-sach" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
+            <a href="/admin/kinh-sach" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
                 <div class="w-14 h-14 rounded-xl bg-amber-50 flex items-center justify-center text-3xl group-hover:bg-amber-100 transition">📚</div>
                 <div class="flex-1">
                     <h3 class="text-lg font-bold text-gray-800 group-hover:text-exec-900 transition">Kinh Sách</h3>
                     <p class="text-sm text-gray-500">{{ stats.pending_reviews }} cảm ngộ đang chờ duyệt</p>
+                </div>
+                <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
+            </a>
+            <a href="/admin/quy-tu-bi" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
+                <div class="w-14 h-14 rounded-xl bg-tubi-50 flex items-center justify-center text-3xl group-hover:bg-tubi-100 transition">🪷</div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-gray-800 group-hover:text-exec-900 transition">Quỹ Từ Bi</h3>
+                    <p class="text-sm text-gray-500">Báo cáo đóng góp &amp; chi tiêu</p>
                 </div>
                 <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
             </a>
@@ -143,7 +151,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                 <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span class="text-xl">🔐</span> Quyền — 4/30
+                    <span class="text-xl">🔐</span> Quyền — 100/150
                 </h3>
                 <div class="space-y-3">
                     <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
@@ -184,7 +192,7 @@
     <!-- Footer -->
     <footer class="bg-gray-100 border-t border-gray-200 mt-8">
         <div class="max-w-7xl mx-auto px-8 py-4 text-center text-xs text-gray-500">
-            🪷 Ứng Dụng Từ Bi v0.9.15 · Admin Quản Lý · 100/100 quyền (UI/hệ thống) · Nguyện công đức vô lượng
+            🪷 Ứng Dụng Từ Bi v0.9.17 · Admin Quản Lý · 100/150 quyền (UI/hệ thống) · Nguyện công đức vô lượng
         </div>
     </footer>
 

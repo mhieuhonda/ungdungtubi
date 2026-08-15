@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="vi" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f766e">
+    <title>{{ module_title }} — Ứng Dụng Từ Bi v0.9.17</title>
+    <!-- v0.9.17 — Giai đoạn 22: Mobile-first admin placeholder page với dark mode -->
+    <script>
+        // Anti-FOUC: apply theme before paint
+        (function() {
+            try {
+                var c = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+                var t = c ? c[1] : localStorage.getItem('tubi_theme');
+                if (!t) t = 'lotus';
+                if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'tubi': { 50:'#f0fdf4',100:'#dcfce7',200:'#bbf7d0',300:'#86efac',400:'#4ade80',500:'#22c55e',600:'#16a34a',700:'#15803d',800:'#166534',900:'#14532d',950:'#052e16' },
+                        'lotus': { 50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309',800:'#92400e',900:'#78350f' },
+                        'ink': '#0f172a', 'paper': '#fafaf9',
+                    },
+                    fontFamily: { sans: ['Inter','Be Vietnam Pro','system-ui','sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { font-family: 'Inter', 'Be Vietnam Pro', system-ui, sans-serif; }
+        @media (max-width: 640px) { .text-responsive { font-size: 0.875rem; } }
+        @media (min-width: 641px) { .text-responsive { font-size: 1rem; } }
+    </style>
+</head>
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-slate-100 min-h-screen flex flex-col transition-colors">
+
+    <!-- Top Bar — compact, mobile-first -->
+    <header class="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-40 backdrop-blur">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-14">
+                <div class="flex items-center gap-3 min-w-0">
+                    <a href="{{ back_path }}" class="text-gray-500 dark:text-slate-400 hover:text-tubi-700 dark:hover:text-tubi-300 transition shrink-0" title="Trở về">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    <span class="text-2xl shrink-0">{{ module_icon }}</span>
+                    <div class="min-w-0">
+                        <h1 class="text-sm sm:text-base font-bold text-ink dark:text-slate-100 truncate">{{ module_title }}</h1>
+                        <p class="text-[11px] text-gray-500 dark:text-slate-400 truncate hidden sm:block">{{ module_description }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% if let Some(u) = user %}
+                    <span class="hidden sm:inline-flex px-2 py-1 rounded-md text-[11px] font-semibold text-white" style="background-color: {{ u.role_color() }}">
+                        {{ u.role_icon() }} {{ u.role_display() }}
+                    </span>
+                    {% endif %}
+                    <a href="/" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 transition">
+                        🏠 <span class="hidden sm:inline">Trang chủ</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 main-with-bottom-nav">
+
+        <!-- Stats grid — 2 cols mobile, 4 cols desktop -->
+        <section>
+            <h2 class="text-base sm:text-lg font-bold mb-3 flex items-center gap-2">
+                <span>📊</span><span>Tổng quan</span>
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {% if module_key == "groups" %}
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Tổng nhóm</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_groups }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Chủ đề</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_topics }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Bình luận</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_comments }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Thành viên</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_users }}</div>
+                </div>
+                {% elif module_key == "books" %}
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Sách trong TV</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_books }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Cảm ngộ chờ duyệt</div>
+                    <div class="text-xl sm:text-2xl font-bold {% if stats.pending_reviews > 0 %}text-amber-600 dark:text-amber-400{% else %}text-tubi-700 dark:text-tubi-300{% endif %}">{{ stats.pending_reviews }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Bình luận</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_comments }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Thành viên</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_users }}</div>
+                </div>
+                {% elif module_key == "comments" %}
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Tổng bình luận</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_comments }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Chủ đề</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_topics }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Nhóm</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_groups }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Thành viên</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_users }}</div>
+                </div>
+                {% elif module_key == "fund" %}
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Sách</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_books }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Thành viên</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_users }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Thư đã gửi</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.total_mails }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Quản trị viên</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ stats.admin_count }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Coming soon banner -->
+        <section class="bg-gradient-to-br from-tubi-50 to-lotus-50 dark:from-slate-800 dark:to-slate-800 border border-tubi-200 dark:border-slate-700 rounded-2xl p-5 sm:p-6">
+            <div class="flex items-start gap-4">
+                <div class="text-4xl sm:text-5xl shrink-0 animate-float">🪷</div>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base sm:text-lg font-bold text-tubi-800 dark:text-tubi-300 mb-2">Module đang được phát triển</h2>
+                    <p class="text-sm text-gray-700 dark:text-slate-300 leading-relaxed mb-3">
+                        Module <strong>{{ module_title }}</strong> hiện đang ở giai đoạn hoàn thiện.
+                        Phiên bản <strong>v0.9.17</strong> hiển thị danh sách <em>read-only</em> bên dưới
+                        để admin có cái nhìn tổng quan. Tính năng kiểm duyệt đầy đủ
+                        (duyệt, ẩn, xóa, ghim, khoá) sẽ ra mắt ở các phiên bản tiếp theo.
+                    </p>
+                    <div class="flex flex-wrap gap-2 text-[11px]">
+                        <span class="px-2 py-1 rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600">📅 Sắp ra: duyệt / ẩn / xóa</span>
+                        <span class="px-2 py-1 rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600">📌 Sắp ra: ghim / khoá</span>
+                        <span class="px-2 py-1 rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600">🔍 Sắp ra: tìm kiếm + lọc</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent items list — different per module -->
+        <section>
+            <h2 class="text-base sm:text-lg font-bold mb-3 flex items-center gap-2">
+                <span>📋</span>
+                {% if module_key == "groups" %}<span>Nhóm mới nhất ({{ groups.len() }})</span>
+                {% elif module_key == "books" %}<span>Sách mới nhất ({{ books.len() }})</span>
+                {% elif module_key == "comments" %}<span>Bình luận mới nhất ({{ comments.len() }})</span>
+                {% elif module_key == "fund" %}<span>Đóng góp mới nhất ({{ funds.len() }})</span>
+                {% else %}<span>Mục mới nhất</span>{% endif %}
+            </h2>
+
+            {% if module_key == "groups" %}
+                {% if groups.is_empty() %}
+                <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+                    <div class="text-4xl mb-2">🏛️</div>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Chưa có nhóm nào trong hệ thống.</p>
+                </div>
+                {% else %}
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <ul class="divide-y divide-gray-100 dark:divide-slate-700">
+                        {% for g in groups %}
+                        <li class="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <a href="/cong-dong/nhom/{{ g.slug }}" class="block">
+                                        <div class="font-semibold text-sm text-ink dark:text-slate-100 truncate hover:text-tubi-700 dark:hover:text-tubi-300">{{ g.name }}</div>
+                                        <div class="text-[11px] text-gray-500 dark:text-slate-400 truncate">/{{ g.slug }} · {{ g.visibility }}</div>
+                                    </a>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <div class="text-xs font-semibold text-tubi-700 dark:text-tubi-300">{{ g.member_count }} 👥 · {{ g.topic_count }} 📝</div>
+                                    <div class="text-[10px] text-gray-400 dark:text-slate-500">{% if g.is_active %}✅ hoạt động{% else %}🚫 bị khoá{% endif %}</div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            {% elif module_key == "books" %}
+                {% if books.is_empty() %}
+                <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+                    <div class="text-4xl mb-2">📚</div>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Chưa có sách nào trong thư viện.</p>
+                </div>
+                {% else %}
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <ul class="divide-y divide-gray-100 dark:divide-slate-700">
+                        {% for b in books %}
+                        <li class="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <a href="/kinh-sach/{{ b.slug }}" class="block">
+                                        <div class="font-semibold text-sm text-ink dark:text-slate-100 truncate hover:text-tubi-700 dark:hover:text-tubi-300">{{ b.title }}</div>
+                                        <div class="text-[11px] text-gray-500 dark:text-slate-400 truncate">{{ b.category }} · {{ b.language }}</div>
+                                    </a>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <div class="text-xs font-semibold text-tubi-700 dark:text-tubi-300">{{ b.view_count }} 👁 · {{ b.flower_count }} 🪷</div>
+                                    <div class="text-[10px] text-gray-400 dark:text-slate-500">{{ b.review_count }} cảm ngộ</div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            {% elif module_key == "comments" %}
+                {% if comments.is_empty() %}
+                <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+                    <div class="text-4xl mb-2">💬</div>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Chưa có bình luận nào trong hệ thống.</p>
+                </div>
+                {% else %}
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <ul class="divide-y divide-gray-100 dark:divide-slate-700">
+                        {% for c in comments %}
+                        <li class="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition">
+                            <div class="flex items-start gap-3">
+                                <div class="w-7 h-7 rounded-full bg-tubi-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-tubi-700 dark:text-tubi-300 shrink-0">
+                                    {{ c.author_name.chars().next().unwrap_or('?') }}
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-baseline gap-2 mb-0.5 flex-wrap">
+                                        <span class="text-xs font-semibold text-gray-700 dark:text-slate-200 truncate">{{ c.author_name }}</span>
+                                        {% if !c.is_active %}<span class="text-[10px] text-red-500">🚫 ẩn</span>{% endif %}
+                                    </div>
+                                    <a href="/cong-dong/chu-de/{{ c.topic_id }}" class="block text-[11px] text-gray-500 dark:text-slate-400 truncate hover:text-tubi-700 dark:hover:text-tubi-300">↪ {{ c.topic_title }}</a>
+                                    <p class="text-sm text-ink dark:text-slate-100 mt-1 line-clamp-2">{{ c.body }}</p>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            {% elif module_key == "fund" %}
+                {% if funds.is_empty() %}
+                <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+                    <div class="text-4xl mb-2">🪷</div>
+                    <p class="text-sm text-gray-500 dark:text-slate-400">Chưa có đóng góp nào.</p>
+                </div>
+                {% else %}
+                <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <ul class="divide-y divide-gray-100 dark:divide-slate-700">
+                        {% for f in funds %}
+                        <li class="p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0 flex-1">
+                                    <div class="font-semibold text-sm text-ink dark:text-slate-100 truncate">
+                                        {% if f.is_anonymous %}🤫 Ẩn danh{% else %}{{ f.donor_name.as_deref().unwrap_or("—") }}{% endif %}
+                                    </div>
+                                    {% if let Some(msg) = f.message %}
+                                    <div class="text-[11px] text-gray-500 dark:text-slate-400 truncate italic">"{{ msg }}"</div>
+                                    {% endif %}
+                                    <div class="text-[10px] text-gray-400 dark:text-slate-500">{{ f.fund_type }}</div>
+                                </div>
+                                <div class="text-right shrink-0">
+                                    <div class="text-sm font-bold text-tubi-700 dark:text-tubi-300">+{{ f.amount }} K</div>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            {% endif %}
+        </section>
+
+        <!-- Back to dashboard button -->
+        <div class="flex justify-center pt-4">
+            <a href="{{ back_path }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold transition shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Trở về {{ back_label }}
+            </a>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 mt-auto">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-gray-500 dark:text-slate-400">
+            🪷 Ứng Dụng Từ Bi v0.9.17 · {{ module_title }} · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

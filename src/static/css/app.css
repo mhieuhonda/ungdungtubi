@@ -259,3 +259,91 @@
     word-break: break-word;
     overflow-wrap: anywhere;
 }
+
+/* ====================================================================
+   v0.9.17 — Dark Mode Overrides
+   ====================================================================
+   Tailwind CDN xử lý phần lớn dark: variants qua class .dark trên <html>.
+   Nhưng các element có CSS tùy chỉnh (chat bubble, scrollbar, prayer ripple)
+   cần dark mode override thủ công.
+   ==================================================================== */
+
+/* Scrollbar trong dark mode */
+.dark ::-webkit-scrollbar-track {
+    background: #1e293b;
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+/* Chat popup trong dark mode */
+.dark .chat-chung-popup {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+.dark .chat-chung-header {
+    background: #15803d;  /* giữ màu tubi nhưng đậm hơn */
+}
+.dark .chat-chung-messages {
+    background: #0f172a;
+}
+.dark .chat-chung-messages::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+.dark .chat-chung-input {
+    background: #1e293b;
+    border-color: #334155;
+}
+.dark .chat-chung-msg {
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #e2e8f0;
+}
+
+/* Prayer ripple trong dark mode — màu sáng hơn cho visibility */
+.dark .prayer-ripple {
+    background: rgba(34, 197, 94, 0.4);
+}
+
+/* HTMX loading indicator trong dark mode */
+.dark .htmx-indicator {
+    color: #94a3b8;
+}
+
+/* Chat bubble badge trong dark mode — giữ đỏ sáng */
+.dark .chat-bubble-badge {
+    border-color: #1e293b;
+}
+
+/* Active nav tab trong dark mode */
+.dark .nav-tab.active {
+    background-color: #15803d;
+    color: white;
+}
+
+/* Page background override cho các trang admin standalone (ky-thuat/cong-dong/quan-li)
+   — những trang này KHÔNG extends layout.html nên cần giữ theme riêng.
+   Trang placeholder.html (v0.9.17) đã có dark mode built-in. */
+
+/* Smooth transition khi toggle theme — tránh jump */
+body, header, footer, nav, main, section, article, aside, div, button, a, input, textarea, select, label, span, p, h1, h2, h3, h4, h5, h6, ul, ol, li, table, th, td {
+    transition-property: background-color, border-color, color;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+}
+
+/* Tuy nhiên, animation effect (pulse, float, glow) KHÔNG nên bị transition chậm —
+   tách riêng để tránh xung đột */
+.animate-float, .animate-pulse, .lotus-glow, .prayer-pulse, .prayer-ripple {
+    transition: none;
+}
+
+/* Selection color trong dark mode */
+.dark ::selection {
+    background: rgba(34, 197, 94, 0.3);
+    color: #f0fdf4;
+}

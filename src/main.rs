@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.16 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.17 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.16 — Giai đoạn 21: UI Redesign + Route Hub + Polish");
+    log::info!("📦 Phiên bản: v0.9.17 — Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -271,6 +271,16 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/cong-dong/cam-ngo", get(handlers::admin::admin_cam_ngo_list))
         .route("/admin/cong-dong/cam-ngo/{review_id}/duyet", post(handlers::admin::admin_cam_ngo_duyet))
         .route("/admin/cong-dong/cam-ngo/{review_id}/tu-choi", post(handlers::admin::admin_cam_ngo_tu_choi))
+        // Routes — Admin placeholder pages (v0.9.17 — Giai đoạn 22: fix admin nav bug)
+        // Trước đây các nav tile trong admin dashboard trỏ tới user pages (/cong-dong, /kinh-sach, ...)
+        // khiến user click vào rồi bị redirect ra khỏi admin context.
+        // Giờ tạo các route admin riêng cho các module chưa có UI quản trị đầy đủ.
+        .route("/admin/cong-dong/nhom", get(handlers::admin::admin_groups_placeholder))
+        .route("/admin/kinh-sach", get(handlers::admin::admin_kinh_sach_placeholder))
+        .route("/admin/binh-luan", get(handlers::admin::admin_binh_luan_placeholder))
+        .route("/admin/quy-tu-bi", get(handlers::admin::admin_quy_tu_bi_placeholder))
+        // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
+        .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
         .route(
             "/cong-dong/nhom/{slug}/doi-anh",
@@ -332,11 +342,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.16",
+        "version": "0.9.17",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 21,
-        "phase_name": "Giai đoạn 21 — UI Redesign + Route Hub + Polish",
+        "phase": 22,
+        "phase_name": "Giai đoạn 22 — Mobile-first Polish + Dark Mode + Admin Nav Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -394,7 +404,15 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "route-hub-tong-quan-v2",
             "kinh-sach-5-thu-vien-links",
             "bang-xep-hang-5-tabs-links",
-            "admin-dashboard-quick-links"
+            "admin-dashboard-quick-links",
+            "admin-nav-fix-v0.9.17",
+            "dark-mode-toggle",
+            "theme-cookie-persistence",
+            "admin-groups-placeholder",
+            "admin-kinh-sach-placeholder",
+            "admin-binh-luan-placeholder",
+            "admin-quy-tu-bi-placeholder",
+            "mobile-first-touch-targets"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],
