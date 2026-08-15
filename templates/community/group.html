@@ -166,6 +166,55 @@
 
   <!-- v0.9.21: Đã xoá Live Chat panel — chỉ giữ Chat Chung (trong layout.html) -->
 
+  <!-- v0.9.23: Member Management (owner/admin only) -->
+  {% if !members.is_empty() %}
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6 mt-6">
+    <div class="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <h2 class="text-lg font-bold text-gray-900">👥 Quản Lý Thành Viên ({{ members.len() }})</h2>
+    </div>
+    <ul class="divide-y divide-gray-100">
+      {% for m in &members %}
+      <li class="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
+        {% if let Some(avatar) = &m.avatar_url %}
+        <img src="{{ avatar }}" alt="avatar" class="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-gray-200 flex-shrink-0" referrerpolicy="no-referrer">
+        {% else %}
+        <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
+          {{ m.initial() }}
+        </div>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+          <div class="font-semibold text-gray-900 truncate text-sm sm:text-base">{{ m.display_name }}</div>
+          <div class="text-[11px] sm:text-xs text-gray-400 flex items-center gap-1">
+            <span>{{ m.role_icon() }}</span>
+            <span>{{ m.role_display() }}</span>
+            {% if m.status == "pending" %}
+            <span class="text-amber-600 font-semibold">· Chờ duyệt</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          {% if m.status == "pending" %}
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/duyet-thanh-vien/{{ m.id }}" class="inline">
+            <button type="submit" class="text-white text-xs font-semibold px-2 py-1.5 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
+              ✓ Duyệt
+            </button>
+          </form>
+          {% endif %}
+          {% if m.role != "owner" %}
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/xoa-thanh-vien/{{ m.id }}" class="inline"
+                onsubmit="return confirm('Bạn có chắc muốn xóa thành viên này?');">
+            <button type="submit" class="text-red-400 hover:text-red-600 text-xs px-2 py-1.5 rounded-lg transition hover:bg-red-50">
+              ✕
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
   <!-- Back link -->
   <div class="mt-6">
     <a href="/cong-dong" class="text-sm text-gray-500 hover:text-tubi-700">← Quay lại Cộng Đồng</a>

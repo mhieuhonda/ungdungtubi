@@ -10,6 +10,7 @@ pub mod kinh_sach;
 pub mod khong_gian;
 pub mod quy_tu_bi;
 pub mod thanh_tich;
+pub mod thuong_thanh;
 pub mod tim_kiem;
 pub mod tong_quan;
 pub mod uploads;

@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use axum_extra::extract::CookieJar;
 use std::sync::Arc;
 use sqlx::postgres::PgPoolOptions;
 use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
@@ -42,14 +43,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.22 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.23 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.22 — Giai đoạn 27: Đội Ngũ Quản Lí + SQL Fix + UI Fix");
+    log::info!("📦 Phiên bản: v0.9.23 — Giai đoạn 28: Security Fix + Member Mgmt + Thuong Thanh + UI Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -203,6 +204,15 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/cong-dong/nhom/{slug}/roi-khoi",
             post(handlers::community::leave_group),
         )
+        // v0.9.23: Member management (owner/admin only)
+        .route(
+            "/cong-dong/nhom/{slug}/duyet-thanh-vien/{member_id}",
+            post(handlers::community::approve_member),
+        )
+        .route(
+            "/cong-dong/nhom/{slug}/xoa-thanh-vien/{member_id}",
+            post(handlers::community::remove_member),
+        )
         .route(
             "/cong-dong/nhom/{slug}/tao-chu-de",
             get(handlers::community::create_topic_form).post(handlers::community::create_topic),
@@ -227,7 +237,7 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
-        .route("/thuong-thanh", get(handlers::thuong_thanh))
+        .route("/thuong-thanh", get(handlers::thuong_thanh::thuong_thanh_index))
         .route("/doi-ngu-quan-li", get(handlers::doi_ngu::doi_ngu_quan_li))
         .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
         // Routes — Tổng Quan (User Hub) [v0.9.14 — Giai đoạn 18]
@@ -303,7 +313,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/api/ban-be/thong-bao/{notification_id}/da-doc", post(handlers::friends::mark_notification_read))
         .route("/ban-be/tim-kiem", get(handlers::friends::search_users))
         // API
-        .route("/api/health", get(health_check))
+        // v0.9.23: /api/health yêu cầu auth + admin role — không công khai cho user thường
+        .route("/api/health", get(health_check_secure))
         .route("/api/heartbeat", post(handlers::heartbeat))
         // API — Upload ảnh (v0.5+)
         .route("/api/upload-info", get(handlers::uploads::upload_info))
@@ -422,15 +433,42 @@ const HEALTH_FEATURES: &[&str] = &[
     "dom-refs-cached-v0.9.20",
     "reduced-motion-support-v0.9.20",
     "removed-sound-toggle-v0.9.21",
+    "security-health-check-admin-only-v0.9.23",
     "doi-ngu-quan-li-page-v0.9.22",
-    "sql-injection-fix-limit-bind-v0.9.22",
     "css-js-split-modules-v0.9.20",
     "body-data-logged-in-v0.9.20",
     "ws-close-code-1008-handling-v0.9.20",
     "reconnect-backoff-improved-v0.9.20",
+    "member-management-v0.9.23",
+    "thuong-thanh-marketplace-v0.9.23",
+    "dm-ctrlmessage-fix-v0.9.23",
+    "friends-list-mobile-ui-fix-v0.9.23",
+    "doi-ngu-btn-in-tong-quan-v0.9.23",
 ];
 
-async fn health_check(State(state): State<AppState>) -> Response {
+/// GET /api/health — Secure health check (admin only).
+/// v0.9.23: Bảo mật — user thường KHÔNG được xem health check.
+/// Trước đây endpoint này công khai, lộ DB version, features, role hierarchy,
+/// user counts — rất nguy hiểm.
+async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> Response {
+    use crate::handlers::get_user_from_session;
+
+    // Auth required
+    let user = get_user_from_session(&state.pool, &jar).await;
+    let Some(user) = user else {
+        return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập.").into_response();
+    };
+
+    // Admin only
+    if !user.is_staff() {
+        return (axum::http::StatusCode::FORBIDDEN, "Chỉ admin/mod mới được xem health check.").into_response();
+    }
+
+    health_check_inner(&state).await
+}
+
+/// Inner health check logic (extracted for reuse).
+async fn health_check_inner(state: &AppState) -> Response {
     // DB ping
     let db_ok: Result<String, _> = sqlx::query_scalar("SELECT version()")
         .fetch_one(&state.pool)
@@ -449,11 +487,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.22",
+        "version": "0.9.23",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 27,
-        "phase_name": "Giai đoạn 27 — Đội Ngũ Quản Lí + SQL Injection Fix + UI Fix",
+        "phase": 28,
+        "phase_name": "Giai đoạn 28 — Security Fix + Member Mgmt + Thuong Thanh + UI Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

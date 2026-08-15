@@ -43,30 +43,32 @@
     </div>
     <ul class="divide-y divide-gray-100">
       {% for req in &pending_requests %}
-      <li class="px-6 py-4 flex items-center gap-4">
+      <li class="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
         {% if let Some(avatar) = &req.other_avatar_url %}
-        <img src="{{ avatar }}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">
+        <img src="{{ avatar }}" alt="avatar" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-gray-200 flex-shrink-0" referrerpolicy="no-referrer">
         {% else %}
-        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
           {{ req.other_display_name.chars().next().unwrap_or('🪷') }}
         </div>
         {% endif %}
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-gray-900 truncate">{{ req.other_display_name }}</div>
-          <div class="text-xs text-gray-400">Muốn kết bạn với bạn</div>
+          <div class="font-semibold text-gray-900 truncate text-sm sm:text-base">{{ req.other_display_name }}</div>
+          <div class="text-[11px] sm:text-xs text-gray-400">Muốn kết bạn</div>
         </div>
-        <form method="POST" action="/ban-be/chap-nhan/{{ req.id }}" class="inline"
-              hx-post="/ban-be/chap-nhan/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
-          <button type="submit" class="text-white text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
-            ✓ Chấp nhận
-          </button>
-        </form>
-        <form method="POST" action="/ban-be/tu-choi/{{ req.id }}" class="inline"
-              hx-post="/ban-be/tu-choi/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
-          <button type="submit" class="text-red-500 hover:text-red-700 text-sm font-semibold px-3 py-2 rounded-lg transition hover:bg-red-50">
-            ✕ Từ chối
-          </button>
-        </form>
+        <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <form method="POST" action="/ban-be/chap-nhan/{{ req.id }}" class="inline"
+                hx-post="/ban-be/chap-nhan/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
+            <button type="submit" class="text-white text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
+              ✓
+            </button>
+          </form>
+          <form method="POST" action="/ban-be/tu-choi/{{ req.id }}" class="inline"
+                hx-post="/ban-be/tu-choi/{{ req.id }}" hx-target="closest li" hx-swap="outerHTML">
+            <button type="submit" class="text-red-500 hover:text-red-700 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition hover:bg-red-50">
+              ✕
+            </button>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>
@@ -90,33 +92,35 @@
     {% else %}
     <ul class="divide-y divide-gray-100">
       {% for f in &friends %}
-      <li class="px-6 py-4 flex items-center gap-4">
+      <li class="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
         {% if let Some(avatar) = &f.other_avatar_url %}
-        <img src="{{ avatar }}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">
+        <img src="{{ avatar }}" alt="avatar" class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-gray-200 flex-shrink-0" referrerpolicy="no-referrer">
         {% else %}
-        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm" style="background-color:#E8F5E9;color:#2E7D32">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm flex-shrink-0" style="background-color:#E8F5E9;color:#2E7D32">
           {{ f.other_display_name.chars().next().unwrap_or('🪷') }}
         </div>
         {% endif %}
         <div class="flex-1 min-w-0">
-          <div class="font-semibold text-gray-900 truncate">{{ f.other_display_name }}</div>
-          <div class="text-xs text-gray-400">Đã kết bạn</div>
+          <div class="font-semibold text-gray-900 truncate text-sm sm:text-base">{{ f.other_display_name }}</div>
+          <div class="text-[11px] sm:text-xs text-gray-400">Đã kết bạn</div>
         </div>
-        <form method="POST" action="/ban-be/tao-conversation" class="inline">
-          <input type="hidden" name="other_user_id" value="{{ f.other_user_id }}">
-          <button type="submit" class="text-white text-sm font-semibold px-3 py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
-            💬 Nhắn tin
-          </button>
-        </form>
-        <a href="/ban-be/thu/gui?to={{ f.other_user_id }}" class="text-gray-600 hover:text-tubi-700 text-sm font-semibold px-3 py-2 rounded-lg transition hover:bg-gray-50">
-          ✉️ Gửi thư
-        </a>
-        <form method="POST" action="/ban-be/huy-ket-ban/{{ f.other_user_id }}" class="inline"
-              onsubmit="return confirm('Bạn có chắc muốn hủy kết bạn?');">
-          <button type="submit" class="text-red-400 hover:text-red-600 text-sm px-2 py-2 rounded-lg transition hover:bg-red-50">
-            ✕
-          </button>
-        </form>
+        <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+          <form method="POST" action="/ban-be/tao-conversation" class="inline">
+            <input type="hidden" name="other_user_id" value="{{ f.other_user_id }}">
+            <button type="submit" class="text-white text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition hover:opacity-90" style="background-color:#388E3C">
+              💬
+            </button>
+          </form>
+          <a href="/ban-be/thu/gui?to={{ f.other_user_id }}" class="text-gray-600 hover:text-tubi-700 text-xs sm:text-sm font-semibold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition hover:bg-gray-50">
+            ✉️
+          </a>
+          <form method="POST" action="/ban-be/huy-ket-ban/{{ f.other_user_id }}" class="inline"
+                onsubmit="return confirm('Bạn có chắc muốn hủy kết bạn?');">
+            <button type="submit" class="text-red-400 hover:text-red-600 text-xs px-1.5 sm:px-2 py-1.5 sm:py-2 rounded-lg transition hover:bg-red-50">
+              ✕
+            </button>
+          </form>
+        </div>
       </li>
       {% endfor %}
     </ul>

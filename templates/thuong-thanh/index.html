@@ -1,0 +1,153 @@
+{% extends "layout.html" %}
+{% block title %}Thương Thành — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Hero -->
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#0F766E,#115E59)">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-bold mb-2">🏪 Thương Thành</h1>
+        <p class="opacity-90 max-w-2xl">
+          Mua bán · Trao đổi · Cúng dường.<br>
+          Chợ đạo — nơi đạo hữu kết nối vật phẩm và dịch vụ thiện lành.
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="/thuong-thanh" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-3 rounded-xl transition-all hover:scale-105 whitespace-nowrap text-sm">
+          📋 Tất cả
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thông báo đang phát triển -->
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3 mb-6">
+    🚧 Thương Thành đang trong giai đoạn phát triển. Danh mục vật phẩm sẽ sớm có hàng. Hãy quay lại sau!
+  </div>
+
+  <!-- Danh mục vật phẩm -->
+  <h2 class="text-lg font-bold text-gray-900 mb-4">📂 Danh Mục Vật Phẩm</h2>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">🪷</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#2E7D32">Phật Tử</h3>
+      <p class="text-[11px] text-gray-500">Tượng, chuỗi hạt, lư hương</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">📚</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#1565C0">Kinh Sách</h3>
+      <p class="text-[11px] text-gray-500">Kinh điển, sách tu học</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">🕯️</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#FF6F00">Đồ Cúng Tụ</h3>
+      <p class="text-[11px] text-gray-500">Nhang, đèn, hoa, trái cây</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">👘</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#6A1B9A">Trang Phục</h3>
+      <p class="text-[11px] text-gray-500">Áo lam, áo tràng, khăn tu</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">🤝</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#0F766E">Dịch Vụ</h3>
+      <p class="text-[11px] text-gray-500">Thiết kế, in kinh, tổ chức</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+    <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center hover:shadow-md transition cursor-default">
+      <div class="text-3xl mb-2">📦</div>
+      <h3 class="font-bold text-sm mb-1" style="color:#9E9E9E">Khác</h3>
+      <p class="text-[11px] text-gray-500">Vật phẩm và dịch vụ khác</p>
+      <span class="inline-block mt-2 text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5">Sắp có</span>
+    </div>
+  </div>
+
+  <!-- Nguyên tắc Thương Thành -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <h2 class="text-lg font-bold text-gray-900">🪷 Nguyên Tắc Thương Thành</h2>
+    </div>
+    <div class="px-6 py-5 space-y-3">
+      <div class="flex items-start gap-3">
+        <span class="text-xl">🙏</span>
+        <div>
+          <h3 class="font-semibold text-gray-900">Cúng dường đúng pháp</h3>
+          <p class="text-sm text-gray-600">Vật phẩm cúng dường phải đúng quy chế Phật giáo, chân chính và thanh tịnh.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-xl">💎</span>
+        <div>
+          <h3 class="font-semibold text-gray-900">Giá cả hợp lý</h3>
+          <p class="text-sm text-gray-600">Thương Thành khuyến khích giá cả hợp lý, không lợi dụng tâm linh để trục lợi.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-xl">🤝</span>
+        <div>
+          <h3 class="font-semibold text-gray-900">Trao đổi thiện lành</h3>
+          <p class="text-sm text-gray-600">Mọi giao dịch đều dựa trên thiện chí, tôn trọng và từ bi giữa đạo hữu.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <span class="text-xl">🛡️</span>
+        <div>
+          <h3 class="font-semibold text-gray-900">An toàn và minh bạch</h3>
+          <p class="text-sm text-gray-600">Mỗi người bán đều được xác minh, sản phẩm được kiểm duyệt trước khi đăng.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thống kê -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+    <div class="bg-white rounded-xl p-4 border border-gray-100 text-center">
+      <div class="text-2xl font-bold" style="color:#0F766E">6</div>
+      <div class="text-xs text-gray-500 mt-1">Danh mục</div>
+    </div>
+    <div class="bg-white rounded-xl p-4 border border-gray-100 text-center">
+      <div class="text-2xl font-bold" style="color:#0F766E">0</div>
+      <div class="text-xs text-gray-500 mt-1">Vật phẩm</div>
+    </div>
+    <div class="bg-white rounded-xl p-4 border border-gray-100 text-center">
+      <div class="text-2xl font-bold" style="color:#0F766E">0</div>
+      <div class="text-xs text-gray-500 mt-1">Người bán</div>
+    </div>
+    <div class="bg-white rounded-xl p-4 border border-gray-100 text-center">
+      <div class="text-2xl font-bold" style="color:#0F766E">0</div>
+      <div class="text-xs text-gray-500 mt-1">Giao dịch</div>
+    </div>
+  </div>
+
+  <!-- Liên kết -->
+  <div class="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-100 mb-6">
+    <h3 class="font-bold text-teal-800 mb-3">🔗 Liên Kết Hữu Ích</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+      <a href="/quy-tu-bi" class="flex items-center gap-2 text-teal-700 hover:text-teal-900 transition">
+        <span>🪷</span><span>Quỹ Từ Bi — Đóng góp và cúng dường</span>
+      </a>
+      <a href="/cong-dong" class="flex items-center gap-2 text-teal-700 hover:text-teal-900 transition">
+        <span>👥</span><span>Cộng Đồng — Tìm đạo hữu</span>
+      </a>
+      <a href="/kinh-sach" class="flex items-center gap-2 text-teal-700 hover:text-teal-900 transition">
+        <span>📚</span><span>Kinh Sách — Thư viện佛法</span>
+      </a>
+      <a href="/bang-xep-hang" class="flex items-center gap-2 text-teal-700 hover:text-teal-900 transition">
+        <span>🏆</span><span>Bảng Xếp Hạng — Top đạo hữu</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Back link -->
+  <div class="mt-4">
+    <a href="/" class="text-sm text-gray-500 hover:text-tubi-700">← Về trang chủ</a>
+  </div>
+
+</section>
+{% endblock %}

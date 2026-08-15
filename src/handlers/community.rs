@@ -27,7 +27,7 @@ use crate::AppState;
 use crate::handlers::get_user_from_session;
 use crate::models::community::{
     CommentCreateForm, CommentWithAuthor, GroupCategory, GroupCreateForm, GroupMember,
-    GroupWithCategory, TopicCreateForm, TopicWithAuthor,
+    GroupMemberWithUser, GroupWithCategory, TopicCreateForm, TopicWithAuthor,
 };
 use crate::models::user::User;
 
@@ -69,6 +69,8 @@ pub struct GroupTemplate {
     /// URL ảnh bìa nhóm (nếu có).
     /// [v0.9.3] Cover image upload
     pub cover_image_url: Option<String>,
+    /// v0.9.23: Danh sách thành viên (chỉ load khi user là owner/admin)
+    pub members: Vec<GroupMemberWithUser>,
 }
 
 #[derive(Template)]
@@ -423,6 +425,35 @@ pub async fn view_group(
     .flatten()
     .map(|filename| format!("{}/{filename}", state.config.upload_url_prefix));
 
+    // v0.9.23: Load danh sách thành viên nếu user là owner/admin của nhóm
+    let is_group_manager = membership.as_ref().is_some_and(|m| {
+        m.status == "active" && (m.role == "owner" || m.role == "admin")
+    }) || user.as_ref().is_some_and(|u| u.is_staff());
+
+    let members = if is_group_manager {
+        sqlx::query_as::<_, GroupMemberWithUser>(
+            "SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at,
+                    u.display_name, u.avatar_url, u.rank
+             FROM group_members gm
+             JOIN users u ON u.id = gm.user_id
+             WHERE gm.group_id = $1
+             ORDER BY
+                CASE gm.role
+                    WHEN 'owner' THEN 0
+                    WHEN 'admin' THEN 1
+                    WHEN 'moderator' THEN 2
+                    ELSE 3
+                END,
+                gm.joined_at ASC",
+        )
+        .bind(group.id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     let html = GroupTemplate {
         user,
         active_page: "community".into(),
@@ -430,6 +461,7 @@ pub async fn view_group(
         topics,
         membership,
         cover_image_url,
+        members,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -1034,4 +1066,119 @@ pub async fn change_group_cover(
 
     log::info!("🖼️ User {} updated cover image for group {slug}: {cover_url}", user.id);
     Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
+}
+
+// ====================================================================
+// Member Management — v0.9.23 Giai đoạn 28
+// ====================================================================
+
+/// POST /cong-dong/nhom/{slug}/duyet-thanh-vien/{member_id} — Duyệt thành viên đang chờ.
+pub async fn approve_member(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((slug, member_id)): Path<(String, i64)>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Verify user is owner/admin of group OR staff
+    let membership = get_membership_by_slug(&state.pool, &slug, user.id).await;
+    let can_manage = membership.as_ref().is_some_and(|m| {
+        m.status == "active" && (m.role == "owner" || m.role == "admin")
+    }) || user.is_staff();
+
+    if !can_manage {
+        return (axum::http::StatusCode::FORBIDDEN, "Bạn không có quyền duyệt thành viên.").into_response();
+    }
+
+    // Approve the member
+    let _ = sqlx::query(
+        "UPDATE group_members SET status = 'active' WHERE id = $1 AND status = 'pending'",
+    )
+    .bind(member_id)
+    .execute(&state.pool)
+    .await;
+
+    // Update member_count
+    let _ = sqlx::query(
+        "UPDATE groups SET member_count = (SELECT COUNT(*) FROM group_members WHERE group_id = (SELECT group_id FROM group_members WHERE id = $1) AND status = 'active') WHERE id = (SELECT group_id FROM group_members WHERE id = $1)",
+    )
+    .bind(member_id)
+    .execute(&state.pool)
+    .await;
+
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
+}
+
+/// POST /cong-dong/nhom/{slug}/xoa-thanh-vien/{member_id} — Xóa thành viên khỏi nhóm.
+pub async fn remove_member(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path((slug, member_id)): Path<(String, i64)>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Verify user is owner/admin of group OR staff
+    let membership = get_membership_by_slug(&state.pool, &slug, user.id).await;
+    let can_manage = membership.as_ref().is_some_and(|m| {
+        m.status == "active" && (m.role == "owner" || m.role == "admin")
+    }) || user.is_staff();
+
+    if !can_manage {
+        return (axum::http::StatusCode::FORBIDDEN, "Bạn không có quyền xóa thành viên.").into_response();
+    }
+
+    // Cannot remove owner
+    let is_owner: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM group_members WHERE id = $1 AND role = 'owner')",
+    )
+    .bind(member_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+
+    if is_owner {
+        return (axum::http::StatusCode::FORBIDDEN, "Không thể xóa chủ nhóm.").into_response();
+    }
+
+    // Delete the member
+    let group_id: Option<Uuid> = sqlx::query_scalar(
+        "DELETE FROM group_members WHERE id = $1 RETURNING group_id",
+    )
+    .bind(member_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    // Update member_count
+    if let Some(gid) = group_id {
+        let _ = sqlx::query(
+            "UPDATE groups SET member_count = (SELECT COUNT(*) FROM group_members WHERE group_id = $1 AND status = 'active') WHERE id = $1",
+        )
+        .bind(gid)
+        .execute(&state.pool)
+        .await;
+    }
+
+    Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response()
+}
+
+/// Helper: Get membership by group slug instead of id.
+async fn get_membership_by_slug(pool: &PgPool, slug: &str, user_id: Uuid) -> Option<GroupMember> {
+    sqlx::query_as::<_, GroupMember>(
+        "SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at
+         FROM group_members gm
+         JOIN groups g ON g.id = gm.group_id
+         WHERE g.slug = $1 AND gm.user_id = $2",
+    )
+    .bind(slug)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
 }

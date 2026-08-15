@@ -460,6 +460,25 @@ pub async fn admin_change_role(
         .await;
     }
 
+    // v0.9.23: Chống leo thang đặc quyền — không cho nâng user lên role cao hơn hoặc bằng actor
+    // Admin Quản Lý (level 4) chỉ được đặt role ≤ admin_quan_li (không được đặt admin_ky_thuat)
+    // Admin Kỹ Thuật (level 5) được đặt mọi role
+    let new_role_level: u8 = match new_role.as_str() {
+        "admin_ky_thuat" => 5,
+        "admin_quan_li" => 4,
+        "admin_cong_dong" => 3,
+        "mod" => 2,
+        _ => 1,
+    };
+    if new_role_level >= actor.role_level() {
+        return render_users_error(
+            &state.pool,
+            &actor,
+            "Bạn không thể nâng ai lên vai trò cao hơn hoặc bằng vai trò của mình.",
+        )
+        .await;
+    }
+
     // Update
     match sqlx::query("UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2")
         .bind(&new_role)

@@ -129,6 +129,48 @@ pub struct GroupMember {
     pub joined_at: DateTime<Utc>,
 }
 
+/// Thành viên nhóm kèm thông tin user — dùng cho danh sách thành viên.
+/// v0.9.23: Giai đoạn 28 — chủ nhóm quản lý thành viên.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupMemberWithUser {
+    pub id: i64,
+    pub group_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+    pub status: String,
+    pub joined_at: DateTime<Utc>,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+    pub rank: String,
+}
+
+impl GroupMemberWithUser {
+    /// Role hiển thị tiếng Việt.
+    pub fn role_display(&self) -> &str {
+        match self.role.as_str() {
+            "owner" => "Chủ nhóm",
+            "admin" => "Quản trị",
+            "moderator" => "Điều hành",
+            _ => "Thành viên",
+        }
+    }
+
+    /// Icon cho role.
+    pub fn role_icon(&self) -> &str {
+        match self.role.as_str() {
+            "owner" => "👑",
+            "admin" => "🛡️",
+            "moderator" => "📜",
+            _ => "🪷",
+        }
+    }
+
+    /// Ký tự đầu tiên của tên.
+    pub fn initial(&self) -> char {
+        self.display_name.chars().next().unwrap_or('🪷')
+    }
+}
+
 /// Phân loại nhóm.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GroupCategory {

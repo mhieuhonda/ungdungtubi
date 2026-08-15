@@ -53,9 +53,10 @@ const WS_PING_INTERVAL_SECS: u64 = 25;
 /// v0.9.20: Đóng kết nối nếu không nhận được gì trong 180s.
 const WS_IDLE_TIMEOUT_SECS: u64 = 180;
 
-/// v0.9.20: Control message từ recv loop → send_task.
+/// v0.9.23: Control message từ recv loop → send_task.
+/// Fix: đổi Error → Text (dùng cho cả error payload và app-level pong).
 enum DmCtrlMessage {
-    Error(String),
+    Text(String),
     Pong(bytes::Bytes),
 }
 
@@ -802,9 +803,9 @@ async fn handle_dm_socket(
                 }
                 ctrl = ctrl_rx.recv() => {
                     match ctrl {
-                        Some(DmCtrlMessage::Error(err_payload)) => {
+                        Some(DmCtrlMessage::Text(text_payload)) => {
                             if sender
-                                .send(axum::extract::ws::Message::Text(err_payload.into()))
+                                .send(axum::extract::ws::Message::Text(text_payload.into()))
                                 .await
                                 .is_err()
                             {
@@ -869,9 +870,9 @@ async fn handle_dm_socket(
                     Message::Text(text) => {
                         let body = text.trim().to_string();
 
-                        // v0.9.20: App-level ping
+                        // v0.9.23: App-level ping — respond bằng CtrlMessage::Text (không dùng Error)
                         if body == "{\"type\":\"ping\"}" || body == "ping" {
-                            let _ = ctrl_tx.send(DmCtrlMessage::Error(
+                            let _ = ctrl_tx.send(DmCtrlMessage::Text(
                                 r#"{"type":"pong"}"#.to_string(),
                             ));
                             continue;
@@ -883,7 +884,7 @@ async fn handle_dm_socket(
                                 "message": format!("Tin nhắn không hợp lệ (tối đa {MAX_DM_BODY_CHARS} ký tự).")
                             })
                             .to_string();
-                            let _ = ctrl_tx.send(DmCtrlMessage::Error(err_payload));
+                            let _ = ctrl_tx.send(DmCtrlMessage::Text(err_payload));
                             continue;
                         }
 
@@ -917,7 +918,7 @@ async fn handle_dm_socket(
                                     "message": "Không lưu được tin nhắn. Vui lòng thử lại."
                                 })
                                 .to_string();
-                                let _ = ctrl_tx.send(DmCtrlMessage::Error(err_payload));
+                                let _ = ctrl_tx.send(DmCtrlMessage::Text(err_payload));
                                 None
                             }
                         };
