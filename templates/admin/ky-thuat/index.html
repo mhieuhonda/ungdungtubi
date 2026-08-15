@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.17</title>
-    <!-- v0.9.17: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.18</title>
+    <!-- v0.9.18: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -100,7 +100,7 @@
 
             <!-- Right: version + user + exit -->
             <div class="flex items-center gap-2 md:gap-4">
-                <span class="hidden sm:inline-flex chip">v0.9.17</span>
+                <span class="hidden sm:inline-flex chip">v0.9.18</span>
                 <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
                 {% if let Some(u) = user %}
                 <div class="hidden sm:flex items-center gap-2">
@@ -258,7 +258,7 @@
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
                         <div class="text-code-muted mb-1">Phiên bản</div>
-                        <div class="text-base font-semibold text-code-text mono">v0.9.17</div>
+                        <div class="text-base font-semibold text-code-text mono">v0.9.18</div>
                     </div>
                 </div>
             </section>
@@ -300,7 +300,7 @@
                         </div>
                     </a>
 
-                    <!-- Quản lý nhóm — v0.9.17: fix nav → /admin/cong-dong/nhom (admin placeholder) -->
+                    <!-- Quản lý nhóm — v0.9.18: fix nav → /admin/cong-dong/nhom (admin placeholder) -->
                     <a href="/admin/cong-dong/nhom" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0 transition">🏛️</div>
                         <div class="min-w-0">
@@ -309,7 +309,7 @@
                         </div>
                     </a>
 
-                    <!-- Quản lý sách — v0.9.17: fix nav → /admin/kinh-sach (admin placeholder) -->
+                    <!-- Quản lý sách — v0.9.18: fix nav → /admin/kinh-sach (admin placeholder) -->
                     <a href="/admin/kinh-sach" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">📚</div>
                         <div class="min-w-0">
@@ -327,7 +327,7 @@
                         </div>
                     </a>
 
-                    <!-- Bình luận — v0.9.17: fix nav → /admin/binh-luan (admin placeholder) -->
+                    <!-- Bình luận — v0.9.18: fix nav → /admin/binh-luan (admin placeholder) -->
                     <a href="/admin/binh-luan" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0 transition">💬</div>
                         <div class="min-w-0">
@@ -372,7 +372,7 @@
                         </div>
                     </a>
 
-                    <!-- Quỹ Từ Bi — v0.9.17: fix nav → /admin/quy-tu-bi (admin placeholder) -->
+                    <!-- Quỹ Từ Bi — v0.9.18: fix nav → /admin/quy-tu-bi (admin placeholder) -->
                     <a href="/admin/quy-tu-bi" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0 transition">🪷</div>
                         <div class="min-w-0">
@@ -583,7 +583,7 @@
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.17 · Admin Kỹ Thuật ·
+                        <span>Ứng Dụng Từ Bi v0.9.18 · Admin Kỹ Thuật ·
                             {% if let Some(u) = user %}{{ u.permission_count() }}/{{ u.system_permission_count() }} quyền{% else %}0/0 quyền{% endif %}
                         </span>
                     </div>

@@ -261,11 +261,11 @@
                     <span class="text-xl">📚</span>
                     <span class="text-sm font-medium">Kinh Sách</span>
                 </a>
+                {% if let Some(u) = user %}
                 <a href="/ca-nhan" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🪷</span>
                     <span class="text-sm font-medium">Hồ Sơ</span>
                 </a>
-                {% if let Some(u) = user %}
                 {% if u.is_admin() %}
                 <a href="/admin" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">
@@ -287,6 +287,7 @@
                     <span class="text-sm font-medium" x-text="theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"></span>
                 </button>
 
+                {% if let Some(_u) = user %}
                 <div class="pt-2 mt-1 border-t border-gray-200 dark:border-slate-700">
                     <form action="/dang-xuat" method="POST" class="block">
                         <button type="submit" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer transition">
@@ -295,8 +296,7 @@
                         </button>
                     </form>
                 </div>
-
-                {% if user.is_none() %}
+                {% else %}
                 <div class="pt-2 mt-1 border-t border-gray-200 dark:border-slate-700">
                     <a href="/auth/google" class="block px-3 py-2.5 rounded-lg bg-tubi-700 text-white text-center text-sm font-semibold">🪷 Đăng Nhập Bằng Google</a>
                 </div>
@@ -411,7 +411,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.17 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.18 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

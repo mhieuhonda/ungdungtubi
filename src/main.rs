@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.17 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.18 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.17 — Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix");
+    log::info!("📦 Phiên bản: v0.9.18 — Giai đoạn 23: Mobile UI Overhaul + Admin Nav Logic Fix + Logout/Profile State Bug Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -342,7 +342,7 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.17",
+        "version": "0.9.18",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
         "phase": 22,
@@ -412,7 +412,13 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "admin-kinh-sach-placeholder",
             "admin-binh-luan-placeholder",
             "admin-quy-tu-bi-placeholder",
-            "mobile-first-touch-targets"
+            "mobile-first-touch-targets",
+            "mobile-ui-overhaul-v0.9.18",
+            "admin-placeholder-back-role-aware-v0.9.18",
+            "admin-quan-li-tabs-fix-v0.9.18",
+            "mobile-drawer-auth-state-fix-v0.9.18",
+            "admin-dashboards-responsive-v0.9.18",
+            "users-page-back-role-aware-v0.9.18"
         ],
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],

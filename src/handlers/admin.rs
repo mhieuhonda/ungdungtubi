@@ -1138,13 +1138,16 @@ pub async fn admin_groups_placeholder(State(state): State<AppState>, jar: Cookie
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let groups = fetch_admin_groups_list(&state.pool, 20).await;
+    // v0.9.18: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
+    // hoặc admin_quan_li click back từ placeholder groups (trước đây hardcode /admin/cong-dong).
+    let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
         module_title: "Quản lý Nhóm Cộng Đồng".into(),
         module_icon: "🏛️".into(),
         module_description: "Tổng quan tất cả nhóm trong hệ thống — xem số thành viên, chủ đề, trạng thái.".into(),
-        back_path: user_admin_dashboard_back(&state, &jar, "admin_cong_dong").await,
-        back_label: "Admin Cộng Đồng".into(),
+        back_path,
+        back_label,
         stats,
         groups,
         books: vec![],
@@ -1170,13 +1173,15 @@ pub async fn admin_kinh_sach_placeholder(State(state): State<AppState>, jar: Coo
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let books = fetch_admin_books_list(&state.pool, 20).await;
+    // v0.9.18: back_path/back_label theo role THỰC TẾ của user.
+    let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
         module_title: "Quản lý Kinh Sách".into(),
         module_icon: "📚".into(),
         module_description: "Tổng quan tất cả sách trong thư viện — xem lượt đọc, cảm ngộ, tặng hoa.".into(),
-        back_path: user_admin_dashboard_back(&state, &jar, "admin_ky_thuat").await,
-        back_label: "Admin Kỹ Thuật".into(),
+        back_path,
+        back_label,
         stats,
         groups: vec![],
         books,
@@ -1202,13 +1207,15 @@ pub async fn admin_binh_luan_placeholder(State(state): State<AppState>, jar: Coo
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let comments = fetch_admin_comments_list(&state.pool, 20).await;
+    // v0.9.18: back_path/back_label theo role THỰC TẾ của user.
+    let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
         module_title: "Quản lý Bình luận".into(),
         module_icon: "💬".into(),
         module_description: "Tổng quan bình luận gần đây trong Cộng Đồng — kiểm duyệt nội dung.".into(),
-        back_path: user_admin_dashboard_back(&state, &jar, "admin_cong_dong").await,
-        back_label: "Admin Cộng Đồng".into(),
+        back_path,
+        back_label,
         stats,
         groups: vec![],
         books: vec![],
@@ -1234,13 +1241,16 @@ pub async fn admin_quy_tu_bi_placeholder(State(state): State<AppState>, jar: Coo
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let funds = fetch_admin_funds_list(&state.pool, 20).await;
+    // v0.9.18: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
+    // hoặc admin_cong_dong click back từ placeholder quỹ (trước đây hardcode /admin/quan-li).
+    let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
         module_title: "Quản lý Quỹ Từ Bi".into(),
         module_icon: "🪷".into(),
         module_description: "Tổng quan đóng góp và chi tiêu quỹ — công khai, minh bạch.".into(),
-        back_path: user_admin_dashboard_back(&state, &jar, "admin_quan_li").await,
-        back_label: "Admin Quản Lý".into(),
+        back_path,
+        back_label,
         stats,
         groups: vec![],
         books: vec![],
@@ -1258,25 +1268,23 @@ pub async fn admin_quy_tu_bi_placeholder(State(state): State<AppState>, jar: Coo
 
 // ─── Helpers for placeholder pages ─────────────────────────────────────────
 
-/// Helper: decide back_path based on user's role — if user is admin_cong_dong
-/// back to /admin/cong-dong, if admin_ky_thuat back to /admin/ky-thuat, etc.
-/// `default_role` is used as fallback if user role doesn't match the requested
-/// back destination (e.g. user is admin_cong_dong but module is kinh_sach — only
-/// admin_ky_thuat should manage kinh_sach, but we still show the page with a
-/// back link to their own dashboard).
-async fn user_admin_dashboard_back(
-    _state: &AppState,
-    _jar: &CookieJar,
-    default_role: &str,
-) -> String {
-    // Always fall back to the requested dashboard — caller knows best which
-    // dashboard the user came from. The role check is done at handler level.
-    match default_role {
-        "admin_ky_thuat" => "/admin/ky-thuat".into(),
-        "admin_quan_li" => "/admin/quan-li".into(),
-        "admin_cong_dong" => "/admin/cong-dong".into(),
-        _ => "/admin".into(),
-    }
+/// Helper: quyết định back_path/back_label dựa trên role THỰC TẾ của user.
+///
+/// v0.9.18: FIX BUG USER REPORT — trước đây back_path/back_label được hardcode
+/// theo "module owner" (ví dụ /admin/cong-dong/nhom → luôn back về /admin/cong-dong).
+/// Điều này gây ra 403 Forbidden khi admin_ky_thuat (hoặc admin_quan_li) click back
+/// từ placeholder page: họ bị redirect tới dashboard của role khác → không có quyền.
+///
+/// Giờ back_path luôn trỏ về dashboard của CHÍNH user đang login:
+///   - admin_ky_thuat  → /admin/ky-thuat  (label "Admin Kỹ Thuật")
+///   - admin_cong_dong → /admin/cong-dong (label "Admin Cộng Đồng")
+///   - admin_quan_li   → /admin/quan-li   (label "Admin Quản Lý")
+///   - member          → /admin           (sẽ redirect tiếp tới /dang-nhap)
+fn user_admin_dashboard_back(user: &User) -> (String, String) {
+    (
+        user.admin_dashboard_path().to_string(),
+        user.role_display().to_string(),
+    )
 }
 
 /// Fetch 20 nhóm mới nhất — for admin groups placeholder.

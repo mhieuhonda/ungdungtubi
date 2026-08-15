@@ -33,122 +33,122 @@
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen">
 
-    <!-- Top Bar — Executive style -->
+    <!-- Top Bar — Executive style (v0.9.18: mobile-first responsive) -->
     <header class="gold-gradient text-white shadow-xl sticky top-0 z-50">
-        <div class="flex items-center justify-between h-16 px-8">
-            <div class="flex items-center gap-4">
-                <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-xl backdrop-blur-sm">👑</div>
-                <div>
-                    <h1 class="text-lg font-bold tracking-wide">ADMIN QUẢN LÝ</h1>
-                    <p class="text-[11px] text-white/80">Bảng điều khiển — 100/150 quyền</p>
+        <div class="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center text-lg sm:text-xl backdrop-blur-sm shrink-0">👑</div>
+                <div class="min-w-0">
+                    <h1 class="text-sm sm:text-lg font-bold tracking-wide truncate">ADMIN QUẢN LÝ</h1>
+                    <p class="text-[10px] sm:text-[11px] text-white/80 truncate">Bảng điều khiển — 100/150 quyền</p>
                 </div>
             </div>
-            <div class="flex items-center gap-6">
+            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
                 {% if let Some(u) = user %}
-                <div class="flex items-center gap-2">
+                <div class="hidden sm:flex items-center gap-2">
                     <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold">{{ u.display_name.chars().next().unwrap_or('👑') }}</div>
-                    <div>
-                        <div class="text-sm font-semibold">{{ u.display_name }}</div>
+                    <div class="hidden lg:block">
+                        <div class="text-sm font-semibold truncate max-w-[120px]">{{ u.display_name }}</div>
                         <div class="text-[10px] text-white/70">{{ u.role_display() }}</div>
                     </div>
                 </div>
                 {% endif %}
-                <a href="/" class="text-white/80 hover:text-white text-sm transition">← Về trang chủ</a>
+                <a href="/" class="text-white/80 hover:text-white text-xs sm:text-sm transition whitespace-nowrap">← <span class="hidden sm:inline">Về trang chủ</span><span class="sm:hidden">Home</span></a>
             </div>
         </div>
     </header>
 
-    <!-- Navigation -->
-    <div class="bg-white border-b border-gray-200 shadow-sm">
-        <div class="max-w-7xl mx-auto px-8">
-            <nav class="flex gap-1">
-                <a href="/admin/cong-dong" class="px-5 py-3.5 text-sm font-semibold border-b-2 border-exec-800 text-exec-900">
+    <!-- Navigation (v0.9.18: scrollable tabs + fixed tabs to /admin/quan-li) -->
+    <div class="bg-white border-b border-gray-200 shadow-sm sticky top-14 sm:top-16 z-40">
+        <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+            <nav class="flex gap-1 overflow-x-auto scrollbar-thin -mb-px">
+                <a href="/admin/quan-li" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold border-b-2 border-exec-800 text-exec-900 whitespace-nowrap">
                     📊 Tổng quan
                 </a>
-                <a href="/admin/thanh-vien" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
-                    👥 Quản lý Thành viên
+                <a href="/admin/thanh-vien" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition whitespace-nowrap">
+                    👥 Thành viên
                 </a>
-                <a href="/admin/cong-dong" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
-                    🏛️ Nhóm &amp; Cộng đồng
+                <a href="/admin/cong-dong/nhom" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition whitespace-nowrap">
+                    🏛️ Nhóm
                 </a>
-                <a href="/admin/kinh-sach" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
+                <a href="/admin/kinh-sach" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition whitespace-nowrap">
                     📚 Kinh Sách
                 </a>
-                <a href="/admin/quy-tu-bi" class="px-5 py-3.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition">
-                    📈 Báo cáo quỹ
+                <a href="/admin/quy-tu-bi" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-exec-900 hover:border-exec-300 transition whitespace-nowrap">
+                    📈 Quỹ
                 </a>
             </nav>
         </div>
     </div>
 
-    <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-8 py-8">
+    <!-- Main Content (v0.9.18: mobile padding) -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         <!-- Stats Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="w-12 h-12 rounded-xl bg-exec-50 flex items-center justify-center text-2xl">👥</div>
-                    <span class="text-xs text-green-600 font-semibold bg-green-50 px-2 py-1 rounded-full">{{ stats.active_users }} active</span>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-exec-50 flex items-center justify-center text-xl sm:text-2xl">👥</div>
+                    <span class="text-[10px] sm:text-xs text-green-600 font-semibold bg-green-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.active_users }} active</span>
                 </div>
-                <div class="text-3xl font-bold text-gray-900">{{ stats.total_users }}</div>
-                <div class="text-sm text-gray-500 mt-1">Thành viên</div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_users }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Thành viên</div>
             </div>
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="w-12 h-12 rounded-xl bg-exec-50 flex items-center justify-center text-2xl">⚙️</div>
-                    <span class="text-xs text-purple-600 font-semibold bg-purple-50 px-2 py-1 rounded-full">50 max</span>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-exec-50 flex items-center justify-center text-xl sm:text-2xl">⚙️</div>
+                    <span class="text-[10px] sm:text-xs text-purple-600 font-semibold bg-purple-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">50 max</span>
                 </div>
-                <div class="text-3xl font-bold text-gray-900">{{ stats.admin_count }}</div>
-                <div class="text-sm text-gray-500 mt-1">Admin</div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.admin_count }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Admin</div>
             </div>
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl">🏛️</div>
-                    <span class="text-xs text-blue-600 font-semibold bg-blue-50 px-2 py-1 rounded-full">{{ stats.total_topics }} topics</span>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center text-xl sm:text-2xl">🏛️</div>
+                    <span class="text-[10px] sm:text-xs text-blue-600 font-semibold bg-blue-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.total_topics }} topics</span>
                 </div>
-                <div class="text-3xl font-bold text-gray-900">{{ stats.total_groups }}</div>
-                <div class="text-sm text-gray-500 mt-1">Nhóm cộng đồng</div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_groups }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Nhóm cộng đồng</div>
             </div>
-            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card">
-                <div class="flex items-center justify-between mb-3">
-                    <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-2xl">📚</div>
-                    <span class="text-xs text-amber-600 font-semibold bg-amber-50 px-2 py-1 rounded-full">{{ stats.pending_reviews }} chờ duyệt</span>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center text-xl sm:text-2xl">📚</div>
+                    <span class="text-[10px] sm:text-xs text-amber-600 font-semibold bg-amber-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.pending_reviews }} duyệt</span>
                 </div>
-                <div class="text-3xl font-bold text-gray-900">{{ stats.total_books }}</div>
-                <div class="text-sm text-gray-500 mt-1">Sách trong thư viện</div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_books }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Sách trong TV</div>
             </div>
         </div>
 
         <!-- Quick Actions -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <a href="/admin/thanh-vien" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
-                <div class="w-14 h-14 rounded-xl bg-exec-50 flex items-center justify-center text-3xl group-hover:bg-exec-100 transition">👥</div>
-                <div class="flex-1">
-                    <h3 class="text-lg font-bold text-gray-800 group-hover:text-exec-900 transition">Quản lý Thành viên</h3>
-                    <p class="text-sm text-gray-500">Xem, đổi role, kích hoạt/vô hiệu tài khoản</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <a href="/admin/thanh-vien" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-exec-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-exec-100 transition shrink-0">👥</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-exec-900 transition truncate">Thành viên</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">Xem, đổi role, kích hoạt/vô hiệu</p>
                 </div>
-                <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-exec-500 transition shrink-0">→</span>
             </a>
-            <a href="/admin/kinh-sach" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
-                <div class="w-14 h-14 rounded-xl bg-amber-50 flex items-center justify-center text-3xl group-hover:bg-amber-100 transition">📚</div>
-                <div class="flex-1">
-                    <h3 class="text-lg font-bold text-gray-800 group-hover:text-exec-900 transition">Kinh Sách</h3>
-                    <p class="text-sm text-gray-500">{{ stats.pending_reviews }} cảm ngộ đang chờ duyệt</p>
+            <a href="/admin/kinh-sach" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-amber-100 transition shrink-0">📚</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-exec-900 transition truncate">Kinh Sách</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">{{ stats.pending_reviews }} cảm ngộ chờ duyệt</p>
                 </div>
-                <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-exec-500 transition shrink-0">→</span>
             </a>
-            <a href="/admin/quy-tu-bi" class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-4">
-                <div class="w-14 h-14 rounded-xl bg-tubi-50 flex items-center justify-center text-3xl group-hover:bg-tubi-100 transition">🪷</div>
-                <div class="flex-1">
-                    <h3 class="text-lg font-bold text-gray-800 group-hover:text-exec-900 transition">Quỹ Từ Bi</h3>
-                    <p class="text-sm text-gray-500">Báo cáo đóng góp &amp; chi tiêu</p>
+            <a href="/admin/quy-tu-bi" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-tubi-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-tubi-100 transition shrink-0">🪷</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-exec-900 transition truncate">Quỹ Từ Bi</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">Báo cáo đóng góp &amp; chi tiêu</p>
                 </div>
-                <span class="text-2xl text-gray-300 group-hover:text-exec-500 transition">→</span>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-exec-500 transition shrink-0">→</span>
             </a>
         </div>
 
         <!-- Permission Overview & Mail -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
             <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                 <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <span class="text-xl">🔐</span> Quyền — 100/150
@@ -191,8 +191,8 @@
 
     <!-- Footer -->
     <footer class="bg-gray-100 border-t border-gray-200 mt-8">
-        <div class="max-w-7xl mx-auto px-8 py-4 text-center text-xs text-gray-500">
-            🪷 Ứng Dụng Từ Bi v0.9.17 · Admin Quản Lý · 100/150 quyền (UI/hệ thống) · Nguyện công đức vô lượng
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-gray-500">
+            🪷 Ứng Dụng Từ Bi v0.9.18 · Admin Quản Lý · 100/150 quyền (UI/hệ thống) · Nguyện công đức vô lượng
         </div>
     </footer>
 

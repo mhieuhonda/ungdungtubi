@@ -4,9 +4,9 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.17 — Giai đoạn 22
+## 📦 Phiên bản hiện tại: v0.9.18 — Giai đoạn 23
 
-**Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix**
+**Giai đoạn 23: Mobile UI Overhaul + Admin Nav Logic Fix + Logout/Profile State Bug Fix**
 
 ### 🎨 Dark Mode (chế độ sáng/tối)
 - **Toggle button trong header** — 🌙 (chuyển sang tối) / ☀️ (chuyển sang sáng)
@@ -648,7 +648,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.9.11** — Giai đoạn 15: Quỹ Từ Bi (đóng góp K + dashboard + 5 loại quỹ) + Fix Docker cache stale (CRITICAL deploy fix cho login)
 - **v0.9.14** — Giai đoạn 18 + 19: Navigation Overhaul (User Hub + Mega Menu + Mobile Drawer + Settings) + 150 Quyền chi tiết + Hệ thống Thành Tích + Tìm Kiếm toàn cục
 - **v0.9.16** — Giai đoạn 21: UI Redesign (header gọn, footer 6 cột, mega menu 4 cột) + Route Hub mở rộng (Health Check, 5 thư viện Kinh Sách, 5 BXH tabs, Admin quick links) + Code Quality (0 warnings, 0 clippy)
-- **v0.9.17** — Giai đoạn 22: Mobile-first Polish + Dark Mode (toggle button, anti-FOUC, cookie+DB persistence, CSS overrides) + Admin Nav Fix (4 route admin placeholder mới: nhóm/kinh-sách/bình-luận/quỹ-từ-bi) + Version sync 0.9.17 + Permission counts chính xác
+- **v0.9.18** — Giai đoạn 23: Mobile UI Overhaul (admin dashboards responsive) + Admin Nav Logic Fix (placeholder back button role-aware) + Logout/Profile state bug fix (mobile drawer shows correct auth state) + Quan-li tabs fix (Tổng quan & Nhóm tabs no longer 403)
 
 ---
 

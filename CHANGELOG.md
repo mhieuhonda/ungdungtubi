@@ -6,6 +6,56 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.18] — 2026-08-15 — Giai đoạn 23: Mobile UI Overhaul + Admin Nav Logic Fix + Logout/Profile State Bug Fix
+
+### Sửa lỗi (Critical Bug Fixes — user report)
+
+- **[BF-1] Mobile drawer hiện nút "Thoát" khi đã đăng xuất** — Bug nghiêm trọng: form logout trong mobile drawer (3 gạch) được render UNCONDITIONAL, không kiểm tra `user.is_some()`. Kết quả: khách chưa login vẫn thấy nút "Thoát" → bấm vào → submit form `/dang-xuat` → server không có session → redirect về `/dang-nhap` (loop). **Fix**: wrap toàn bộ logout form trong `{% if let Some(_u) = user %}...{% else %}...{% endif %}` — khi chưa login thì hiển thị nút "Đăng Nhập Bằng Google" thay vì nút "Thoát".
+- **[BF-2] Mobile drawer hiện "Hồ Sơ" link khi đã đăng xuất** — Link `/ca-nhan` được render cho mọi visitor. Click → redirect về `/dang-nhap` (loop). **Fix**: chỉ render "Hồ Sơ" khi `{% if let Some(_u) = user %}`.
+- **[BF-3] Admin placeholder back button → 403 Forbidden** — Bug user report: "ấn vào quản lí [module] trên trang admin kỹ thuật rồi muốn quay lại nó lại hiện là 'quay về admin [role khác]' ấn vào lại báo không có quyền". **Root cause**: `user_admin_dashboard_back()` hardcode back_path/back_label theo "module owner" (ví dụ `/admin/cong-dong/nhom` → luôn back về `/admin/cong-dong`). Khi admin_ky_thuat click back → bị redirect tới `/admin/cong-dong` → `admin_cong_dong_dashboard` check `is_admin_cong_dong()` = FALSE → 403. **Fix**: `user_admin_dashboard_back(user)` giờ trả về `(user.admin_dashboard_path(), user.role_display())` — luôn trỏ về dashboard của CHÍNH user đang login. Áp dụng cho cả 4 placeholder handler (groups/books/comments/fund).
+- **[BF-4] admin/quan-li tabs "Tổng quan" + "Nhóm & Cộng đồng" trỏ tới `/admin/cong-dong` → 403** — admin_quan_li click tab → bị redirect tới dashboard của admin_cong_dong → 403. **Fix**: tab "Tổng quan" giờ trỏ tới `/admin/quan-li` (dashboard của chính user), tab "Nhóm" trỏ tới `/admin/cong-dong/nhom` (placeholder, tất cả admin đều vào được). Tabs cũng được rút gọn label + thêm `overflow-x-auto` + `whitespace-nowrap` để scroll ngang trên mobile thay vì vỡ layout.
+- **[BF-5] users.html back button hardcode "Về trang Quản Trị"** — Không role-aware, gây nhầm lẫn. **Fix**: `<a href="{{ u.admin_dashboard_path() }}">← Về {{ u.role_display() }}</a>` — text + URL đều theo role thực tế của user.
+
+### Cải thiện (Mobile UI Overhaul — admin dashboards responsive)
+
+- **[MU-1] admin/quan-li/index.html** — Header `h-16 px-8` → `h-14 sm:h-16 px-3 sm:px-6 lg:px-8`. Title `text-lg` → `text-sm sm:text-lg`. User info ẩn trên mobile (`hidden sm:flex`). "Về trang chủ" rút gọn thành "Home" trên mobile. Tabs `overflow-x-auto` + `whitespace-nowrap` + `scrollbar-thin`. Stats cards `gap-6` → `gap-3 sm:gap-6`, padding `p-6` → `p-4 sm:p-6`. Quick actions cards responsive `flex items-center gap-3 sm:gap-4` + `truncate`.
+- **[MU-2] admin/cong-dong/index.html** — Header `px-6` → `px-3 sm:px-6`. Title `text-base` → `text-xs sm:text-base`. Role badge ẩn trên mobile (`hidden sm:inline-block`). Tabs `overflow-x-auto scrollbar-thin -mb-px` + `whitespace-nowrap` + `px-3 sm:px-4`. Stats cards responsive `gap-3 sm:gap-4`, icon `w-9 h-9 sm:w-10 sm:h-10`, số `text-xl sm:text-2xl`. Quick actions responsive.
+- **[MU-3] admin/cong-dong/cam-ngo.html** — Header `px-6` → `px-3 sm:px-6`. Back button "← Dashboard" rút gọn "← DS" trên mobile. Title `text-base` → `text-xs sm:text-base`. "Về trang chủ" → "Home" trên mobile. Main `px-6 py-6` → `px-3 sm:px-6 py-4 sm:py-6`. Review cards `p-5` → `p-4 sm:p-5`. Buttons `px-4` → `px-3 sm:px-4`, `text-sm` → `text-xs sm:text-sm`. Footer version sync v0.9.18.
+- **[MU-4] admin/users.html** — Section `px-4` → `px-3 sm:px-4`. H1 `text-2xl md:text-3xl` → `text-xl sm:text-2xl md:text-3xl`. Cards `p-4` → `p-3 sm:p-4`. Avatar `w-9 h-9` → `w-8 h-8 sm:w-9 sm:h-9`. Card text `text-base` → `text-sm sm:text-base`. Alerts/notification boxes responsive padding.
+- **[MU-5] admin/placeholder.html** — Đã có mobile-first từ v0.9.17, chỉ cập nhật version string → v0.9.18.
+
+### Đồng bộ version (Cleanup & Version Sync)
+
+- **[CL-1] Version strings đồng bộ 0.9.18 ở mọi nơi**:
+  - `Cargo.toml` — `version = "0.9.18"`
+  - `src/main.rs` — 3 nơi (log line 45, log line 52, health_check JSON line 345)
+  - `src/handlers/mod.rs` — placeholder footer line 579
+  - `templates/layout.html` — footer line 414
+  - `templates/admin/ky-thuat/index.html` — title + chip + stat card + footer (4 nơi)
+  - `templates/admin/cong-dong/index.html` — footer
+  - `templates/admin/quan-li/index.html` — footer
+  - `templates/admin/cong-dong/cam-ngo.html` — footer
+  - `templates/admin/placeholder.html` — title + banner + footer (3 nơi)
+  - `templates/khong-gian/index.html` — footer line 259
+  - `templates/admin/users.html` — version note line 159
+  - `README.md` — version header + history line
+  - `CHANGELOG.md` — new entry (this one)
+- **[CL-2] Health check API** bổ sung 6 features mới trong mảng `features`: `mobile-ui-overhaul-v0.9.18`, `admin-placeholder-back-role-aware-v0.9.18`, `admin-quan-li-tabs-fix-v0.9.18`, `mobile-drawer-auth-state-fix-v0.9.18`, `admin-dashboards-responsive-v0.9.18`, `users-page-back-role-aware-v0.9.18`.
+- **[CL-3] Historical comments `v0.9.17`** trong code (như `// v0.9.17: fix admin nav bug`) được GIỮ NGUYÊN — đây là documentation ghi lại khi nào feature được thêm, không phải version string cần bump.
+- **[CL-4] Rust 1.97.1** — `rust-version = "1.97"` trong Cargo.toml, Dockerfile dùng `rust:1.97.1-slim-bookworm`.
+
+### Mục tiêu đạt được
+
+- ✅ Fix bug mobile drawer hiện nút Thoát + Hồ Sơ khi đã đăng xuất (user report)
+- ✅ Fix bug admin placeholder back button → 403 Forbidden (user report)
+- ✅ Fix bug admin/quan-li tabs trỏ sai dashboard → 403 Forbidden
+- ✅ Fix bug users.html back button hardcode text
+- ✅ Mobile UI overhaul cho 4 admin templates (quan-li, cong-dong, cam-ngo, users)
+- ✅ Version sync 0.9.18 ở mọi nơi
+- ✅ Health check API báo đúng 6 features mới của v0.9.18
+
+---
+
 ## [0.9.17] — 2026-08-15 — Giai đoạn 22: Mobile-first Polish + Dark Mode + Admin Nav Fix
 
 ### Thay đổi (Dark Mode — chế độ sáng/tối)
