@@ -34,4 +34,4 @@
 #   schema safety column names, rate limit cleanup, search cover columns,
 #   admin_ky_thuat users_change_role, BuddhaVow char count, notifications TOCTOU.
 # Sẽ update SHA tag tự động sau khi push commit này.
-FROM ghcr.io/mhieuhonda/tubi-app:sha-8d4d83e
+FROM ghcr.io/mhieuhonda/tubi-app:sha-a3bca45
