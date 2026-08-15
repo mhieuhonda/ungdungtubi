@@ -6,6 +6,36 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.27] — 2026-08-15 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness + Security
+
+### Sửa lỗi (CRITICAL — FOUC / Flash of Unstyled Content)
+
+- **[FOUC-1] Chat Chung popup flash visible trước khi Alpine.js init** — Nguyên nhân: `[x-cloak]` CSS specificity thấp hơn `.chat-chung-popup` (display:flex) → trên mobile, chat popup flash visible trước khi Alpine xử lý `x-show`. Fix: thêm `style="display:none"` trực tiếp vào HTML element + class-specific x-cloak selectors `[x-cloak].chat-chung-popup` (specificity 0,2,0 thắng 0,1,0). Alpine `x-show` override khi init xong. Nếu Alpine fail → popup vẫn ẩn.
+
+- **[FOUC-2] Mobile hamburger menu (3 gạch) flash visible trước khi Alpine init** — Cùng nguyên nhân FOUC-1. Fix: thêm `style="display:none"` + class `mobile-menu-drawer` + class-specific x-cloak selector.
+
+### Sửa lỗi (HIGH — Chat popup tự mở + không đóng được)
+
+- **[CHAT-1] Chat popup tự mở khi Alpine component re-init** — `isOpen` có thể bị `undefined` → `!undefined === true` → popup tự mở. Fix: thêm guard `typeof isOpen !== 'boolean'` → reset false; thêm `this.isOpen = false` đầu tiên trong `init()`.
+
+- **[CHAT-2] Nút đóng chat (×) quá nhỏ trên mobile** — w-8 h-8 (32px) dễ miss tap. Fix: tăng lên w-10 h-10 (40px) + border + active feedback.
+
+- **[CHAT-3] Chat popup vẫn che nhiều trên điện thoại nhỏ** — 50dvh + min 280px che >50% màn hình 568px. Fix: giảm từ 50dvh → 45dvh, min 280 → 240, max 55dvh → 50dvh.
+
+### Sửa lỗi (HIGH — Chat history bị mất)
+
+- **[CHAT-4] loadHistory() fail silently → "mất lịch sử"** — Nếu API fail, messages = [] → user tưởng mất data. Fix: retry tối đa 2 lần với exponential backoff, log error bằng console.warn, validate response là Array.
+
+### Sửa lỗi (MEDIUM — ILIKE wildcard injection)
+
+- **[SEARCH-1] User search "%" match tất cả rows** — `format!("%{q}%")` không escape `%` và `_`. Fix: escape `\` → `\\`, `%` → `\%`, `_` → `\_` + thêm `ESCAPE '\\'` clause trong SQL. Áp dụng cho `tim_kiem.rs`, `kinh_sach.rs`, `friends.rs`.
+
+### Sửa lỗi (LOW — Missing x-cloak)
+
+- **[FOUC-3] Missing x-cloak trên DM chat + global chat** — 6 element thiếu `x-cloak` → flash visible. Fix: thêm `x-cloak` + `style="display:none"`.
+
+---
+
 ## [0.9.26] — 2026-08-15 — Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix
 
 ### Sửa lỗi (CRITICAL — Deploy pipeline)

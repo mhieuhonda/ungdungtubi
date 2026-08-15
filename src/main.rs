@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.26 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.27 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.26 — Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix");
+    log::info!("📦 Phiên bản: v0.9.27 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -504,12 +504,22 @@ const HEALTH_FEATURES: &[&str] = &[
     "deploy-pipeline-single-commit-fix-v0.9.26",
     "dockerfile-coolify-auto-update-sha-v0.9.26",
     "duplicate-env-vars-cleanup-v0.9.26",
+    // v0.9.27 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness
+    "fouc-fix-style-display-none-fallback-v0.9.27",
+    "fouc-fix-x-cloak-class-specificity-v0.9.27",
+    "chat-popup-never-auto-open-v0.9.27",
+    "chat-popup-mobile-height-45dvh-v0.9.27",
+    "chat-popup-close-button-bigger-v0.9.27",
+    "chat-popup-togglechat-boolean-guard-v0.9.27",
+    "chat-history-retry-with-backoff-v0.9.27",
+    "mobile-menu-drawer-fouc-fix-v0.9.27",
+    "mobile-menu-never-auto-open-v0.9.27",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
 /// v0.9.24: Coolify/Docker health check cần endpoint trả 200 cho unauthenticated.
 /// Trước đây v0.9.23 yêu cầu admin auth → Coolify health check fail → container bị mark unhealthy.
-/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.25"}` (không lộ data nhạy cảm).
+/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.27"}` (không lộ data nhạy cảm).
 /// Admin/mod auth nhận full response (DB version, features, role hierarchy, user counts).
 async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> Response {
     use crate::handlers::get_user_from_session;
@@ -522,7 +532,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.26",
+            "version": "0.9.27",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -552,11 +562,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.26",
+        "version": "0.9.27",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 31,
-        "phase_name": "Giai đoạn 31 — UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix",
+        "phase": 32,
+        "phase_name": "Giai đoạn 32 — Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

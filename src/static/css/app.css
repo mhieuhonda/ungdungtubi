@@ -229,8 +229,9 @@
     background: rgba(0, 0, 0, 0.6);
 }
 
-/* v0.9.26: Fix overflow trên mobile — dùng safe-area-inset + box-sizing.
-   Giảm height từ 55dvh → 50dvh để không che hết màn hình. */
+/* v0.9.27: Fix overflow trên mobile — dùng safe-area-inset + box-sizing.
+   Giảm height thêm: 50dvh → 45dvh, min 280 → 240, max 55dvh → 50dvh.
+   Chỉ chiếm ~45% viewport trên mobile → không che hết màn hình. */
 @media (max-width: 768px) {
     .chat-chung-popup {
         bottom: 72px;
@@ -238,9 +239,9 @@
         left: 0;
         width: 100%;
         max-width: 100vw;
-        height: 50dvh;
-        max-height: 55dvh;
-        min-height: 280px;
+        height: 45dvh;
+        max-height: 50dvh;
+        min-height: 240px;
         border-radius: 16px 16px 0 0;
         margin-left: 0;
         margin-right: 0;

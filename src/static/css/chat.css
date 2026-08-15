@@ -83,14 +83,14 @@
     min-height: 360px;
 }
 
-/* v0.9.26: Giảm mobile height từ 60dvh → 50dvh để không che hết màn hình.
-   Trước đây: 60dvh + min 340px → che gần hết màn hình điện thoại.
-   Giờ: 50dvh + min 280px → còn không gian trên để tương tác với page. */
+/* v0.9.27: Giảm mobile height thêm từ 50dvh → 45dvh + giảm min-height.
+   v0.9.26 giảm từ 60dvh → 50dvh nhưng vẫn che nhiều trên điện thoại nhỏ.
+   v0.9.27: 45dvh + min 240px → chỉ chiếm ~45% viewport, còn 55% để tương tác. */
 @media (max-width: 768px) {
     .chat-chung-popup {
-        height: 50dvh;
-        max-height: 55dvh;
-        min-height: 280px;
+        height: 45dvh;
+        max-height: 50dvh;
+        min-height: 240px;
     }
 }
 

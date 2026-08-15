@@ -253,7 +253,11 @@ function globalChat() {
         authorLabel,
 
         // --- Lifecycle ---
+        // v0.9.27: Đảm bảo isOpen KHÔNG BAO GIỜ được set true trong init().
+        // Chat popup chỉ mở khi user click bubble — không tự mở.
         init() {
+            // v0.9.27: Double-safe — đảm bảo isOpen = false ngay từ đầu
+            this.isOpen = false;
             this.initialized = true;
             this._messagesEl = this.$refs.globalMessages;
             this._lastReceivedAt = Date.now();
@@ -261,17 +265,38 @@ function globalChat() {
             this.connect();
         },
 
+        // v0.9.27: loadHistory với retry + better error handling.
+        // Trước v0.9.27: nếu API fail → messages = [] → user thấy "Chưa có tin nhắn"
+        // dù DB có data → tưởng "mất lịch sử". Giờ: retry 2 lần, log error rõ ràng.
         async loadHistory() {
-            try {
-                const resp = await fetch('/api/chat-chung/history?limit=50', {
-                    credentials: 'same-origin',
-                });
-                if (resp.ok) {
-                    const msgs = await resp.json();
-                    this.messages = msgs.reverse();
-                    this.$nextTick(() => this.scrollToBottom());
+            const maxRetries = 2;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    const resp = await fetch('/api/chat-chung/history?limit=50', {
+                        credentials: 'same-origin',
+                    });
+                    if (resp.ok) {
+                        const msgs = await resp.json();
+                        if (Array.isArray(msgs)) {
+                            this.messages = msgs.reverse();
+                            this.$nextTick(() => this.scrollToBottom());
+                            return; // success
+                        }
+                    }
+                    // v0.9.27: Log non-OK response để debug
+                    if (attempt < maxRetries) {
+                        console.warn(`[Chat Chung] loadHistory attempt ${attempt + 1} failed: HTTP ${resp.status}`);
+                        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                    }
+                } catch (err) {
+                    if (attempt < maxRetries) {
+                        console.warn(`[Chat Chung] loadHistory attempt ${attempt + 1} error:`, err);
+                        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                    }
                 }
-            } catch (_) {}
+            }
+            // All retries failed — messages stays [] → UI shows "Chưa có tin nhắn"
+            // This is acceptable (network issue) — không crash, không tự mở popup.
         },
 
         handleIncoming(raw) {
@@ -333,7 +358,14 @@ function globalChat() {
             }
         },
 
+        // v0.9.27: toggleChat với guard — đảm bảo isOpen luôn là boolean.
+        // Trước v0.9.27: nếu Alpine component re-init (vd. HTMX partial replace),
+        // isOpen có thể bị undefined → toggle thành true (undefined !== true) → popup mở.
         toggleChat() {
+            // Guard: nếu isOpen không phải boolean, reset về false
+            if (typeof this.isOpen !== 'boolean') {
+                this.isOpen = false;
+            }
             this.isOpen = !this.isOpen;
             if (this.isOpen) {
                 this.unreadCount = 0;

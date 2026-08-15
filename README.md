@@ -4,30 +4,52 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.26 — Giai đoạn 31
+## 📦 Phiên bản hiện tại: v0.9.27 — Giai đoạn 32
 
-**Giai đoạn 31: UI Fix (Live Chat + Hamburger Menu) + Deploy Pipeline Fix**
+**Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness + Security**
 
-### 🚨 Fix Deploy Pipeline (CRITICAL — "deploy thành công nhưng production không đổi")
-- **[DEPLOY-1] Workflow GitHub Actions không tự update Dockerfile.coolify** — Trước v0.9.26, deploy pipeline dùng 2-commit pattern:
-  1. Code commit X → workflow build image `sha-X` → trigger Coolify deploy
-  2. Coolify clones repo → đọc Dockerfile.coolify từ commit X (vẫn ghi `FROM sha-PREVIOUS`) → pull `sha-PREVIOUS` → deploy OLD code
-  3. Developer phải push commit X+1 manual để update Dockerfile.coolify → `FROM sha-X`
-  4. Coolify deploy lại → lần này mới chạy code mới
-  - **Tác động**: User báo "deploy thành công nhưng tôi vào vẫn y như thế" — vì production vẫn chạy code cũ, chỉ khi nào developer nhớ push commit thứ 2 thì code mới thực sự lên.
-  - **Fix v0.9.26**: Workflow GitHub Actions tự update Dockerfile.coolify với SHA tag mới NGAY SAU khi build image xong, trước khi trigger Coolify deploy. Commit message chứa `[skip ci]` để tránh workflow loop. Developer chỉ cần push 1 commit code, workflow tự lo phần còn lại.
-  - **File**: `.github/workflows/docker.yml` — thêm job `update-coolify-dockerfile` chạy sau `build-and-push`, trước `trigger-coolify`.
+### 🚨 Fix CRITICAL — FOUC (Flash of Unstyled Content) trên mobile
+- **[FOUC-1] Chat Chung popup flash visible trước khi Alpine.js init** — Khi vừa vào web, chat popup bị hiện rồi mới ẩn (FOUC), tạo cảm giác "chat tự mở che hết màn hình". Nguyên nhân: `x-cloak` CSS selector `[x-cloak]` có specificity thấp hơn `.chat-chung-popup` (display:flex) → trên một số trình duyệt mobile, chat popup flash visible trong khoảnh khắc trước khi Alpine xử lý `x-show`.
+  - **Fix v0.9.27**:
+    - Thêm `style="display:none"` trực tiếp vào chat popup, backdrop, chat bubble, và mobile menu drawer — fallback HTML-level không phụ thuộc Alpine
+    - Thêm class-specific x-cloak selectors: `[x-cloak].chat-chung-popup`, `[x-cloak].mobile-menu-drawer` — specificity (0,2,0) thắng (0,1,0)
+    - Alpine `x-show` sẽ override `display:none` khi khởi tạo xong
+  - **File**: `templates/layout.html`
 
-### 🐛 Fix UI — Live Chat che hết màn hình (HIGH)
-- **[UI-1] Chat Chung popup che 60% màn hình mobile, không có backdrop, không thể thao tác** — Trước v0.9.26, `.chat-chung-popup` trên mobile có `width: 100%, height: 60dvh, bottom: 72px`, không có backdrop overlay. Khi user mở chat, popup che gần hết màn hình, không có cách nào rõ ràng để đóng (nút × quá nhỏ, không tap outside được).
-  - **Fix v0.9.26**:
-    - Giảm popup height trên mobile từ `60dvh` → `50dvh` (còn không gian trên để tương tác với page)
-    - Giảm min-height từ `340px` → `280px` (fit điện thoại nhỏ)
-    - Thêm backdrop overlay semi-transparent (`.chat-chung-backdrop`) — tap outside để đóng popup
-    - Lock body scroll khi popup mở (class `body.chat-popup-open`) — tránh scroll page bên dưới
-    - ESC key đóng popup (`@keydown.escape.window`)
-    - Nút × to hơn (text-lg → text-2xl, padding + hover bg) — dễ bấm hơn
-  - **File**: `templates/layout.html` (backdrop + ESC handler), `src/static/css/app.css` (backdrop style + body scroll lock), `src/static/css/chat.css` (giảm mobile height), `src/static/js/chat.js` (body scroll lock toggle).
+- **[FOUC-2] Mobile hamburger menu (3 gạch) flash visible trước khi Alpine init** — Cùng nguyên nhân FOUC-1, mobile menu drawer bị flash visible rồi mới ẩn.
+  - **Fix v0.9.27**: Thêm `style="display:none"` + class `mobile-menu-drawer` + x-cloak class-specific selector
+  - **File**: `templates/layout.html`
+
+### 🐛 Fix HIGH — Chat popup tự mở + không đóng được
+- **[CHAT-1] Chat popup có thể tự mở nếu Alpine component re-init** — Khi HTMX partial replace hoặc Alpine component bị re-initialize, `isOpen` có thể bị `undefined` → `!undefined === true` → popup tự mở.
+  - **Fix v0.9.27**:
+    - Thêm guard trong `toggleChat()`: nếu `typeof isOpen !== 'boolean'` → reset về `false`
+    - Thêm `this.isOpen = false` đầu tiên trong `init()` — double-safe
+    - Chat popup **KHÔNG BAO GIỜ** tự mở — chỉ mở khi user click bubble
+  - **File**: `src/static/js/chat.js`
+
+- **[CHAT-2] Nút đóng chat (×) quá nhỏ trên mobile** — w-8 h-8 (32px) dễ bị miss tap.
+  - **Fix v0.9.27**: Tăng lên w-10 h-10 (40px), thêm border + active:bg-white/30 cho feedback
+  - **File**: `templates/layout.html`
+
+- **[CHAT-3] Chat popup vẫn che nhiều trên điện thoại nhỏ** — 50dvh + min 280px vẫn che >50% trên màn hình 568px.
+  - **Fix v0.9.27**: Giảm từ 50dvh → 45dvh, min 280px → 240px — chỉ chiếm ~45% viewport
+  - **File**: `src/static/css/app.css`, `src/static/css/chat.css`
+
+### 🐛 Fix HIGH — Chat history bị mất (retry + robustness)
+- **[CHAT-4] loadHistory() fail silently → user thấy "Chưa có tin nhắn" dù DB có data** — Nếu API `/api/chat-chung/history` fail (network glitch, DB timeout), `loadHistory()` catch error rồi im lặng → messages = [] → user tưởng "mất lịch sử".
+  - **Fix v0.9.27**: Thêm retry (tối đa 2 lần) với exponential backoff, log error rõ ràng bằng `console.warn`, validate response là Array trước khi assign
+  - **File**: `src/static/js/chat.js`
+
+### 🔒 Fix MEDIUM — ILIKE wildcard injection trong search
+- **[SEARCH-1] User search "%" → match tất cả rows** — `format!("%{q}%")` không escape `%` và `_` → unintended broad matches.
+  - **Fix v0.9.27**: Escape `\` → `\\`, `%` → `\%`, `_` → `\_` trước khi wrap; thêm `ESCAPE '\\'` clause trong SQL
+  - **File**: `src/handlers/tim_kiem.rs`, `src/handlers/kinh_sach.rs`, `src/handlers/friends.rs`
+
+### 🎨 Fix LOW — Missing x-cloak trên các element Alpine.js
+- **[FOUC-3] Missing x-cloak trên DM chat connection status + empty message** — 6 element trong `conversation.html` và `layout.html` thiếu `x-cloak` → flash visible
+  - **Fix v0.9.27**: Thêm `x-cloak` + `style="display:none"` cho tất cả element `x-show` cần ẩn ban đầu
+  - **File**: `templates/ban-be/conversation.html`, `templates/layout.html`
 
 ### 🐛 Fix UI — Hamburger Menu stuck open (HIGH)
 - **[UI-2] Mobile menu (3 gạch) bị bật vĩnh viễn, không tự đóng** — Trước v0.9.26, `<div x-show="mobileMenu">` không có `@click.outside` directive. Khi user tap nút 3 gạch, `mobileMenu = true` → menu mở. Nhưng menu chỉ đóng khi:

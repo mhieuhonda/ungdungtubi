@@ -55,9 +55,10 @@
       <div class="flex-1 min-w-0">
         <h1 class="text-lg font-bold text-gray-900 truncate">{{ other_display_name }}</h1>
         <div class="text-xs text-gray-400 flex items-center gap-2">
-          <span x-show="connected" class="text-green-600">● đang online</span>
+          <!-- v0.9.27: thêm x-cloak + style="display:none" chống FOUC -->
+          <span x-show="connected" x-cloak style="display:none" class="text-green-600">● đang online</span>
           <span x-show="!connected && !error" class="text-gray-400">đang kết nối…</span>
-          <span x-show="error" class="text-red-500" x-text="error"></span>
+          <span x-show="error" x-cloak style="display:none" class="text-red-500" x-text="error"></span>
         </div>
       </div>
       <a href="/ban-be/thu/gui?to={{ other_user_id }}" class="text-gray-500 hover:text-tubi-700 text-sm px-3 py-2 rounded-lg hover:bg-gray-50" title="Gửi thư">✉️</a>
@@ -90,7 +91,8 @@
         </div>
       </template>
 
-      <div x-show="messages.length === 0" class="text-center text-gray-400 text-sm py-12">
+      <!-- v0.9.27: thêm x-cloak chống FOUC -->
+      <div x-show="messages.length === 0" x-cloak style="display:none" class="text-center text-gray-400 text-sm py-12">
         <span class="text-4xl block mb-2">🪷</span>
         <p>Chưa có tin nhắn nào. Hãy mở lời đầu tiên!</p>
       </div>

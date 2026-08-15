@@ -68,8 +68,19 @@
     <link rel="stylesheet" href="/static/css/app.css">
     <link rel="stylesheet" href="/static/css/chat.css">
 
-    <!-- Alpine.js x-cloak -->
-    <style>[x-cloak] { display: none !important; }</style>
+    <!-- v0.9.27: Alpine.js x-cloak — thêm các selector cụ thể để chống FOUC
+         trên mobile (chat popup + hamburger menu bị flash visible trước khi Alpine init).
+         x-cloak generic + class-specific đảm bảo display:none thắng display:flex từ CSS. -->
+    <style>
+        [x-cloak] { display: none !important; }
+        /* v0.9.27: Force-hide chat popup + mobile menu + chat backdrop + chat bubble
+             BEFORE Alpine processes them. Alpine x-show will override when ready.
+             Class specificity (0,2,0) > .chat-chung-popup (0,1,0) → luôn thắng. */
+        [x-cloak].chat-chung-popup,
+        [x-cloak].chat-chung-backdrop,
+        [x-cloak].chat-bubble,
+        [x-cloak].mobile-menu-drawer { display: none !important; }
+    </style>
 
     {% block head %}{% endblock %}
 </head>
@@ -254,15 +265,19 @@
         <!-- Mobile Menu (3 gạch) — v0.9.17: GIỮ NGUYÊN 7 MỤC + thêm dark mode.
              v0.9.26 FIX: Thêm @click.outside + @keydown.escape.window để đóng menu
              khi click ra ngoài hoặc nhấn ESC (trước đây menu bị stuck open vĩnh viễn).
+             v0.9.27 FIX: Thêm style="display:none" fallback + mobile-menu-drawer class
+             chống FOUC — menu không flash visible trước khi Alpine init.
              Các mục khác truy cập qua:
                - Nút giữa 🪷 bottom nav → /tong-quan (hub đầy đủ)
                - /ban-be và /ca-nhan cho Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn
                - /kinh-sach và /cong-dong cho Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm
                - Theme toggle (🌙/☀️) có ở header desktop + nút riêng trên mobile drawer -->
-        <div x-show="mobileMenu" x-cloak x-transition
+        <div x-show="mobileMenu" x-cloak
+             style="display:none"
+             x-transition
              @click.outside="mobileMenu = false"
              @keydown.escape.window="mobileMenu = false"
-             class="md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
+             class="mobile-menu-drawer md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <div class="px-3 py-2 space-y-0.5">
                 <!-- v0.9.26: Mobile menu links tự đóng menu khi click (trước đây click link
                      vẫn giữ nguyên trang nhưng menu không tự đóng nếu click để scroll) -->
@@ -433,7 +448,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.26 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.27 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -449,8 +464,10 @@
     <div x-data="globalChat()" x-init="init()"
          @toggle-global-chat.window="toggleChat()"
          @keydown.escape.window="if (isOpen) toggleChat()">
-      <!-- v0.9.26: Backdrop overlay (mobile only) — tap outside để đóng chat popup -->
+      <!-- v0.9.27: Backdrop overlay (mobile only) — tap outside để đóng chat popup.
+           style="display:none" fallback chống FOUC khi Alpine chưa load. -->
       <div x-show="isOpen" x-cloak
+           style="display:none"
            x-transition:enter="transition ease-out duration-200"
            x-transition:enter-start="opacity-0"
            x-transition:enter-end="opacity-100"
@@ -459,9 +476,11 @@
            x-transition:leave-end="opacity-0"
            @click="toggleChat()"
            class="chat-chung-backdrop md:hidden"></div>
+      <!-- v0.9.27: chat bubble — style="display:none" fallback chống FOUC -->
       <div x-data="chatBubble()" x-init="init()"
            x-show="!isOpen"
            x-cloak
+           style="display:none"
            class="chat-bubble"
            :style="bubbleStyle"
            @mousedown="onMouseDown($event)"
@@ -476,7 +495,11 @@
         <span x-show="unreadCount > 0" x-cloak class="chat-bubble-badge" x-text="unreadCount"></span>
       </div>
 
+      <!-- v0.9.27: Chat popup — style="display:none" fallback chống FOUC.
+           Alpine x-show="isOpen" sẽ override display khi init xong.
+           Nếu Alpine fail (JS error, CDN down) → popup vẫn ẩn → không che màn hình. -->
       <div x-show="isOpen" x-cloak
+           style="display:none"
            x-transition:enter="transition ease-out duration-200"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
@@ -487,9 +510,11 @@
         <div class="chat-chung-header">
           <span class="font-semibold text-sm">💬 Chat Chung</span>
           <div class="flex items-center gap-2">
-            <span x-show="connected" class="text-xs opacity-80 conn-indicator">● online</span>
+            <!-- v0.9.27: thêm x-cloak + style="display:none" chống FOUC -->
+            <span x-show="connected" x-cloak style="display:none" class="text-xs opacity-80 conn-indicator">● online</span>
             <span x-show="!connected && !error" class="text-xs opacity-60" x-cloak></span>
-            <button @click="toggleChat()" class="text-white/80 hover:text-white text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition" aria-label="Đóng chat">&times;</button>
+            <!-- v0.9.27: Close button lớn hơn (w-10 h-10) cho mobile, thêm border-visible -->
+            <button @click="toggleChat()" class="text-white/90 hover:text-white text-2xl leading-none w-10 h-10 flex items-center justify-center rounded-xl hover:bg-white/20 border border-white/30 active:bg-white/30 transition-all" aria-label="Đóng chat">&times;</button>
           </div>
         </div>
         <div class="chat-chung-messages" x-ref="globalMessages">
@@ -519,7 +544,8 @@
               </div>
             </div>
           </template>
-          <div x-show="messages.length === 0" class="text-center text-gray-400 text-sm py-8">
+          <!-- v0.9.27: thêm x-cloak chống FOUC -->
+          <div x-show="messages.length === 0" x-cloak style="display:none" class="text-center text-gray-400 text-sm py-8">
             <span class="text-3xl block mb-2">🪷</span>
             <p>Chưa có tin nhắn. Hãy mở lời đầu tiên!</p>
           </div>

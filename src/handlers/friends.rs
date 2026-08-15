@@ -1408,7 +1408,9 @@ pub async fn search_users(
     let results: Vec<UserSearchResult> = if query.is_empty() {
         Vec::new()
     } else {
-        let pattern = format!("%{query}%");
+        // v0.9.27: Escape ILIKE wildcards
+        let escaped = query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
         sqlx::query_as::<_, UserSearchResult>(
             "SELECT u.id, u.display_name, u.avatar_url, u.rank,
                     EXISTS(SELECT 1 FROM friendships f
@@ -1423,8 +1425,8 @@ pub async fn search_users(
                            AND f.status = 'pending') AS pending_received
              FROM users u
              WHERE u.id <> $2 AND u.is_active = true
-               AND (u.display_name ILIKE $1 OR u.email ILIKE $1
-                    OR u.phap_danh ILIKE $1 OR u.phap_hieu ILIKE $1 OR u.but_danh ILIKE $1)
+               AND (u.display_name ILIKE $1 ESCAPE '\\' OR u.email ILIKE $1 ESCAPE '\\'
+                    OR u.phap_danh ILIKE $1 ESCAPE '\\' OR u.phap_hieu ILIKE $1 ESCAPE '\\' OR u.but_danh ILIKE $1 ESCAPE '\\')
              ORDER BY u.display_name ASC
              LIMIT 30",
         )

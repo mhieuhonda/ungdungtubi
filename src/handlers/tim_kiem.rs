@@ -145,17 +145,21 @@ pub async fn tim_kiem_index(
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 /// Tìm kiếm đồng thời users + books + topics + groups.
+/// v0.9.27: Escape ILIKE wildcards (% _) trong search query để tránh
+/// unintended broad matches (vd. user search "%" → match all rows).
 async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
-    let pattern = format!("%{q}%");
+    // v0.9.27: Escape % và _ trong user input trước khi wrap với %...%
+    let escaped = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+    let pattern = format!("%{escaped}%");
 
     // Search users (tối đa 10)
     let users = sqlx::query_as::<_, UserResult>(
         "SELECT id, display_name, avatar_url, rank, role, phap_danh
          FROM users
          WHERE is_active = true
-           AND (display_name ILIKE $1 OR phap_danh ILIKE $1 OR email ILIKE $1)
+           AND (display_name ILIKE $1 ESCAPE '\\' OR phap_danh ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\')
          ORDER BY
-            CASE WHEN display_name ILIKE $1 THEN 0 ELSE 1 END,
+            CASE WHEN display_name ILIKE $1 ESCAPE '\\' THEN 0 ELSE 1 END,
             display_name
          LIMIT 10",
     )
@@ -173,7 +177,7 @@ async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
         "SELECT id, slug, title, author, cover_url, view_count
          FROM books
          WHERE is_active = true
-           AND (title ILIKE $1 OR author ILIKE $1 OR description ILIKE $1)
+           AND (title ILIKE $1 ESCAPE '\\' OR author ILIKE $1 ESCAPE '\\' OR description ILIKE $1 ESCAPE '\\')
          ORDER BY view_count DESC
          LIMIT 10",
     )
@@ -194,7 +198,7 @@ async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
          JOIN groups g ON g.id = t.group_id
          LEFT JOIN users u ON u.id = t.author_id
          WHERE t.is_active = true
-           AND (t.title ILIKE $1 OR t.body ILIKE $1)
+           AND (t.title ILIKE $1 ESCAPE '\\' OR t.body ILIKE $1 ESCAPE '\\')
          ORDER BY t.view_count DESC
          LIMIT 10",
     )
@@ -217,7 +221,7 @@ async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
          FROM groups g
          LEFT JOIN group_members gm ON gm.group_id = g.id
          WHERE g.is_active = true
-           AND (g.name ILIKE $1 OR g.description ILIKE $1)
+           AND (g.name ILIKE $1 ESCAPE '\\' OR g.description ILIKE $1 ESCAPE '\\')
          GROUP BY g.id, g.slug, g.name, g.description, g.cover_upload_id
          ORDER BY member_count DESC
          LIMIT 10",

@@ -186,15 +186,17 @@ pub async fn kinh_sach_search(
         Vec::new()
     } else {
         // Dùng ILIKE + pg_trgm similarity cho tìm kiếm fuzzy
-        let pattern = format!("%{q}%");
+        // v0.9.27: Escape ILIKE wildcards
+        let escaped = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+        let pattern = format!("%{escaped}%");
         sqlx::query_as::<_, BookWithCategory>(&format!(
             "SELECT {BOOK_LIST_COLUMNS}
              FROM books b
              LEFT JOIN book_categories bc ON bc.id = b.category_id
              WHERE b.is_active = true AND b.status = 'published'
-               AND (b.title ILIKE $1 OR b.author ILIKE $1 OR b.description ILIKE $1)
+               AND (b.title ILIKE $1 ESCAPE '\\' OR b.author ILIKE $1 ESCAPE '\\' OR b.description ILIKE $1 ESCAPE '\\')
              ORDER BY
-               CASE WHEN b.title ILIKE $1 THEN 0 ELSE 1 END,
+               CASE WHEN b.title ILIKE $1 ESCAPE '\\' THEN 0 ELSE 1 END,
                b.view_count DESC
              LIMIT 50"
         ))
