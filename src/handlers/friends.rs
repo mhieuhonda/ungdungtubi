@@ -546,11 +546,12 @@ pub async fn dm_view(
     };
 
     // Lấy 50 tin nhắn gần nhất
+    // v0.9.19: thêm u.role AS author_role để render hiệu ứng đặc biệt cho admin/mod.
     let messages = sqlx::query_as::<_, DirectMessageWithAuthor>(
         "SELECT m.id, m.conversation_id, m.author_id, m.body, m.is_active, m.created_at,
                 u.display_name AS author_display_name,
                 u.avatar_url AS author_avatar_url,
-                u.rank AS author_rank
+                u.rank AS author_rank, u.role AS author_role
          FROM direct_messages m
          JOIN users u ON u.id = m.author_id
          WHERE m.conversation_id = $1 AND m.is_active = true
@@ -660,7 +661,7 @@ pub async fn dm_history(
             "SELECT m.id, m.conversation_id, m.author_id, m.body, m.is_active, m.created_at,
                     u.display_name AS author_display_name,
                     u.avatar_url AS author_avatar_url,
-                    u.rank AS author_rank
+                    u.rank AS author_rank, u.role AS author_role
              FROM direct_messages m
              JOIN users u ON u.id = m.author_id
              WHERE m.conversation_id = $1 AND m.is_active = true AND m.created_at < $2
@@ -677,7 +678,7 @@ pub async fn dm_history(
             "SELECT m.id, m.conversation_id, m.author_id, m.body, m.is_active, m.created_at,
                     u.display_name AS author_display_name,
                     u.avatar_url AS author_avatar_url,
-                    u.rank AS author_rank
+                    u.rank AS author_rank, u.role AS author_role
              FROM direct_messages m
              JOIN users u ON u.id = m.author_id
              WHERE m.conversation_id = $1 AND m.is_active = true
@@ -806,6 +807,8 @@ async fn handle_dm_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
+    // v0.9.19: lưu author_role để render hiệu ứng đặc biệt cho admin/mod.
+    let user_role = user.role.clone();
 
     while let Some(msg_result) = receiver.next().await {
         let Ok(msg) = msg_result else { break };
@@ -844,6 +847,7 @@ async fn handle_dm_socket(
                     author_display_name: user_display_name.clone(),
                     author_avatar_url: user_avatar_url.clone(),
                     author_rank: user_rank.clone(),
+                    author_role: Some(user_role.clone()),
                 }),
                 Err(e) => {
                     log::error!("❌ Lỗi lưu DM message: {e}");

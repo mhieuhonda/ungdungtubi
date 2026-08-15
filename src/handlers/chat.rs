@@ -74,10 +74,10 @@ impl ChatHub {
 }
 
 // --- Column list (đồng bộ với model) ---
-
+// v0.9.19: thêm u.role AS author_role để frontend render hiệu ứng đặc biệt cho admin/mod.
 const CHAT_LIST_COLUMNS: &str = "m.id, m.group_id, m.author_id, m.body, m.is_active, m.created_at, \
     u.display_name AS author_display_name, u.avatar_url AS author_avatar_url, \
-    u.rank AS author_rank";
+    u.rank AS author_rank, u.role AS author_role";
 
 /// Query params cho GET /api/cong-dong/nhom/{slug}/chat-history.
 #[derive(Debug, serde::Deserialize)]
@@ -211,16 +211,27 @@ pub async fn chat_ws_upgrade(
         }
     };
 
-    // 3. Membership check — chỉ member active mới chat được
-    let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM group_members
-         WHERE group_id = $1 AND user_id = $2 AND status = 'active')",
-    )
-    .bind(group_id)
-    .bind(user.id)
-    .fetch_one(&state.pool)
-    .await
-    .unwrap_or(false);
+    // 3. Membership check — chỉ member active mới chat được.
+    //    v0.9.19: Admin + Mod được chat trong BẤT KỲ nhóm nào (không cần membership).
+    //    Fix bug user report: admin không gửi được tin nhắn trong live chat cộng đồng
+    //    vì admin chưa tham gia nhóm.
+    let is_member: bool = if user.can_chat_any_group() {
+        log::info!(
+            "💬 Admin/Mod bypass membership check: user={} role={} group={}",
+            user.id, user.role, slug
+        );
+        true
+    } else {
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM group_members
+             WHERE group_id = $1 AND user_id = $2 AND status = 'active')",
+        )
+        .bind(group_id)
+        .bind(user.id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(false)
+    };
 
     if !is_member {
         return (
@@ -311,6 +322,8 @@ async fn handle_chat_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
+    // v0.9.19: lưu author_role để frontend render hiệu ứng đặc biệt cho admin/mod.
+    let user_role = user.role.clone();
 
     while let Some(msg_result) = receiver.next().await {
         let Ok(msg) = msg_result else { break };
@@ -352,6 +365,7 @@ async fn handle_chat_socket(
                     author_display_name: user_display_name.clone(),
                     author_avatar_url: user_avatar_url.clone(),
                     author_rank: user_rank.clone(),
+                    author_role: Some(user_role.clone()),
                 }),
                 Err(e) => {
                     // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop
@@ -473,9 +487,10 @@ impl DmChatHub {
 }
 
 /// Column list cho global_chat_messages + join users.
+/// v0.9.19: thêm u.role AS author_role.
 const GLOBAL_CHAT_LIST_COLUMNS: &str = "m.id, m.author_id, m.body, m.is_active, m.created_at, \
     u.display_name AS author_display_name, u.avatar_url AS author_avatar_url, \
-    u.rank AS author_rank";
+    u.rank AS author_rank, u.role AS author_role";
 
 /// Query params cho GET /api/chat-chung/history.
 #[derive(Debug, serde::Deserialize)]
@@ -600,6 +615,8 @@ async fn handle_global_chat_socket(
     let user_display_name = user.display_name.clone();
     let user_avatar_url = user.avatar_url.clone();
     let user_rank = user.rank.clone();
+    // v0.9.19: lưu author_role để render hiệu ứng đặc biệt cho admin/mod.
+    let user_role = user.role.clone();
 
     while let Some(msg_result) = receiver.next().await {
         let Ok(msg) = msg_result else { break };
@@ -637,6 +654,7 @@ async fn handle_global_chat_socket(
                     author_display_name: user_display_name.clone(),
                     author_avatar_url: user_avatar_url.clone(),
                     author_rank: user_rank.clone(),
+                    author_role: Some(user_role.clone()),
                 }),
                 Err(e) => {
                     // [v0.9.5] Log lỗi INSERT để debug thay vì silently drop

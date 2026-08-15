@@ -72,6 +72,14 @@ pub struct GroupTemplate {
     /// URL ảnh bìa nhóm (nếu có).
     /// [v0.9.3] Cover image upload
     pub cover_image_url: Option<String>,
+    /// v0.9.19: User có thể chat trong nhóm này không?
+    /// True nếu user là active member HOẶC user là staff (admin/mod).
+    /// Dùng trong template để quyết định hiển thị form chat.
+    pub can_chat: bool,
+    /// v0.9.19: User có phải staff (admin/mod) không? Dùng để hiển thị
+    /// form chat cho admin/mod ngay cả khi chưa tham gia nhóm.
+    #[allow(dead_code)]
+    pub is_staff: bool,
 }
 
 #[derive(Template)]
@@ -415,6 +423,21 @@ pub async fn view_group(
         None
     };
 
+    // v0.9.19: Compute can_chat + is_staff cho template.
+    // can_chat = (membership is active) OR (user is staff — admin/mod).
+    // is_staff = user is admin OR mod — dùng để hiển thị form chat cho admin/mod
+    // ngay cả khi chưa tham gia nhóm.
+    let (can_chat, is_staff) = match user.as_ref() {
+        Some(u) => {
+            let staff = u.is_staff();
+            let active_member = membership
+                .as_ref()
+                .is_some_and(|m| m.status == "active");
+            (active_member || staff, staff)
+        }
+        None => (false, false),
+    };
+
     // [v0.9.2] Lấy 20 tin nhắn chat gần nhất để render SSR
     let chat_messages = crate::handlers::chat::recent_messages(&state.pool, group.id).await;
     let chat_messages_json = serde_json::to_string(&chat_messages).unwrap_or_else(|_| "[]".into());
@@ -438,6 +461,8 @@ pub async fn view_group(
         membership,
         chat_messages_json,
         cover_image_url,
+        can_chat,
+        is_staff,
     }
     .render()
     .unwrap_or_else(|e| {

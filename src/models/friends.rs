@@ -63,6 +63,8 @@ pub struct DirectMessage {
 }
 
 /// Direct message kèm thông tin author (join query).
+///
+/// v0.9.19 (Giai đoạn 24): thêm `author_role` để render hiệu ứng đặc biệt cho admin/mod.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DirectMessageWithAuthor {
     pub id: Uuid,
@@ -75,6 +77,9 @@ pub struct DirectMessageWithAuthor {
     pub author_display_name: String,
     pub author_avatar_url: Option<String>,
     pub author_rank: String,
+    /// v0.9.19: vai trò author — dùng cho frontend render hiệu ứng đặc biệt.
+    #[sqlx(default)]
+    pub author_role: Option<String>,
 }
 
 /// Conversation kèm thông tin người đối diện (cho direct conversation).

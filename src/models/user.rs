@@ -15,6 +15,7 @@ use uuid::Uuid;
 ///
 /// Từ v0.9.7 (Giai đoạn 11), thêm trường `role` cho hệ thống phân quyền:
 ///   - `member`          — Thành Viên (mặc định)
+///   - `mod`             — Mod (v0.9.19 — Giai đoạn 24: dưới admin, trên member)
 ///   - `admin_ky_thuat`  — Admin Kỹ Thuật
 ///   - `admin_cong_dong` — Admin Cộng Đồng
 ///   - `admin_quan_li`   — Admin Quản Lý (quyền cao nhất)
@@ -164,58 +165,85 @@ impl User {
 
     /// Tên hiển thị tiếng Việt của vai trò.
     /// Dùng cho badge trên profile / header.
+    /// v0.9.19: thêm "Mod" — chức vụ dưới admin, trên thành viên.
     pub fn role_display(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "Admin Quản Lý",
             "admin_cong_dong" => "Admin Cộng Đồng",
             "admin_ky_thuat" => "Admin Kỹ Thuật",
+            "mod" => "Mod",
             _ => "Thành Viên",
         }
     }
 
     /// Emoji đại diện cho vai trò.
+    /// v0.9.19: thêm 📜 cho Mod.
     pub fn role_icon(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "👑",
             "admin_cong_dong" => "🛡️",
             "admin_ky_thuat" => "⚙️",
+            "mod" => "📜",
             _ => "🪷",
         }
     }
 
     /// Màu sắc đại diện cho vai trò (hex).
+    /// v0.9.19: thêm màu cho Mod — teal-700 (#0F766E).
     pub fn role_color(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "#FF6F00",   // amber-900 (gold)
             "admin_cong_dong" => "#1565C0",  // blue-800
             "admin_ky_thuat" => "#6A1B9A",   // purple-800
+            "mod" => "#0F766E",              // teal-700 (moderator)
             _ => "#2E7D32",                   // tubi-800 (green)
         }
     }
 
     /// Cấp độ vai trò (dùng để so sánh quyền):
     ///   - member          → 1
-    ///   - admin_cong_dong → 2
-    ///   - admin_quan_li   → 3
-    ///   - admin_ky_thuat  → 4 (CAO NHẤT — v0.9.8)
+    ///   - mod             → 2  (v0.9.19 — Giai đoạn 24)
+    ///   - admin_cong_dong → 3
+    ///   - admin_quan_li   → 4
+    ///   - admin_ky_thuat  → 5 (CAO NHẤT — v0.9.8)
     ///
     /// v0.9.8: Nâng Admin Kỹ Thuật lên chức vụ cao nhất với toàn bộ 50 quyền.
-    /// Hierarchy mới: admin_ky_thuat > admin_quan_li > admin_cong_dong > member
+    /// v0.9.19: Thêm Mod (level 2) — dưới admin, trên thành viên, có quyền quản trị cơ bản.
+    /// Hierarchy mới: admin_ky_thuat > admin_quan_li > admin_cong_dong > mod > member
     ///
     /// (Không thể là `const fn` vì Rust 1.97 chưa ổn định `PartialEq` cho `&str`
     /// trong const context — xem issue rust-lang/rust#143874.)
     pub fn role_level(&self) -> u8 {
         match self.role.as_str() {
-            "admin_cong_dong" => 2,
-            "admin_quan_li" => 3,
-            "admin_ky_thuat" => 4,  // CAO NHẤT — v0.9.8
+            "mod" => 2,
+            "admin_cong_dong" => 3,
+            "admin_quan_li" => 4,
+            "admin_ky_thuat" => 5,  // CAO NHẤT — v0.9.8
             _ => 1,
         }
     }
 
     /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý).
+    /// v0.9.19: Mod KHÔNG phải là admin — Mod là chức vụ riêng (dưới admin, trên member).
+    /// Dùng `is_staff()` để kiểm tra "admin HOẶC mod".
     pub fn is_admin(&self) -> bool {
-        self.role_level() >= 2
+        matches!(
+            self.role.as_str(),
+            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong"
+        )
+    }
+
+    /// True nếu user là Mod (v0.9.19 — Giai đoạn 24).
+    /// Mod có quyền quản trị cơ bản: duyệt cảm ngộ, mod bình luận, chat trong mọi nhóm.
+    /// Nhưng không được đổi role user, không được ban user.
+    pub fn is_mod(&self) -> bool {
+        matches!(self.role.as_str(), "mod")
+    }
+
+    /// True nếu user là staff (admin hoặc mod) — v0.9.19.
+    /// Dùng cho các route quản trị cơ bản (xem danh sách, mod content, chat mọi nhóm).
+    pub fn is_staff(&self) -> bool {
+        self.is_admin() || self.is_mod()
     }
 
     /// True nếu user chính xác là Admin Kỹ Thuật.
@@ -235,20 +263,30 @@ impl User {
 
     /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật trở lên).
     /// Dùng cho route /admin, quản lý users, hệ thống.
+    /// v0.9.19: Mod (level 2) không có quyền technical.
     pub fn can_manage_technical(&self) -> bool {
-        self.role_level() >= 2
+        self.role_level() >= 3 // admin_cong_dong (3) trở lên — Mod (2) không có
     }
 
-    /// True nếu user có quyền cộng đồng (Admin Cộng Đồng trở lên).
+    /// True nếu user có quyền cộng đồng (Mod trở lên).
     /// Dùng cho duyệt cảm ngộ, ghim/khoá chủ đề, mod comment.
+    /// v0.9.19: Mod (level 2) CÓ quyền community — đây là quyền cốt lõi của Mod.
     pub fn can_manage_community(&self) -> bool {
-        self.role_level() >= 2
+        self.role_level() >= 2 // Mod (2) trở lên
     }
 
     /// True nếu user có quyền quản trị (Admin Quản Lý trở lên).
     /// Dùng cho đổi role, quản lý users, cấu hình hệ thống.
+    /// v0.9.19: Mod (level 2) không có quyền admin.
     pub fn can_manage_admin(&self) -> bool {
-        self.role_level() >= 3
+        self.role_level() >= 4 // admin_quan_li (4) trở lên
+    }
+
+    /// True nếu user được chat trong BẤT KỲ nhóm nào (không cần membership).
+    /// v0.9.19: Admin + Mod có quyền này — fix bug admin không chat được trong nhóm
+    /// mà họ chưa tham gia.
+    pub fn can_chat_any_group(&self) -> bool {
+        self.is_staff()
     }
 
     // ─── Hệ thống 150 quyền chi tiết (v0.9.14 — Giai đoạn 19) ─────────────
@@ -390,11 +428,13 @@ impl User {
     }
 
     /// Tên trang admin dashboard tương ứng với role.
+    /// v0.9.19: Mod redirect về /admin/thanh-vien (mod không có dashboard riêng).
     pub fn admin_dashboard_path(&self) -> &str {
         match self.role.as_str() {
             "admin_ky_thuat" => "/admin/ky-thuat",
             "admin_cong_dong" => "/admin/cong-dong",
             "admin_quan_li" => "/admin/quan-li",
+            "mod" => "/admin/thanh-vien", // Mod không có dashboard riêng — xem danh sách thành viên
             _ => "/admin",
         }
     }

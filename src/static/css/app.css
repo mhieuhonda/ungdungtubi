@@ -347,3 +347,273 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
     background: rgba(34, 197, 94, 0.3);
     color: #f0fdf4;
 }
+
+/* ====================================================================
+   v0.9.19 — Giai đoạn 24: Hiệu ứng tin nhắn Admin/Mod
+   ====================================================================
+   Mỗi vai trò có style riêng cho tin nhắn trong chat (live chat + global chat):
+
+   - admin_ky_thuat: Coder Effect — phong cách terminal Matrix, cực ngầu
+     * Nền đen, chữ xanh lá mono, scan-line animation
+     * Border glow xanh lá
+     * Font monospace
+     * Hiệu ứng "typing" trực quan
+
+   - admin_quan_li: Premium Gold Frame — khung vàng luxury
+     * Border gradient vàng
+     * Background gradient nhẹ
+     * Badge 👑
+     * Shadow vàng
+
+   - admin_cong_dong: Shield Blue Frame — khung xanh dương khiên bảo vệ
+     * Border gradient xanh dương
+     * Background gradient nhẹ
+     * Badge 🛡️
+     * Shadow xanh dương
+
+   - mod: Moderator Teal Frame — khung teal nổi bật
+     * Border teal
+     * Background nhẹ
+     * Badge 📜
+     * Shadow teal
+
+   - member: Default — không có hiệu ứng đặc biệt
+   ==================================================================== */
+
+/* ─── Admin Kỹ Thuật: Coder Effect (Matrix Terminal) ─── */
+.chat-msg-admin-ky-thuat {
+    background: #0a0e0a !important;
+    color: #00ff41 !important;
+    border: 1px solid #00ff41 !important;
+    border-left: 4px solid #00ff41 !important;
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
+    box-shadow: 0 0 12px rgba(0, 255, 65, 0.4), inset 0 0 8px rgba(0, 255, 65, 0.1) !important;
+    position: relative;
+    overflow: hidden;
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.6);
+    animation: chat-msg-glow-green 2s ease-in-out infinite;
+}
+
+/* Scan-line effect cho admin_ky_thuat */
+.chat-msg-admin-ky-thuat::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(0, 255, 65, 0.03) 50%,
+        transparent 100%
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    animation: scanline 8s linear infinite;
+}
+
+@keyframes scanline {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 100%; }
+}
+
+@keyframes chat-msg-glow-green {
+    0%, 100% { box-shadow: 0 0 12px rgba(0, 255, 65, 0.4), inset 0 0 8px rgba(0, 255, 65, 0.1); }
+    50% { box-shadow: 0 0 20px rgba(0, 255, 65, 0.7), inset 0 0 12px rgba(0, 255, 65, 0.2); }
+}
+
+/* Prefix "[SYS]" trước tên admin_ky_thuat */
+.chat-msg-admin-ky-thuat-name {
+    color: #00ff41 !important;
+    font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
+    font-weight: bold !important;
+    text-shadow: 0 0 4px rgba(0, 255, 65, 0.6);
+}
+
+/* Avatar admin_ky_thuat — viền xanh lá phát sáng */
+.chat-avatar-admin-ky-thuat {
+    border: 2px solid #00ff41 !important;
+    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
+    animation: chat-avatar-pulse-green 2s ease-in-out infinite;
+}
+
+@keyframes chat-avatar-pulse-green {
+    0%, 100% { box-shadow: 0 0 8px rgba(0, 255, 65, 0.6); }
+    50% { box-shadow: 0 0 14px rgba(0, 255, 65, 0.9); }
+}
+
+/* ─── Admin Quản Lý: Premium Gold Frame ─── */
+.chat-msg-admin-quan-li {
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
+    color: #78350f !important;
+    border: 2px solid #f59e0b !important;
+    border-left: 4px solid #FF6F00 !important;
+    box-shadow: 0 0 12px rgba(255, 111, 0, 0.3), 0 2px 8px rgba(255, 215, 0, 0.2) !important;
+    position: relative;
+    font-weight: 500;
+}
+
+.chat-msg-admin-quan-li::before {
+    content: '👑';
+    position: absolute;
+    top: -8px;
+    right: 8px;
+    font-size: 14px;
+    background: #FF6F00;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(255, 111, 0, 0.5);
+}
+
+.chat-msg-admin-quan-li-name {
+    color: #FF6F00 !important;
+    font-weight: bold !important;
+    text-shadow: 0 0 4px rgba(255, 111, 0, 0.3);
+}
+
+.chat-avatar-admin-quan-li {
+    border: 2px solid #FF6F00 !important;
+    box-shadow: 0 0 8px rgba(255, 111, 0, 0.5);
+}
+
+/* ─── Admin Cộng Đồng: Shield Blue Frame ─── */
+.chat-msg-admin-cong-dong {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+    color: #1e3a8a !important;
+    border: 2px solid #1565C0 !important;
+    border-left: 4px solid #1565C0 !important;
+    box-shadow: 0 0 12px rgba(21, 101, 192, 0.3), 0 2px 8px rgba(21, 101, 192, 0.2) !important;
+    position: relative;
+    font-weight: 500;
+}
+
+.chat-msg-admin-cong-dong::before {
+    content: '🛡️';
+    position: absolute;
+    top: -8px;
+    right: 8px;
+    font-size: 14px;
+    background: #1565C0;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(21, 101, 192, 0.5);
+}
+
+.chat-msg-admin-cong-dong-name {
+    color: #1565C0 !important;
+    font-weight: bold !important;
+    text-shadow: 0 0 4px rgba(21, 101, 192, 0.3);
+}
+
+.chat-avatar-admin-cong-dong {
+    border: 2px solid #1565C0 !important;
+    box-shadow: 0 0 8px rgba(21, 101, 192, 0.5);
+}
+
+/* ─── Mod: Moderator Teal Frame ─── */
+.chat-msg-mod {
+    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%) !important;
+    color: #134e4a !important;
+    border: 2px solid #0F766E !important;
+    border-left: 4px solid #0F766E !important;
+    box-shadow: 0 0 10px rgba(15, 118, 110, 0.3), 0 2px 6px rgba(15, 118, 110, 0.2) !important;
+    position: relative;
+    font-weight: 500;
+}
+
+.chat-msg-mod::before {
+    content: '📜';
+    position: absolute;
+    top: -8px;
+    right: 8px;
+    font-size: 14px;
+    background: #0F766E;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.5);
+}
+
+.chat-msg-mod-name {
+    color: #0F766E !important;
+    font-weight: bold !important;
+}
+
+.chat-avatar-mod {
+    border: 2px solid #0F766E !important;
+    box-shadow: 0 0 8px rgba(15, 118, 110, 0.5);
+}
+
+/* ─── Dark mode overrides cho admin/mod messages ─── */
+.dark .chat-msg-admin-ky-thuat {
+    background: #0a0e0a !important;
+    color: #00ff41 !important;
+}
+
+.dark .chat-msg-admin-quan-li {
+    background: linear-gradient(135deg, #451a03 0%, #78350f 100%) !important;
+    color: #fef3c7 !important;
+}
+
+.dark .chat-msg-admin-cong-dong {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
+    color: #dbeafe !important;
+}
+
+.dark .chat-msg-mod {
+    background: linear-gradient(135deg, #134e4a 0%, #115e59 100%) !important;
+    color: #ccfbf1 !important;
+}
+
+/* ─── Role badge mini trong chat (cạnh tên) ─── */
+.chat-role-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    margin-left: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.chat-role-badge-admin-ky-thuat {
+    background: #00ff41;
+    color: #0a0e0a;
+}
+
+.chat-role-badge-admin-quan-li {
+    background: #FF6F00;
+    color: white;
+}
+
+.chat-role-badge-admin-cong-dong {
+    background: #1565C0;
+    color: white;
+}
+
+.chat-role-badge-mod {
+    background: #0F766E;
+    color: white;
+}
+
+/* ====================================================================
+   End v0.9.19 — Admin/Mod Message Effects
+   ==================================================================== */

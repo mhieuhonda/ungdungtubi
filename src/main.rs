@@ -42,14 +42,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.18 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.19 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.18 — Giai đoạn 23: Mobile UI Overhaul + Admin Nav Logic Fix + Logout/Profile State Bug Fix");
+    log::info!("📦 Phiên bản: v0.9.19 — Giai đoạn 24: Live Chat Fix + Admin Effects + Mod Role");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -342,11 +342,11 @@ async fn health_check(State(state): State<AppState>) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.18",
+        "version": "0.9.19",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 22,
-        "phase_name": "Giai đoạn 22 — Mobile-first Polish + Dark Mode + Admin Nav Fix",
+        "phase": 24,
+        "phase_name": "Giai đoạn 24 — Live Chat Fix + Admin/Mod Message Effects + Mod Role",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": [
@@ -418,17 +418,29 @@ async fn health_check(State(state): State<AppState>) -> Response {
             "admin-quan-li-tabs-fix-v0.9.18",
             "mobile-drawer-auth-state-fix-v0.9.18",
             "admin-dashboards-responsive-v0.9.18",
-            "users-page-back-role-aware-v0.9.18"
+            "users-page-back-role-aware-v0.9.18",
+            "mod-role-v0.9.19",
+            "admin-mod-chat-bypass-membership-v0.9.19",
+            "admin-mod-message-effects-v0.9.19",
+            "admin-ky-thuat-coder-effect-v0.9.19",
+            "admin-quan-li-gold-frame-v0.9.19",
+            "admin-cong-dong-shield-frame-v0.9.19",
+            "mod-teal-frame-v0.9.19",
+            "live-chat-community-fix-v0.9.19",
+            "mod-can-view-admin-pages-v0.9.19",
+            "mod-can-moderate-reviews-v0.9.19",
+            "author-role-in-chat-messages-v0.9.19"
         ],
         "roles": {
-            "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "member"],
+            "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "member": 0},
-            "system_permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "member": 0},
-            "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong"],
+            "permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "mod": 15, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 150, "admin_quan_li": 100, "admin_cong_dong": 75, "mod": 15, "member": 0},
+            "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",
-            "admin_quan_li_dashboard": "/admin/quan-li"
+            "admin_quan_li_dashboard": "/admin/quan-li",
+            "mod_dashboard": "/admin/thanh-vien"
         },
         "database": {
             "status": db_status,

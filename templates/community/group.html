@@ -193,10 +193,11 @@
   </div>
 
   <!-- Live Chat Panel (~35% height) — v0.9.2 Giai đoạn 7 -->
+  <!-- v0.9.19: Admin/Mod được chat trong mọi nhóm (không cần membership) -->
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6"
        x-data="liveChat({
          slug: '{{ group.slug }}',
-         isMember: {% if let Some(m) = &membership %}{% if m.status == "active" %}true{% else %}false{% endif %}{% else %}false{% endif %},
+         isMember: {% if can_chat %}true{% else %}false{% endif %},
          isLoggedIn: {% if user.is_some() %}true{% else %}false{% endif %},
          initialMessages: {{ chat_messages_json|safe }}
        })"
@@ -217,23 +218,27 @@
     <div class="chat-messages px-4 py-3 bg-gray-50" x-ref="messages">
       <template x-for="msg in messages" :key="msg.id">
         <div class="flex items-start gap-2 mb-3">
-          <!-- Avatar -->
+          <!-- Avatar (v0.9.19: viền phát sáng theo role) -->
           <template x-if="msg.author_avatar_url">
             <img :src="msg.author_avatar_url" alt="avatar"
-                 class="w-7 h-7 rounded-full flex-shrink-0 border border-gray-200"
+                 :class="avatarClass(msg.author_role) + ' w-7 h-7 rounded-full flex-shrink-0 border border-gray-200'"
                  referrerpolicy="no-referrer">
           </template>
           <template x-if="!msg.author_avatar_url">
-            <div class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0"
+            <div :class="avatarClass(msg.author_role) + ' w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0'"
                  style="background-color:#E8F5E9;color:#2E7D32"
                  x-text="msg.author_display_name.charAt(0)"></div>
           </template>
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-2 flex-wrap">
-              <span class="text-xs font-semibold text-gray-700" x-text="msg.author_display_name"></span>
+              <span :class="msgNameClass(msg.author_role) + ' text-xs font-semibold text-gray-700'"
+                    x-text="authorLabel(msg)"></span>
+              <template x-if="msg.author_role">
+                <span x-html="roleBadgeHtml(msg.author_role)"></span>
+              </template>
               <span class="text-[10px] text-gray-400" x-text="formatTime(msg.created_at)"></span>
             </div>
-            <div class="chat-msg-bubble text-sm text-gray-800 mt-0.5 px-3 py-1.5 rounded-lg bg-white border border-gray-100"
+            <div :class="msgBubbleClass(msg.author_role) + ' text-sm text-gray-800 mt-0.5 px-3 py-1.5 rounded-lg bg-white border border-gray-100'"
                  x-text="msg.body"></div>
           </div>
         </div>
@@ -247,9 +252,34 @@
 
     <!-- Input area -->
     <div class="border-t border-gray-200 p-3 bg-white">
-      {% if let Some(_u) = user %}
+      {% if can_chat %}
         {% if let Some(m) = &membership %}
-          {% if m.status == "active" %}
+          {% if m.status != "active" %}
+            {# v0.9.19: Admin/Mod đang chat mà không phải active member #}
+            <form @submit.prevent="send()" class="flex items-center gap-2">
+              <input type="text"
+                     x-model="draft"
+                     @keydown.enter.prevent="send()"
+                     maxlength="500"
+                     enterkeyhint="send"
+                     inputmode="text"
+                     autocomplete="off"
+                     autocapitalize="sentences"
+                     placeholder="Nhập tin nhắn… (Enter để gửi)"
+                     class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
+              <button type="submit"
+                      :disabled="!connected || !draft.trim()"
+                      class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      style="background-color:#388E3C">
+                🙏 Gửi
+              </button>
+            </form>
+            {% if let Some(u) = user %}
+            <p class="text-[10px] text-amber-600 mt-1.5">
+              🛡️ Bạn đang chat với tư cách {{ u.role_display() }} — không cần tham gia nhóm.
+            </p>
+            {% endif %}
+          {% else %}
           <form @submit.prevent="send()" class="flex items-center gap-2">
             <input type="text"
                    x-model="draft"
@@ -271,23 +301,56 @@
           <p class="text-[10px] text-gray-400 mt-1.5">
             Live Chat chỉ để giao lưu. Nội dung quý giá nên tạo thành <a href="/cong-dong/nhom/{{ group.slug }}/tao-chu-de" class="underline hover:text-tubi-700" style="color:#2E7D32">Chủ Đề</a>.
           </p>
+          {% endif %}
+        {% else %}
+          {# v0.9.19: Admin/Mod chưa tham gia nhóm nhưng vẫn chat được #}
+          <form @submit.prevent="send()" class="flex items-center gap-2">
+            <input type="text"
+                   x-model="draft"
+                   @keydown.enter.prevent="send()"
+                   maxlength="500"
+                   enterkeyhint="send"
+                   inputmode="text"
+                   autocomplete="off"
+                   autocapitalize="sentences"
+                   placeholder="Nhập tin nhắn… (Enter để gửi)"
+                   class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
+            <button type="submit"
+                    :disabled="!connected || !draft.trim()"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    style="background-color:#388E3C">
+              🙏 Gửi
+            </button>
+          </form>
+          {% if let Some(u) = user %}
+          <p class="text-[10px] text-amber-600 mt-1.5">
+            🛡️ Bạn đang chat với tư cách {{ u.role_display() }} — không cần tham gia nhóm.
+          </p>
+          {% endif %}
+        {% endif %}
+      {% else %}
+        {% if let Some(_u) = user %}
+          {% if let Some(m) = &membership %}
+            {% if m.status == "pending" %}
+            <p class="text-sm text-amber-600 text-center py-2">⏳ Đang chờ duyệt thành viên — chưa thể chat.</p>
+            {% else %}
+            <p class="text-sm text-gray-500 text-center py-2">Tài khoản của bạn không thể chat trong nhóm này.</p>
+            {% endif %}
           {% else %}
-          <p class="text-sm text-amber-600 text-center py-2">⏳ Đang chờ duyệt thành viên — chưa thể chat.</p>
+          <p class="text-sm text-gray-500 text-center py-2">
+            <a href="#" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">Tham gia nhóm</a> để bắt đầu chat.
+          </p>
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/tham-gia" class="text-center">
+            <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition" style="background-color:#388E3C">
+              {% if group.require_approval %}📝 Yêu cầu tham gia{% else %}✓ Tham gia nhóm{% endif %}
+            </button>
+          </form>
           {% endif %}
         {% else %}
         <p class="text-sm text-gray-500 text-center py-2">
-          <a href="#" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">Tham gia nhóm</a> để bắt đầu chat.
+          <a href="/auth/google" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">🪷 Đăng nhập bằng Google</a> để tham gia chat.
         </p>
-        <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/tham-gia" class="text-center">
-          <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold px-5 py-2 rounded-lg transition" style="background-color:#388E3C">
-            {% if group.require_approval %}📝 Yêu cầu tham gia{% else %}✓ Tham gia nhóm{% endif %}
-          </button>
-        </form>
         {% endif %}
-      {% else %}
-      <p class="text-sm text-gray-500 text-center py-2">
-        <a href="/auth/google" class="text-tubi-700 font-semibold underline" style="color:#2E7D32">🪷 Đăng nhập bằng Google</a> để tham gia chat.
-      </p>
       {% endif %}
     </div>
   </div>

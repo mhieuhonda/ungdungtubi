@@ -179,6 +179,9 @@ pub struct ChatMessage {
 }
 
 /// ChatMessage kèm thông tin author (join query) — dùng cho render + broadcast.
+///
+/// v0.9.19 (Giai đoạn 24): thêm `author_role` để frontend render hiệu ứng đặc biệt
+/// cho tin nhắn của admin/mod (coder effect cho admin_ky_thuat, khung riêng cho các admin khác).
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ChatMessageWithAuthor {
     pub id: Uuid,
@@ -191,6 +194,10 @@ pub struct ChatMessageWithAuthor {
     pub author_display_name: String,
     pub author_avatar_url: Option<String>,
     pub author_rank: String,
+    /// v0.9.19: vai trò author (member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li).
+    /// Dùng cho frontend render hiệu ứng tin nhắn đặc biệt cho admin/mod.
+    #[sqlx(default)]
+    pub author_role: Option<String>,
 }
 
 impl ChatMessageWithAuthor {
@@ -296,6 +303,8 @@ pub struct GlobalChatMessage {
 }
 
 /// GlobalChatMessage kèm thông tin author — dùng cho render + broadcast.
+///
+/// v0.9.19: thêm `author_role` để render hiệu ứng đặc biệt cho admin/mod messages.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct GlobalChatMessageWithAuthor {
     pub id: Uuid,
@@ -307,6 +316,9 @@ pub struct GlobalChatMessageWithAuthor {
     pub author_display_name: String,
     pub author_avatar_url: Option<String>,
     pub author_rank: String,
+    /// v0.9.19: vai trò author — dùng cho frontend render hiệu ứng đặc biệt.
+    #[sqlx(default)]
+    pub author_role: Option<String>,
 }
 
 impl GroupMember {

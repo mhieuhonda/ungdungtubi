@@ -37,6 +37,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     }
 
     // 2. Ensure `role` column exists on users (v0.9.7 — Giai đoạn 11).
+    //    v0.9.19: Update CHECK constraint để cho phép role 'mod' (Giai đoạn 24).
     match sqlx::query(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT 'member'"
     )
@@ -45,6 +46,31 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     {
         Ok(_) => log::info!("  ✅ users.role column ensured"),
         Err(e) => log::error!("  ❌ Failed to ensure users.role: {e}"),
+    }
+
+    // v0.9.19: Drop old CHECK constraint (chỉ cho phép 4 giá trị cũ) và thay bằng
+    // CHECK constraint mới cho phép 5 giá trị: member, mod, admin_ky_thuat, admin_cong_dong, admin_quan_li.
+    // Idempotent — nếu constraint cũ không tồn tại thì DROP IF EXISTS không lỗi.
+    match sqlx::query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check")
+        .execute(pool)
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => log::warn!("⚠️ Could not drop old users_role_check constraint: {e}"),
+    }
+    match sqlx::query(
+        "DO $$ BEGIN \
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check') THEN \
+                ALTER TABLE users ADD CONSTRAINT users_role_check \
+                CHECK (role IN ('member', 'mod', 'admin_ky_thuat', 'admin_cong_dong', 'admin_quan_li')); \
+            END IF; \
+        END $$"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ users_role_check constraint updated (v0.9.19: + 'mod')"),
+        Err(e) => log::error!("  ❌ Failed to update users_role_check constraint: {e}"),
     }
 
     // 3. Ensure practice_logs table exists (v0.9.9 — Giai đoạn 13).

@@ -72,6 +72,7 @@ impl AdminUserRow {
             "admin_quan_li" => "#FF6F00",
             "admin_cong_dong" => "#1565C0",
             "admin_ky_thuat" => "#6A1B9A",
+            "mod" => "#0F766E",  // v0.9.19: teal-700 cho Mod
             _ => "#2E7D32",
         }
     }
@@ -82,11 +83,13 @@ impl AdminUserRow {
     }
 
     /// HTML cho role badge (top-right của card).
+    /// v0.9.19: thêm option "Mod".
     pub fn role_badge_html(&self) -> String {
         let (icon, label) = match self.role.as_str() {
             "admin_quan_li" => ("👑", "Admin Quản Lý"),
             "admin_cong_dong" => ("🛡️", "Admin Cộng Đồng"),
             "admin_ky_thuat" => ("⚙️", "Admin Kỹ Thuật"),
+            "mod" => ("📜", "Mod"),
             _ => ("🪷", "Thành Viên"),
         };
         let color = self.role_color_hint();
@@ -238,11 +241,14 @@ pub async fn admin_index(State(state): State<AppState>, jar: CookieJar) -> Respo
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !user.is_admin() {
+    // v0.9.19: Cho phép Mod xem /admin — redirect về /admin/thanh-vien.
+    // (Trước đây chỉ admin mới vào được /admin, mod bị 403.)
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
 
     // Redirect đến dashboard riêng của role
+    // (Mod redirect về /admin/thanh-vien — không có dashboard riêng)
     Redirect::to(user.admin_dashboard_path()).into_response()
 }
 
@@ -360,7 +366,8 @@ pub async fn admin_users_list(State(state): State<AppState>, jar: CookieJar) -> 
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !user.is_admin() {
+    // v0.9.19: Mod được xem danh sách thành viên (nhưng không đổi role được).
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
 
@@ -403,15 +410,16 @@ pub async fn admin_change_role(
     }
 
     // Validate role
+    // v0.9.19: thêm 'mod' vào danh sách role hợp lệ.
     let new_role = form.role.trim().to_string();
     if !matches!(
         new_role.as_str(),
-        "member" | "admin_ky_thuat" | "admin_cong_dong" | "admin_quan_li"
+        "member" | "mod" | "admin_ky_thuat" | "admin_cong_dong" | "admin_quan_li"
     ) {
         return render_users_error(
             &state.pool,
             &actor,
-            "Role không hợp lệ. Phải là: member | admin_ky_thuat | admin_cong_dong | admin_quan_li",
+            "Role không hợp lệ. Phải là: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li",
         )
         .await;
     }
@@ -427,11 +435,27 @@ pub async fn admin_change_role(
     }
 
     // Admin Quản Lý không được nâng ai lên admin_ky_thuat (chỉ admin_ky_thuat mới được)
+    // v0.9.19: Cũng không được nâng lên admin_ky_thuat từ mod hoặc member.
     if actor.is_admin_quan_li() && new_role == "admin_ky_thuat" {
         return render_users_error(
             &state.pool,
             &actor,
             "Admin Quản Lý không thể nâng ai lên Admin Kỹ Thuật. Chỉ Admin Kỹ Thuật mới có quyền này.",
+        )
+        .await;
+    }
+
+    // v0.9.19: Admin Cộng Đồng không được đổi role user khác — chỉ xem được.
+    // (admin_cong_dong có thể xem /admin/thanh-vien nhưng không đổi role được.)
+    // Quyền đổi role: chỉ admin_ky_thuat (level 5) và admin_quan_li (level 4).
+    // admin_cong_dong (level 3) và mod (level 2) không được đổi role.
+    // Note: `can_manage_admin()` đã trả false cho admin_cong_dong + mod, nên check
+    // này đã được handle ở trên. Nhưng để safe, thêm check rõ ràng:
+    if actor.is_admin_cong_dong() || actor.is_mod() {
+        return render_users_error(
+            &state.pool,
+            &actor,
+            "Vai trò của bạn không có quyền đổi role user khác. Chỉ Admin Kỹ Thuật và Admin Quản Lý mới có quyền này.",
         )
         .await;
     }
@@ -557,6 +581,7 @@ async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Erro
 ///
 /// v0.9.9: LEFT JOIN sessions để lấy `last_session_at` (MAX(created_at)) — dùng
 /// cho hiển thị "hoạt động gần nhất" trên card.
+/// v0.9.19: Thêm 'mod' vào ORDER BY (sau admin_cong_dong, trước member).
 async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
     sqlx::query_as::<_, AdminUserRow>(
         "SELECT u.id, u.email, u.display_name, u.role, u.rank, u.is_active,
@@ -569,7 +594,8 @@ async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
                 WHEN 'admin_ky_thuat'  THEN 1
                 WHEN 'admin_quan_li'   THEN 2
                 WHEN 'admin_cong_dong' THEN 3
-                ELSE 4
+                WHEN 'mod'             THEN 4
+                ELSE 5
             END,
             u.created_at DESC",
     )
@@ -582,6 +608,7 @@ async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
 }
 
 /// Render trang 403 Forbidden — user không có quyền.
+/// v0.9.19: Cập nhật hierarchy để bao gồm Mod.
 fn render_forbidden(user: &User) -> Response {
     let html = format!(
         r#"<!DOCTYPE html>
@@ -595,9 +622,9 @@ fn render_forbidden(user: &User) -> Response {
 <div class="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg text-center">
   <div class="text-5xl mb-4">🚫</div>
   <h1 class="text-xl font-bold text-red-600 mb-2">403 — Không có quyền truy cập</h1>
-  <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin.</p>
+  <p class="text-gray-600 text-sm mb-2">Trang Quản Trị chỉ dành cho Admin và Mod.</p>
   <p class="text-gray-500 text-xs mb-4">Vai trò hiện tại: <strong>{role_icon} {role_display}</strong> ({perm_count} quyền UI / {sys_perm_count} quyền hệ thống)</p>
-  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (150/150) &gt; Admin Quản Lý (100/100) &gt; Admin Cộng Đồng (75/75) &gt; Thành Viên (0)</p>
+  <p class="text-gray-400 text-[10px] mb-6">Hierarchy: Admin Kỹ Thuật (150/150) &gt; Admin Quản Lý (100/100) &gt; Admin Cộng Đồng (75/75) &gt; Mod (15) &gt; Thành Viên (0)</p>
   <a href="/" class="inline-block text-white px-6 py-2 rounded-xl transition" style="background-color:#2E7D32">← Về trang chủ</a>
 </div>
 </body></html>"#,
@@ -768,7 +795,7 @@ pub async fn admin_cam_ngo_list(State(state): State<AppState>, jar: CookieJar) -
     };
 
     // Admin Cộng Đồng and above can moderate
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
 
@@ -799,7 +826,7 @@ pub async fn admin_cam_ngo_duyet(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
 
@@ -840,7 +867,7 @@ pub async fn admin_cam_ngo_tu_choi(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
 
@@ -1133,12 +1160,12 @@ pub async fn admin_groups_placeholder(State(state): State<AppState>, jar: Cookie
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let groups = fetch_admin_groups_list(&state.pool, 20).await;
-    // v0.9.18: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
+    // v0.9.19: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
     // hoặc admin_quan_li click back từ placeholder groups (trước đây hardcode /admin/cong-dong).
     let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
@@ -1168,12 +1195,12 @@ pub async fn admin_kinh_sach_placeholder(State(state): State<AppState>, jar: Coo
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let books = fetch_admin_books_list(&state.pool, 20).await;
-    // v0.9.18: back_path/back_label theo role THỰC TẾ của user.
+    // v0.9.19: back_path/back_label theo role THỰC TẾ của user.
     let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
@@ -1202,12 +1229,12 @@ pub async fn admin_binh_luan_placeholder(State(state): State<AppState>, jar: Coo
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let comments = fetch_admin_comments_list(&state.pool, 20).await;
-    // v0.9.18: back_path/back_label theo role THỰC TẾ của user.
+    // v0.9.19: back_path/back_label theo role THỰC TẾ của user.
     let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
         user: Some(user),
@@ -1236,12 +1263,12 @@ pub async fn admin_quy_tu_bi_placeholder(State(state): State<AppState>, jar: Coo
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
-    if !user.is_admin() {
+    if !user.is_staff() {
         return render_forbidden(&user);
     }
     let stats = fetch_admin_stats_or_default(&state.pool).await;
     let funds = fetch_admin_funds_list(&state.pool, 20).await;
-    // v0.9.18: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
+    // v0.9.19: back_path/back_label theo role THỰC TẾ của user — tránh 403 khi admin_ky_thuat
     // hoặc admin_cong_dong click back từ placeholder quỹ (trước đây hardcode /admin/quan-li).
     let (back_path, back_label) = user_admin_dashboard_back(&user);
     let html = AdminPlaceholderTemplate {
@@ -1270,7 +1297,7 @@ pub async fn admin_quy_tu_bi_placeholder(State(state): State<AppState>, jar: Coo
 
 /// Helper: quyết định back_path/back_label dựa trên role THỰC TẾ của user.
 ///
-/// v0.9.18: FIX BUG USER REPORT — trước đây back_path/back_label được hardcode
+/// v0.9.19: FIX BUG USER REPORT — trước đây back_path/back_label được hardcode
 /// theo "module owner" (ví dụ /admin/cong-dong/nhom → luôn back về /admin/cong-dong).
 /// Điều này gây ra 403 Forbidden khi admin_ky_thuat (hoặc admin_quan_li) click back
 /// từ placeholder page: họ bị redirect tới dashboard của role khác → không có quyền.

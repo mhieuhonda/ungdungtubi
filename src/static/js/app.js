@@ -131,6 +131,54 @@ function liveChat(opts) {
             return 'đã kết nối';
         },
 
+        // v0.9.19: Lấy class CSS cho tin nhắn dựa trên author_role.
+        // Admin Kỹ Thuật = coder effect (Matrix terminal), các admin khác = khung riêng.
+        msgBubbleClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong';
+            if (role === 'mod') return 'chat-msg-mod';
+            return 'chat-msg-bubble';
+        },
+
+        // v0.9.19: Class cho tên author (để đổi màu theo role).
+        msgNameClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat-name';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li-name';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong-name';
+            if (role === 'mod') return 'chat-msg-mod-name';
+            return '';
+        },
+
+        // v0.9.19: Class cho avatar (viền phát sáng theo role).
+        avatarClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-avatar-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-avatar-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-avatar-admin-cong-dong';
+            if (role === 'mod') return 'chat-avatar-mod';
+            return '';
+        },
+
+        // v0.9.19: Role badge mini cạnh tên (chỉ hiển thị cho admin/mod).
+        roleBadgeHtml(role) {
+            if (!role) return '';
+            const map = {
+                'admin_ky_thuat': '<span class="chat-role-badge chat-role-badge-admin-ky-thuat">⚙️ SYS</span>',
+                'admin_quan_li': '<span class="chat-role-badge chat-role-badge-admin-quan-li">👑 ADMIN</span>',
+                'admin_cong_dong': '<span class="chat-role-badge chat-role-badge-admin-cong-dong">🛡️ ADMIN</span>',
+                'mod': '<span class="chat-role-badge chat-role-badge-mod">📜 MOD</span>',
+            };
+            return map[role] || '';
+        },
+
+        // v0.9.19: Prefix hiển thị trước tên — admin_ky_thuat có prefix [SYS].
+        authorLabel(msg) {
+            if (msg.author_role === 'admin_ky_thuat') {
+                return '[SYS] ' + msg.author_display_name;
+            }
+            return msg.author_display_name;
+        },
+
         // --- Lifecycle ---
         init() {
             // Chỉ kết nối WebSocket nếu đã đăng nhập + là member active
@@ -304,6 +352,45 @@ function globalChat() {
         isOpen: false,
         unreadCount: 0,
         initialized: false,
+
+        // v0.9.19: Helpers cho hiệu ứng admin/mod (giống liveChat).
+        msgBubbleClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong';
+            if (role === 'mod') return 'chat-msg-mod';
+            return 'chat-chung-msg';
+        },
+        msgNameClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat-name';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li-name';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong-name';
+            if (role === 'mod') return 'chat-msg-mod-name';
+            return '';
+        },
+        avatarClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-avatar-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-avatar-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-avatar-admin-cong-dong';
+            if (role === 'mod') return 'chat-avatar-mod';
+            return '';
+        },
+        roleBadgeHtml(role) {
+            if (!role) return '';
+            const map = {
+                'admin_ky_thuat': '<span class="chat-role-badge chat-role-badge-admin-ky-thuat">⚙️ SYS</span>',
+                'admin_quan_li': '<span class="chat-role-badge chat-role-badge-admin-quan-li">👑 ADMIN</span>',
+                'admin_cong_dong': '<span class="chat-role-badge chat-role-badge-admin-cong-dong">🛡️ ADMIN</span>',
+                'mod': '<span class="chat-role-badge chat-role-badge-mod">📜 MOD</span>',
+            };
+            return map[role] || '';
+        },
+        authorLabel(msg) {
+            if (msg.author_role === 'admin_ky_thuat') {
+                return '[SYS] ' + msg.author_display_name;
+            }
+            return msg.author_display_name;
+        },
 
         // --- Lifecycle ---
         // [v0.9.5 fix] Bỏ check `document.cookie.includes('session_id')` vì
@@ -581,6 +668,45 @@ function dmChat(opts) {
         reconnectAttempts: 0,
         maxReconnectAttempts: 5,
         reconnectTimer: null,
+
+        // v0.9.19: Helpers cho hiệu ứng admin/mod (giống liveChat).
+        msgBubbleClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong';
+            if (role === 'mod') return 'chat-msg-mod';
+            return 'chat-msg-bubble';
+        },
+        msgNameClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat-name';
+            if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li-name';
+            if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong-name';
+            if (role === 'mod') return 'chat-msg-mod-name';
+            return '';
+        },
+        avatarClass(role) {
+            if (role === 'admin_ky_thuat') return 'chat-avatar-admin-ky-thuat';
+            if (role === 'admin_quan_li') return 'chat-avatar-admin-quan-li';
+            if (role === 'admin_cong_dong') return 'chat-avatar-admin-cong-dong';
+            if (role === 'mod') return 'chat-avatar-mod';
+            return '';
+        },
+        roleBadgeHtml(role) {
+            if (!role) return '';
+            const map = {
+                'admin_ky_thuat': '<span class="chat-role-badge chat-role-badge-admin-ky-thuat">⚙️ SYS</span>',
+                'admin_quan_li': '<span class="chat-role-badge chat-role-badge-admin-quan-li">👑 ADMIN</span>',
+                'admin_cong_dong': '<span class="chat-role-badge chat-role-badge-admin-cong-dong">🛡️ ADMIN</span>',
+                'mod': '<span class="chat-role-badge chat-role-badge-mod">📜 MOD</span>',
+            };
+            return map[role] || '';
+        },
+        authorLabel(msg) {
+            if (msg.author_role === 'admin_ky_thuat') {
+                return '[SYS] ' + msg.author_display_name;
+            }
+            return msg.author_display_name;
+        },
 
         // --- Lifecycle ---
         init() {

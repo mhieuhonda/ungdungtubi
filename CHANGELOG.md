@@ -6,6 +6,100 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.19] — 2026-08-15 — Giai đoạn 24: Live Chat Fix + Admin/Mod Message Effects + Mod Role
+
+### Sửa lỗi (Critical Bug Fixes — user report)
+
+- **[BF-1] Live Chat Cộng Đồng không gửi được tin nhắn (admin/mod)** — Bug user report: "không thể gửi tin nhắn trong live chat của cộng đồng". **Root cause**: WebSocket handler `chat_ws_upgrade` yêu cầu user phải là `active member` của nhóm (kiểm tra `group_members` table) — không có bypass cho admin/mod. Khi admin/mod vào một nhóm chưa tham gia, WebSocket upgrade fail với 403 Forbidden → client receive event.code 1008 → "Không có quyền chat" → không thể gửi tin nhắn. **Fix**: thêm `can_chat_any_group()` method cho User (return true cho admin + mod). Trong `chat_ws_upgrade`, nếu `user.can_chat_any_group()` là true thì bypass membership check. Frontend: template `community/group.html` hiển thị form chat cho admin/mod ngay cả khi chưa tham gia nhóm, và `isMember` flag trong Alpine.js `liveChat()` component = `membership.status == "active" || user.is_staff()`.
+- **[BF-2] Logic sai trong template isMember** — Fix cú pháp Askama template: thay vì ghép 2 if-else (sẽ tạo "truefalse"), dùng `membership.as_ref().map_or(false, |m| m.status == "active") || user.as_ref().map_or(false, |u| u.is_staff())` — đúng OR logic.
+
+### Tính năng mới (Features)
+
+- **[FT-1] Chức vụ Mod (mod role)** — Thêm role mới "Mod" — dưới admin, trên thành viên, có quyền quản trị cơ bản:
+  - Hierarchy mới: admin_ky_thuat (5) > admin_quan_li (4) > admin_cong_dong (3) > **mod (2)** > member (1)
+  - **Mod có quyền**: xem `/admin` (redirect → `/admin/thanh-vien`), xem `/admin/thanh-vien`, xem `/admin/cong-dong/cam-ngo`, xem các trang placeholder, chat trong BẤT KỲ nhóm cộng đồng nào, hiển thị badge 📜 Mod
+  - **Mod KHÔNG có quyền**: đổi role user khác, ban/activate user, truy cập 3 dashboard admin riêng
+  - Migration 020: drop old `users_role_check` constraint + add new constraint cho phép 'mod'
+  - DB safety check trong `db/mod.rs` cũng được cập nhật để đảm bảo 'mod' được chấp nhận idempotent
+
+- **[FT-2] Hiệu ứng tin nhắn Admin/Mod trong chat** — Mỗi vai trò có style riêng cho tin nhắn:
+  - **Admin Kỹ Thuật — Coder Effect**: Matrix Terminal — nền đen `#0a0e0a`, chữ xanh lá `#00ff41` phát sáng, font monospace, scan-line animation, border glow + box-shadow pulse, prefix `[SYS]`, avatar viền xanh lá pulse glow
+  - **Admin Quản Lý — Premium Gold Frame**: khung vàng luxury — background gradient `#fffbeb → #fef3c7`, border 2px gold + border-left 4px amber, badge 👑, box-shadow vàng
+  - **Admin Cộng Đồng — Shield Blue Frame**: khung xanh dương khiên — background gradient `#eff6ff → #dbeafe`, border 2px blue, badge 🛡️, box-shadow xanh dương
+  - **Mod — Moderator Teal Frame**: khung teal — background gradient `#f0fdfa → #ccfbf1`, border 2px teal, badge 📜, box-shadow teal
+  - Role badge mini cạnh tên author (⚙️ SYS / 👑 ADMIN / 🛡️ ADMIN / 📜 MOD)
+  - Dark mode overrides cho từng role
+  - Áp dụng cho cả 3 loại chat: Live Chat nhóm, Chat Chung toàn platform, DM 1-1
+  - CSS trong `src/static/css/app.css` (thêm ~270 dòng styles)
+  - Alpine.js helpers: `msgBubbleClass(role)`, `msgNameClass(role)`, `avatarClass(role)`, `roleBadgeHtml(role)`, `authorLabel(msg)`
+
+### Cải thiện (Code Quality & Cleanups)
+
+- **[CQ-1] User model refactor cho mod role**:
+  - `is_admin()` giờ return true chỉ cho 3 role admin (KHÔNG bao gồm mod)
+  - Thêm `is_mod()` method — true chỉ cho role 'mod'
+  - Thêm `is_staff()` method — true cho admin HOẶC mod (dùng cho các quyền cơ bản)
+  - Thêm `can_chat_any_group()` method — admin + mod được chat mọi nhóm
+  - Cập nhật `role_level()`: mod=2, admin_cong_dong=3, admin_quan_li=4, admin_ky_thuat=5
+  - Cập nhật `can_manage_technical()`: chỉ admin (level >=3), mod không có
+  - Cập nhật `can_manage_community()`: mod trở lên (level >=2) — mod có quyền community
+  - Cập nhật `can_manage_admin()`: chỉ admin_quan_li trở lên (level >=4)
+  - `admin_dashboard_path()` cho mod = `/admin/thanh-vien` (không có dashboard riêng)
+  - `role_display()`, `role_icon()`, `role_color()` thêm entry cho "mod"
+
+- **[CQ-2] author_role field trong chat models**:
+  - Thêm `author_role: Option<String>` vào `ChatMessageWithAuthor`, `GlobalChatMessageWithAuthor`, `DirectMessageWithAuthor`
+  - SQL queries thêm `u.role AS author_role` cho chat history + DM history (cả 3 routes: group chat, global chat, DM)
+  - WebSocket handlers (`handle_chat_socket`, `handle_global_chat_socket`, `handle_dm_socket`) lưu `author_role` khi persist message
+  - `#[sqlx(default)]` để backward-compatible với DB cũ (nếu migration chưa chạy)
+
+- **[CQ-3] Admin handler cập nhật cho mod**:
+  - `admin_index` cho phép mod (is_staff) — redirect về `/admin/thanh-vien`
+  - `admin_users_list` cho phép mod xem (is_staff)
+  - `admin_change_role` thêm 'mod' vào danh sách role hợp lệ
+  - `admin_change_role` thêm check: admin_cong_dong + mod không được đổi role
+  - `fetch_users_list` ORDER BY thêm 'mod' ở vị trí 4 (sau admin_cong_dong)
+  - `AdminUserRow::role_color_hint()` + `role_badge_html()` thêm entry cho 'mod'
+  - `render_forbidden` hiển thị Mod trong hierarchy
+  - 7 placeholder/preview handlers đổi `is_admin()` → `is_staff()` (cho mod xem)
+
+- **[CQ-4] Templates cập nhật cho mod**:
+  - `admin/users.html`: thêm option "📜 Mod" trong dropdown đổi role (teal background)
+  - `admin/users.html`: cập nhật hierarchy text "KT (150/150) > QL (100/100) > CD (75/75) > Mod (15) > TV (0)"
+  - `layout.html`: header admin link hiển thị cho mod (`is_staff()` thay vì `is_admin()`)
+  - `layout.html`: mobile drawer admin link hiển thị cho mod
+  - `layout.html`: footer version → v0.9.19
+  - `community/group.html`: form chat hiển thị cho admin/mod ngay cả khi chưa tham gia nhóm
+  - `community/group.html`: render hiệu ứng admin/mod (msgBubbleClass, msgNameClass, avatarClass, roleBadgeHtml, authorLabel)
+  - `layout.html` global chat: render hiệu ứng admin/mod
+
+- **[CQ-5] Version strings đồng bộ 0.9.19 ở mọi nơi**:
+  - `Cargo.toml` — `version = "0.9.19"`
+  - `src/main.rs` — 3 nơi (log info, health check JSON, phase_name)
+  - `templates/layout.html` — footer
+  - `templates/admin/users.html` — hierarchy text
+  - `templates/admin/placeholder.html` — version badge
+  - `templates/admin/cong-dong/index.html` — version badge
+  - `templates/admin/cong-dong/cam-ngo.html` — version badge
+  - `templates/admin/quan-li/index.html` — version badge
+  - `templates/admin/ky-thuat/index.html` — version badge
+  - `templates/khong-gian/index.html` — version badge
+  - `src/handlers/admin.rs` — version string trong doc comments
+  - `src/handlers/mod.rs` — version string trong doc comments
+  - `src/handlers/chat.rs` — version string trong doc comments
+  - `src/handlers/friends.rs` — version string trong doc comments
+  - `Dockerfile.coolify` — FROM ghcr.io/mhieuhonda/tubi-app:0.9.19
+  - `README.md` — version + changelog entry
+  - `CHANGELOG.md` — entry mới
+
+### Mục tiêu Giai đoạn 24
+- Fix bug user report: "không thể gửi tin nhắn trong live chat của cộng đồng"
+- Thêm hiệu ứng đặc biệt cho tin nhắn admin (tech admin = coder, admin khác = khung riêng)
+- Thêm chức vụ "mod" — dưới admin, trên thành viên, có quyền quản trị cơ bản
+- Quét và fix toàn bộ lỗi logic + UI liên quan
+
+---
+
 ## [0.9.18] — 2026-08-15 — Giai đoạn 23: Mobile UI Overhaul + Admin Nav Logic Fix + Logout/Profile State Bug Fix
 
 ### Sửa lỗi (Critical Bug Fixes — user report)
