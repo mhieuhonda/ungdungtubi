@@ -18,7 +18,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use axum::{extract::Request, http::StatusCode, middleware::Next, response::{IntoResponse, Response}};
+use axum::{
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
 
 /// Entry trong rate limit map.
 #[derive(Clone, Debug)]
@@ -150,18 +155,12 @@ impl RateLimitState {
 }
 
 /// Middleware function: rate limit per IP + endpoint.
-pub async fn rate_limit(req: Request, next: Next) -> Response {
-    // Lấy state từ extensions (đã được inject ở main.rs)
-    let state = req
-        .extensions()
-        .get::<RateLimitState>()
-        .cloned();
-
-    let Some(state) = state else {
-        // State chưa được inject — bypass (chỉ xảy ra nếu chưa setup đúng)
-        return next.run(req).await;
-    };
-
+/// v0.9.24: Nhận state qua `State<RateLimitState>` (từ `from_fn_with_state`).
+pub async fn rate_limit(
+    State(state): State<RateLimitState>,
+    req: Request,
+    next: Next,
+) -> Response {
     // Lấy IP từ X-Forwarded-For (sau Traefik) hoặc ConnectInfo
     let ip = req
         .headers()

@@ -16,7 +16,10 @@
 //!   - OWASP Secure Headers Project: https://owasp.org/www-project-secure-headers/
 //!   - MDN Content-Security-Policy: https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP
 
-use axum::{http::{HeaderMap, HeaderName, HeaderValue}, response::Response};
+use axum::{
+    http::{header, HeaderMap, HeaderName, HeaderValue},
+    response::Response,
+};
 
 /// Middleware function: thêm security headers vào response.
 ///
@@ -33,8 +36,6 @@ pub async fn security_headers(mut response: Response) -> Response {
 /// Inject security headers vào một HeaderMap.
 /// Public để có thể reuse ở các chỗ khác (vd. error responses).
 pub fn inject_security_headers(headers: &mut HeaderMap) {
-    use axum::http::header;
-
     // ═══ Content-Security-Policy ═══
     // Cho phép: self, inline (Tailwind/Alpine CDN), Google OAuth, Google Fonts, unpkg HTMX
     // Note: 'unsafe-inline' cần thiết vì Tailwind CDN + Alpine.js inject inline styles.
@@ -59,19 +60,20 @@ pub fn inject_security_headers(headers: &mut HeaderMap) {
     }
 
     // ═══ X-Frame-Options: DENY — chống clickjacking ═══
-    if let Ok(v) = HeaderValue::from_static("DENY") {
-        headers.insert(header::X_FRAME_OPTIONS, v);
-    }
+    // from_static trả về HeaderValue trực tiếp (không phải Result)
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
 
     // ═══ X-Content-Type-Options: nosniff — chống MIME sniffing ═══
-    if let Ok(v) = HeaderValue::from_static("nosniff") {
-        headers.insert(header::X_CONTENT_TYPE_OPTIONS, v);
-    }
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
 
     // ═══ Referrer-Policy — chỉ gửi origin khi cross-origin ═══
-    if let Ok(v) = HeaderValue::from_static("strict-origin-when-cross-origin") {
-        headers.insert(header::REFERRER_POLICY, v);
-    }
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
 
     // ═══ Permissions-Policy — disable các browser features nguy hiểm ═══
     let perms = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()";
@@ -80,28 +82,33 @@ pub fn inject_security_headers(headers: &mut HeaderMap) {
     }
 
     // ═══ X-XSS-Protection — legacy, nhưng vẫn thêm cho các browser cũ ═══
-    if let Ok(v) = HeaderValue::from_static("1; mode=block") {
-        headers.insert(HeaderName::from_static("x-xss-protection"), v);
-    }
+    headers.insert(
+        HeaderName::from_static("x-xss-protection"),
+        HeaderValue::from_static("1; mode=block"),
+    );
 
     // ═══ X-DNS-Prefetch-Control — không prefetch DNS (anti-tracking) ═══
-    if let Ok(v) = HeaderValue::from_static("off") {
-        headers.insert(HeaderName::from_static("x-dns-prefetch-control"), v);
-    }
+    headers.insert(
+        HeaderName::from_static("x-dns-prefetch-control"),
+        HeaderValue::from_static("off"),
+    );
 
     // ═══ Cross-Origin-Opener-Policy — isolation ═══
-    if let Ok(v) = HeaderValue::from_static("same-origin") {
-        headers.insert(HeaderName::from_static("cross-origin-opener-policy"), v);
-    }
+    headers.insert(
+        HeaderName::from_static("cross-origin-opener-policy"),
+        HeaderValue::from_static("same-origin"),
+    );
 
     // ═══ Cross-Origin-Resource-Policy ═══
-    if let Ok(v) = HeaderValue::from_static("same-site") {
-        headers.insert(HeaderName::from_static("cross-origin-resource-policy"), v);
-    }
+    headers.insert(
+        HeaderName::from_static("cross-origin-resource-policy"),
+        HeaderValue::from_static("same-site"),
+    );
 
     // ═══ Strict-Transport-Security — ép HTTPS (max 2 năm, includeSubDomains, preload) ═══
     // Coolify/Traefik handle HTTPS termination — set HSTS để browser nhớ dùng HTTPS
-    if let Ok(v) = HeaderValue::from_static("max-age=63072000; includeSubDomains; preload") {
-        headers.insert(header::STRICT_TRANSPORT_SECURITY, v);
-    }
+    headers.insert(
+        header::STRICT_TRANSPORT_SECURITY,
+        HeaderValue::from_static("max-age=63072000; includeSubDomains; preload"),
+    );
 }

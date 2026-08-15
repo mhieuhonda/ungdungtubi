@@ -25,12 +25,14 @@ use middleware::RateLimitState;
 /// v0.9.3: thêm `global_chat_hub` cho Chat Chung toàn platform.
 /// v0.9.5: thêm `dm_chat_hub` cho Direct Messages 1-1 (Giai đoạn 9).
 /// v0.9.21: xoá `chat_hub` (group live chat) — chỉ giữ Chat Chung.
+/// v0.9.24: thêm `rate_limit` state cho RateLimit middleware.
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
     pub global_chat_hub: GlobalChatHub,
     pub dm_chat_hub: DmChatHub,
+    pub rate_limit: middleware::RateLimitState,
 }
 
 #[tokio::main]
@@ -134,17 +136,18 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
+    // v0.9.24: Rate limit state (in-memory, per-IP)
+    let rate_limit_state = RateLimitState::new();
+    middleware::rate_limit::spawn_cleanup_task(rate_limit_state.clone());
+
     // Build shared state (v0.9.3: + global_chat_hub; v0.9.5: + dm_chat_hub; v0.9.21: - chat_hub)
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
         global_chat_hub: GlobalChatHub::default(),
         dm_chat_hub: DmChatHub::default(),
+        rate_limit: rate_limit_state.clone(),
     };
-
-    // v0.9.24: Rate limit state (in-memory, per-IP)
-    let rate_limit_state = RateLimitState::new();
-    middleware::rate_limit::spawn_cleanup_task(rate_limit_state.clone());
 
     // Build router
     let static_dir = config.static_dir.clone();
@@ -336,15 +339,16 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf, rate_limit_stat
         .nest_service("/static", ServeDir::new(static_dir))
         // Shared state
         .with_state(state)
-        // v0.9.24: Inject rate limit state vào request extensions
-        .layer(axum::extension::AddExtensionLayer::new(rate_limit_state))
         // Middleware (order matters: outermost last)
         // v0.9.24: Security headers — map_response (chỉ sửa response, không đọc request)
         .layer(axum_mw::map_response(middleware::headers::security_headers))
         // v0.9.24: CSRF check (log-only mode trong v0.9.24) — from_fn (đọc request, gọi next)
         .layer(axum_mw::from_fn(middleware::csrf::csrf_check))
-        // v0.9.24: Rate limit (per-IP + per-endpoint) — from_fn
-        .layer(axum_mw::from_fn(middleware::rate_limit::rate_limit))
+        // v0.9.24: Rate limit (per-IP + per-endpoint) — from_fn_with_state (state riêng)
+        .layer(axum_mw::from_fn_with_state(
+            rate_limit_state,
+            middleware::rate_limit::rate_limit,
+        ))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
 }
