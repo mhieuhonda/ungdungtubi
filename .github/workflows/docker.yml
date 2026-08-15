@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Actions — Ứng Dụng Từ Bi v0.9.26
+# GitHub Actions — Ứng Dụng Từ Bi v0.9.27
 # Build & push Docker image (Rust 1.97.1) lên GHCR, sau đó TỰ ĐỘNG cập nhật
 # Dockerfile.coolify với SHA tag mới + gọi Coolify API để trigger deploy.
 #
@@ -195,7 +195,11 @@ jobs:
           git add Dockerfile.coolify
           # [skip ci] để không trigger workflow mới — tránh infinite loop
           git commit -m "chore(deploy): bump Dockerfile.coolify → ${SHA_TAG} [skip ci]"
-          git push
+          # v0.9.27 FIX: Push về origin main cụ thể thay vì git push (bị detached HEAD).
+          # actions/checkout@v4 tạo detached HEAD → "git push" fail với
+          # "fatal: You are not currently on a branch".
+          # Fix: push HEAD đến remote branch main cụ thể.
+          git push origin HEAD:refs/heads/main
 
       - name: Summary
         if: env.needs_update == 'true'
@@ -241,9 +245,10 @@ jobs:
           URL="${COOLIFY_API_URL}/api/v1/applications/${COOLIFY_APP_UUID}/start"
           echo "→ Calling Coolify API: $URL"
 
+          # v0.9.27 FIX: Coolify v4 /start endpoint cần POST, không phải GET
           HTTP_CODE=$(curl -sS -o /tmp/coolify_resp.json -w "%{http_code}" \
             --max-time 30 \
-            -X GET \
+            -X POST \
             -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
             -H "Content-Type: application/json" \
             "${URL}")
