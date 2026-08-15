@@ -157,10 +157,13 @@ pub struct BuddhaVowForm {
 impl BuddhaVowForm {
     /// Validate form: vow_type hợp lệ, content 10–2000 ký tự.
     /// Trả về (VowType, content đã trim) hoặc None nếu không hợp lệ.
+    /// v0.9.25 FIX (bug C2): Dùng `chars().count()` thay vì `len()` (byte length).
+    /// Tiếng Việt có dấu là multi-byte UTF-8 → byte length đếm sai số ký tự.
     pub fn validate(&self) -> Option<(VowType, String)> {
         let vt = VowType::from_str(self.vow_type.trim())?;
         let content = self.content.trim();
-        if content.len() < 10 || content.len() > 2000 {
+        let char_count = content.chars().count();
+        if char_count < 10 || char_count > 2000 {
             return None;
         }
         Some((vt, content.to_string()))

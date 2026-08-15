@@ -27,7 +27,11 @@
 #   - [v0.9.11] Tránh Docker cache stale digest bằng tag semver unique
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.24 — Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix
-# v0.9.24-fix: Dùng SHA tag thay vì version tag để tránh Docker cache stale digest.
-# Mỗi commit có SHA tag riêng → Docker chắc chắn pull image mới.
-FROM ghcr.io/mhieuhonda/tubi-app:sha-5367aaa
+# v0.9.25 — Giai đoạn 30: Stability Fix + Critical Bug Fixes (Login + Migration + Schema)
+# v0.9.25: Bump SHA tag sang commit mới sau khi push fix login + migration 021.
+# Trước v0.9.25: production chạy v0.9.24 có bug login fail (csrf_token NULL constraint).
+# Fix v0.9.25: csrf_token sinh random trong INSERT session, pgcrypto extension,
+#   schema safety column names, rate limit cleanup, search cover columns,
+#   admin_ky_thuat users_change_role, BuddhaVow char count, notifications TOCTOU.
+# Sẽ update SHA tag tự động sau khi push commit này.
+FROM ghcr.io/mhieuhonda/tubi-app:sha-TBD

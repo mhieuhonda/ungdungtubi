@@ -344,9 +344,10 @@ impl User {
                 "system_view_logs" | "system_manage_cache" | "system_restart_server" |
                 "system_manage_cron" | "system_view_metrics" | "system_manage_backup" |
                 "system_debug_mode" |
-                // Users — xem + kỹ thuật (không change_role — đó là job admin_quan_li)
+                // Users — xem + kỹ thuật + change_role (v0.9.25 fix B6: đồng bộ với comment
+                // trong admin.rs và migration 021 — admin_ky_thuat CÓ đổi role được)
                 "users_view_list" | "users_view_detail" | "users_view_sessions" |
-                "users_activate" | "users_ban" | "users_export_data" |
+                "users_change_role" | "users_activate" | "users_ban" | "users_export_data" |
                 // Security (5) — chuyên môn admin_ky_thuat
                 "sec_view_audit" | "sec_view_login_log" | "sec_session_revoke" |
                 "sec_spam_filter" | "sec_report_manage" |
@@ -440,10 +441,11 @@ impl User {
     }
 
     /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
+    /// v0.9.25: Đồng bộ với migration 021 (+users_change_role cho admin_ky_thuat → 41 quyền).
     /// v0.9.24: Đồng bộ với migration 021 — admin ngang hàng, mỗi role có scope riêng.
     pub fn permission_count(&self) -> u16 {
         match self.role.as_str() {
-            "admin_ky_thuat" => 40,
+            "admin_ky_thuat" => 41,
             "admin_quan_li" => 40,
             "admin_cong_dong" => 45,
             "mod" => 15,

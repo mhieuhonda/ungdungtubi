@@ -1282,14 +1282,23 @@ pub async fn notifications_list(State(state): State<AppState>, jar: CookieJar) -
     .await
     .unwrap_or_default();
 
-    // Mark all as read sau khi đã load
-    let _ = sqlx::query(
-        "UPDATE notifications SET is_read = true, read_at = COALESCE(read_at, NOW())
-         WHERE user_id = $1 AND is_read = false",
-    )
-    .bind(user.id)
-    .execute(&state.pool)
-    .await;
+    // v0.9.25 FIX (bug C3): TOCTOU — chỉ mark những notification đã fetch là read,
+    // không phải toàn bộ unread của user. Trước v0.9.25, nếu notification mới đến
+    // giữa SELECT và UPDATE, nó bị mark read mà chưa hiển thị cho user.
+    let read_ids: Vec<uuid::Uuid> = notifications
+        .iter()
+        .filter(|n| !n.is_read)
+        .map(|n| n.id)
+        .collect();
+    if !read_ids.is_empty() {
+        let _ = sqlx::query(
+            "UPDATE notifications SET is_read = true, read_at = COALESCE(read_at, NOW())
+             WHERE id = ANY($1)",
+        )
+        .bind(&read_ids)
+        .execute(&state.pool)
+        .await;
+    }
 
     let html = NotificationsTemplate {
         user: Some(user),

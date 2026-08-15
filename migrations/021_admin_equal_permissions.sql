@@ -2,6 +2,9 @@
 -- Ứng Dụng Từ Bi - Migration 021: Redesign phân quyền — Admin ngang hàng
 -- Giai đoạn 29 (v0.9.24)
 --
+-- v0.9.25 FIX: Thêm CREATE EXTENSION pgcrypto ở đầu để gen_random_bytes() hoạt động
+--          (fix bug B2 trong code scan — migration fail vì thiếu extension)
+--
 -- Mục tiêu:
 --   * Bỏ hệ thống phân cấp cũ: admin_ky_thuat(5) > admin_quan_li(4) > admin_cong_dong(3)
 --   * Áp dụng nguyên tắc MỚI: tất cả admin NGANG HÀNG nhau (cùng level 3),
@@ -23,13 +26,18 @@
 --   - Cột role trên users giữ nguyên — chỉ role_permissions thay đổi
 -- ════════════════════════════════════════════════════════════════════════════
 
+-- v0.9.25 FIX: pgcrypto extension cho gen_random_bytes() ở section 4 bên dưới
+-- Trước đây migration này fail tại UPDATE sessions vì pgcrypto chưa được load.
+-- CREATE EXTENSION IF NOT EXISTS là idempotent — safe để chạy nhiều lần.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. Xoá toàn bộ role_permissions cũ để re-seed
 TRUNCATE TABLE role_permissions;
 
 -- 2. Re-seed role_permissions theo phân quyền mới (admin ngang hàng)
 
 -- ════════════════════════════════════════════════════════════════════════════
--- 2a. admin_ky_thuat — Phụ trách KỸ THUẬT (40 quyền)
+-- 2a. admin_ky_thuat — Phụ trách KỸ THUẬT (41 quyền — v0.9.25 fix B6: +users_change_role)
 --     Scope: system, infrastructure, security, audit, technical users
 -- ════════════════════════════════════════════════════════════════════════════
 INSERT INTO role_permissions (role, permission_code)
@@ -40,9 +48,9 @@ WHERE code IN (
     'system_view_logs', 'system_manage_cache', 'system_restart_server',
     'system_manage_cron', 'system_view_metrics', 'system_manage_backup',
     'system_debug_mode',
-    -- Users — chỉ xem + kỹ thuật (không change_role — đó là job của admin_quan_li)
+    -- Users — xem + kỹ thuật + change_role (v0.9.25 fix B6: admin_ky_thuat CÓ đổi role)
     'users_view_list', 'users_view_detail', 'users_view_sessions',
-    'users_activate', 'users_ban', 'users_export_data',
+    'users_change_role', 'users_activate', 'users_ban', 'users_export_data',
     -- Security (toàn quyền — đây là chuyên môn của admin_ky_thuat)
     'sec_view_audit', 'sec_view_login_log', 'sec_session_revoke',
     'sec_spam_filter', 'sec_report_manage',

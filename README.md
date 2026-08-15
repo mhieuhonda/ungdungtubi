@@ -4,7 +4,50 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.24 — Giai đoạn 29
+## 📦 Phiên bản hiện tại: v0.9.25 — Giai đoạn 30
+
+**Giai đoạn 30: Stability Fix + Critical Bug Fixes (Login + Migration + Schema)**
+
+### 🚨 Fix Critical Login Bug (CRITICAL — Production-down fix)
+- **[B1] Mọi login mới fail sau v0.9.24** — Migration 021 set `csrf_token NOT NULL` trên bảng `sessions`, nhưng `auth.rs::google_callback` INSERT session mới không set `csrf_token` → fail với `null value in column "csrf_token" violates not-null constraint`.
+  - **Fix**: Sinh `csrf_token` random (64 hex chars = 32 bytes) + INSERT cùng session.
+  - **Tác động**: 100% new login bị fail trước v0.9.25 — đây là nguyên nhân chính khiến user báo "hỏng hết rồi".
+
+### 🚨 Fix Migration Failure (CRITICAL)
+- **[B2] Migration 021 fail vì thiếu pgcrypto** — `gen_random_bytes()` thuộc extension `pgcrypto`, nhưng không migration nào `CREATE EXTENSION pgcrypto`. Migration 021 fail tại `UPDATE sessions SET csrf_token = encode(gen_random_bytes(32), 'hex')` → cascade failure: các phần sau (rate_limit_log, login_attempts tables) không được tạo.
+  - **Fix**: Thêm `CREATE EXTENSION IF NOT EXISTS pgcrypto;` ở đầu migration 021 (idempotent).
+
+### 🔧 Fix Schema Safety Column Names (HIGH)
+- **[B3] `ensure_schema_safety` tạo bảng `permissions`/`role_permissions` với SAI column names** — Dùng `name` thay vì `name_vi`, `role_code` thay vì `role`, `permission_id` thay vì `permission_code`, `assigned_at` thay vì `granted_at`. Trên fresh deploy, safety_schema tạo bảng sai trước → migration 014 `CREATE TABLE IF NOT EXISTS` bị skip → INSERT fail vì column không tồn tại → cascading migration failure.
+  - **Fix**: Đồng bộ column names với migration 014.
+
+### 🔧 Fix Rate Limit Memory Leak (HIGH)
+- **[B4] Rate limit cleanup task chạy trên instance throwaway** — `main.rs` gọi `spawn_cleanup_task(RateLimitState::new())` (instance MỚI với empty map), trong khi middleware thực tế dùng `RateLimitState::get_global()` (OnceLock singleton — instance KHÁC). Cleanup task làm trống map rỗng, không bao giờ dọn global map → memory leak theo thời gian.
+  - **Fix**: `spawn_cleanup_task(RateLimitState::get_global().clone())`.
+
+### 🔧 Fix Search Books/Groups (HIGH)
+- **[B5] `tim_kiem.rs` query dùng cột không tồn tại `cover_image_url`** — Bảng `books` có cột `cover_url` (không phải `cover_image_url`); bảng `groups` có `cover_upload_id` (không có `cover_image_url`). Cả 2 query SELECT fail → search books + groups luôn trả empty.
+  - **Fix**: Đổi `cover_image_url` → `cover_url` cho books; dùng subquery join `images` cho groups.
+
+### 🔧 Fix Permission Inconsistency (HIGH)
+- **[B6] admin_ky_thuat không đổi role được** — Comment trong `admin.rs` nói "admin_ky_thuat và admin_quan_li có quyền [users_change_role]", nhưng `user.rs::has_permission_code("users_change_role")` cho admin_ky_thuat trả về false. → admin_ky_thuat gọi `/admin/thanh-vien/{id}/role` sẽ bị 403.
+  - **Fix**: Thêm `users_change_role` vào match arm của admin_ky_thuat trong `user.rs::has_permission_code`, và thêm `'users_change_role'` vào migration 021 cho admin_ky_thuat. Update `permission_count()` 40 → 41.
+
+### 🐛 Fix UI/UX Bugs (MEDIUM)
+- **[C1] Version drift trong footer** — `handlers/mod.rs:594` (placeholder_page) hiển thị "v0.9.21", `layout.html:422` hiển thị "v0.9.23". Cả 2 nên là "v0.9.25".
+- **[C2] `BuddhaVowForm::validate` dùng byte length thay vì char count** — `content.len() < 10` đếm byte, không phải ký tự. Tiếng Việt có dấu là multi-byte UTF-8 (2-3 bytes/char) → validation sai.
+  - **Fix**: Dùng `chars().count()`.
+- **[C3] `notifications_list` TOCTOU — đánh dấu all-read sau fetch** — Handler SELECT 50 notifications, rồi UPDATE mark all unread → read. Nếu notification mới đến giữa SELECT và UPDATE, nó bị mark read mà chưa hiển thị cho user.
+  - **Fix**: UPDATE chỉ mark những id đã fetch.
+
+### 📦 Version Sync
+- Bump version `0.9.24` → `0.9.25` ở: `Cargo.toml`, `src/main.rs` (log + health check response), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder footer), `Dockerfile.coolify` (tag).
+- Update phase 29 → 30 trong health check.
+- Update `HEALTH_FEATURES` (+9 features v0.9.25).
+
+---
+
+## 📦 Phiên bản trước: v0.9.24 — Giai đoạn 29
 
 **Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix**
 

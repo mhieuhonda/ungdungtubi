@@ -39,6 +39,8 @@ pub struct UserResult {
 }
 
 /// Một kết quả sách.
+/// v0.9.25 FIX (bug B5): đổi `cover_image_url` → `cover_url` để khớp schema migration 012
+/// (trước v0.9.25 query fail vì cột `cover_image_url` không tồn tại trong bảng books).
 #[allow(dead_code)]
 #[derive(Debug, Clone, FromRow)]
 pub struct BookResult {
@@ -46,7 +48,7 @@ pub struct BookResult {
     pub slug: String,
     pub title: String,
     pub author: Option<String>,
-    pub cover_image_url: Option<String>,
+    pub cover_url: Option<String>,
     pub view_count: i64,
 }
 
@@ -166,8 +168,9 @@ async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
     });
 
     // Search books (tối đa 10)
+    // v0.9.25 FIX (bug B5): đổi `cover_image_url` → `cover_url` (schema migration 012).
     let books = sqlx::query_as::<_, BookResult>(
-        "SELECT id, slug, title, author, cover_image_url, view_count
+        "SELECT id, slug, title, author, cover_url, view_count
          FROM books
          WHERE is_active = true
            AND (title ILIKE $1 OR author ILIKE $1 OR description ILIKE $1)
@@ -204,14 +207,18 @@ async fn search_all(pool: &sqlx::PgPool, q: &str) -> SearchResults {
     });
 
     // Search groups (tối đa 10)
+    // v0.9.25 FIX (bug B5): bảng `groups` không có cột `cover_image_url` —
+    // dùng subquery join với `images` để lấy `stored_filename` (URL ảnh cover upload).
+    // Trước v0.9.25, query fail vì column không tồn tại → search groups luôn trả empty.
     let groups = sqlx::query_as::<_, GroupResult>(
-        "SELECT g.id, g.slug, g.name, g.description, g.cover_image_url,
+        "SELECT g.id, g.slug, g.name, g.description,
+                (SELECT i.stored_filename FROM images i WHERE i.id = g.cover_upload_id) AS cover_image_url,
                 COUNT(gm.user_id)::BIGINT AS member_count
          FROM groups g
          LEFT JOIN group_members gm ON gm.group_id = g.id
          WHERE g.is_active = true
            AND (g.name ILIKE $1 OR g.description ILIKE $1)
-         GROUP BY g.id, g.slug, g.name, g.description, g.cover_image_url
+         GROUP BY g.id, g.slug, g.name, g.description, g.cover_upload_id
          ORDER BY member_count DESC
          LIMIT 10",
     )

@@ -112,14 +112,21 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     }
 
     // 5. Ensure permissions-related tables exist (v0.9.8 — Giai đoạn 12).
+    // v0.9.25 FIX (bug B3): Đồng bộ column names với migration 014.
+    //   - permissions.name → permissions.name_vi (+ description_vi)
+    //   - role_permissions(role_code, permission_id, assigned_at)
+    //       → role_permissions(role, permission_code, granted_at)
+    // Trước v0.9.25, fresh deploy tạo bảng SAI → migration 014 `CREATE TABLE IF NOT EXISTS`
+    // bị skip → INSERT fail vì column không tồn tại → cascading migration failure.
     match sqlx::query(
         "CREATE TABLE IF NOT EXISTS permissions (
-            id         BIGSERIAL    PRIMARY KEY,
-            code       VARCHAR(60)  NOT NULL UNIQUE,
-            name       VARCHAR(200) NOT NULL,
-            category   VARCHAR(30)  NOT NULL,
-            sort_order INT          NOT NULL DEFAULT 0,
-            created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+            id            SERIAL       PRIMARY KEY,
+            code          VARCHAR(60)  NOT NULL UNIQUE,
+            name_vi       VARCHAR(200) NOT NULL,
+            description_vi TEXT,
+            category      VARCHAR(30)  NOT NULL,
+            sort_order    INT          NOT NULL DEFAULT 0,
+            created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
         )"
     )
     .execute(pool)
@@ -131,10 +138,10 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
 
     match sqlx::query(
         "CREATE TABLE IF NOT EXISTS role_permissions (
-            role_code      VARCHAR(30) NOT NULL,
-            permission_id  BIGINT      NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-            assigned_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            PRIMARY KEY (role_code, permission_id)
+            role            VARCHAR(30) NOT NULL,
+            permission_code VARCHAR(60) NOT NULL REFERENCES permissions(code) ON DELETE CASCADE,
+            granted_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (role, permission_code)
         )"
     )
     .execute(pool)

@@ -236,13 +236,20 @@ pub async fn google_callback(
     }
 
     // Tạo session.
+    // v0.9.25 FIX (bug B1): Migration 021 thêm cột `csrf_token VARCHAR(64) UNIQUE NOT NULL`
+    // vào sessions. Trước v0.9.25, INSERT session mới không set csrf_token → fail với
+    // `null value in column "csrf_token" violates not-null constraint` → MỌI login fail.
+    // Fix: sinh csrf_token random (64 hex chars = 32 bytes) + INSERT cùng session.
     let session_id = uuid::Uuid::new_v4().to_string();
+    let csrf_token = uuid::Uuid::new_v4().simple().to_string()
+        + &uuid::Uuid::new_v4().simple().to_string(); // 32+32 = 64 hex chars
     let insert_session = sqlx::query(
-        "INSERT INTO sessions (id, user_id, created_at, expires_at)
-         VALUES ($1, $2, NOW(), NOW() + INTERVAL '7 days')",
+        "INSERT INTO sessions (id, user_id, csrf_token, created_at, expires_at)
+         VALUES ($1, $2, $3, NOW(), NOW() + INTERVAL '7 days')",
     )
     .bind(&session_id)
     .bind(user.id)
+    .bind(&csrf_token)
     .execute(pool)
     .await;
 

@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.24 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.25 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.24 — Giai đoạn 29: Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix");
+    log::info!("📦 Phiên bản: v0.9.25 — Giai đoạn 30: Stability Fix + CSRF Block Mode + Bug Fixes (Critical Login + Migration Fix)");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -134,10 +134,12 @@ async fn main() -> std::io::Result<()> {
         log::warn!("⚠️ Không tạo được upload_dir {}: {e}", config.upload_dir.display());
     }
 
-    // v0.9.24: Khởi tạo rate limit global state + background cleanup task.
-    // State là global static (OnceLock) — tự khởi tạo khi first request.
-    // Chỉ cần spawn cleanup task.
-    middleware::rate_limit::spawn_cleanup_task(RateLimitState::new());
+    // v0.9.25 FIX (bug B4): Trước v0.9.25, spawn_cleanup_task nhận `RateLimitState::new()`
+    // (instance MỚI với empty map) trong khi middleware thực tế dùng `RateLimitState::get_global()`
+    // (OnceLock singleton — instance KHÁC). Cleanup task làm trống map rỗng thay vì global map
+    // → memory leak theo thời gian.
+    // Fix: spawn cleanup task dùng đúng global instance.
+    middleware::rate_limit::spawn_cleanup_task(RateLimitState::get_global().clone());
 
     // Build shared state (v0.9.3: + global_chat_hub; v0.9.5: + dm_chat_hub; v0.9.21: - chat_hub)
     let state = AppState {
@@ -479,12 +481,22 @@ const HEALTH_FEATURES: &[&str] = &[
     "permissions-policy-v0.9.24",
     "cross-origin-isolation-v0.9.24",
     "deploy-fix-v0.9.24",
+    // v0.9.25 — Giai đoạn 30: Stability Fix + Critical Bug Fixes
+    "login-session-csrf-token-fix-v0.9.25",
+    "pgcrypto-extension-migration-fix-v0.9.25",
+    "ensure-schema-safety-column-fix-v0.9.25",
+    "rate-limit-cleanup-global-state-fix-v0.9.25",
+    "search-cover-column-fix-v0.9.25",
+    "admin-ky-thuat-change-role-fix-v0.9.25",
+    "buddha-vow-char-count-fix-v0.9.25",
+    "notifications-toctou-fix-v0.9.25",
+    "version-drift-footer-fix-v0.9.25",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
 /// v0.9.24: Coolify/Docker health check cần endpoint trả 200 cho unauthenticated.
 /// Trước đây v0.9.23 yêu cầu admin auth → Coolify health check fail → container bị mark unhealthy.
-/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.24"}` (không lộ data nhạy cảm).
+/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.25"}` (không lộ data nhạy cảm).
 /// Admin/mod auth nhận full response (DB version, features, role hierarchy, user counts).
 async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> Response {
     use crate::handlers::get_user_from_session;
@@ -497,7 +509,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.24",
+            "version": "0.9.25",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -527,19 +539,19 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.24",
+        "version": "0.9.25",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 29,
-        "phase_name": "Giai đoạn 29 — Permission Redesign + SVG Redesign + Security Hardening + Deploy Fix",
+        "phase": 30,
+        "phase_name": "Giai đoạn 30 — Stability Fix + Critical Bug Fixes (Login + Migration + Schema)",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
         "roles": {
             "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 40, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
-            "system_permission_counts": {"admin_ky_thuat": 40, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
+            "permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
             "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",
