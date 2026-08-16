@@ -104,6 +104,24 @@ impl DmChatHub {
         let tx = self.subscribe(conversation_id).await;
         let _ = tx.send(payload);
     }
+
+    /// v0.9.28 — Giai đoạn 33: Cleanup channel nếu không còn receiver nào.
+    ///
+    /// Trước v0.9.28: `channels` HashMap grow unbounded — mỗi conversation_id mới
+    /// tạo entry `or_insert_with` nhưng không bao giờ remove. Sau hàng ngàn
+    /// conversation, HashMap leak RAM (mỗi entry giữ broadcast buffer 128 slots).
+    ///
+    /// Gọi method này sau khi DM WebSocket disconnect. Nếu `receiver_count() == 0`
+    /// (không còn ai subscribe channel này), remove entry khỏi map → giải phóng RAM.
+    pub async fn cleanup_if_empty(&self, conversation_id: Uuid) {
+        let mut map = self.channels.lock().await;
+        if let Some(tx) = map.get(&conversation_id) {
+            if tx.receiver_count() == 0 {
+                map.remove(&conversation_id);
+                log::debug!("💬 DM channel cleanup: conv={}", conversation_id);
+            }
+        }
+    }
 }
 
 const GLOBAL_CHAT_LIST_COLUMNS: &str = "m.id, m.author_id, m.body, m.is_active, m.created_at, \

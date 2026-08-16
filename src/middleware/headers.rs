@@ -38,10 +38,16 @@ pub async fn security_headers(mut response: Response) -> Response {
 pub fn inject_security_headers(headers: &mut HeaderMap) {
     // ═══ Content-Security-Policy ═══
     // Cho phép: self, inline (Tailwind/Alpine CDN), Google OAuth, Google Fonts, unpkg HTMX
-    // Note: 'unsafe-inline' cần thiết vì Tailwind CDN + Alpine.js inject inline styles.
-    //       Trong tương lai có thể build Tailwind локально để bỏ 'unsafe-inline'.
+    // Note v0.9.27: 'unsafe-inline' cần thiết vì Tailwind CDN + Alpine.js inject inline styles.
+    // Note v0.9.28: THÊM 'unsafe-eval' vào script-src — BẮT BUỘC để Alpine.js hoạt động.
+    //       Alpine.js dùng `new Function()` để eval các expression như `mobileMenu = !mobileMenu`,
+    //       `x-show="!mobileMenu"`, `x-data="{...}"`. Không có 'unsafe-eval' → Alpine fail
+    //       silently → hamburger menu liệt, chat bubble biến mất, cả 2 icon (☰ + ✕) cùng hiện.
+    //       Đây là root cause của lỗi UI report ở v0.9.27.
+    //       Trong tương lai có thể migrate sang Alpine CSP build (alpine.csp.js) + Alpine.data()
+    //       registrations để bỏ 'unsafe-eval', nhưng đó là refactor lớn (chạm toàn bộ templates).
     let csp = "default-src 'self'; \
-               script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com; \
+               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com; \
                style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; \
                img-src 'self' data: blob: https:; \
                font-src 'self' data: https://fonts.gstatic.com; \

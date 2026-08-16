@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.27 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.28 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.27 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness");
+    log::info!("📦 Phiên bản: v0.9.28 — Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -504,6 +504,15 @@ const HEALTH_FEATURES: &[&str] = &[
     "deploy-pipeline-single-commit-fix-v0.9.26",
     "dockerfile-coolify-auto-update-sha-v0.9.26",
     "duplicate-env-vars-cleanup-v0.9.26",
+    // v0.9.28 — Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix
+    "csp-unsafe-eval-fix-alpine-js-v0.9.28",
+    "xss-fix-auth-error-page-v0.9.28",
+    "xss-fix-friends-htmx-responses-v0.9.28",
+    "html-escape-utility-v0.9.28",
+    "dm-chat-hub-memory-leak-fix-v0.9.28",
+    "mobile-menu-click-working-v0.9.28",
+    "chat-bubble-visible-when-logged-in-v0.9.28",
+    "hamburger-icon-no-longer-duplicate-v0.9.28",
     // v0.9.27 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness
     "fouc-fix-style-display-none-fallback-v0.9.27",
     "fouc-fix-x-cloak-class-specificity-v0.9.27",
@@ -519,7 +528,7 @@ const HEALTH_FEATURES: &[&str] = &[
 /// GET /api/health — Health check (public minimal + admin full).
 /// v0.9.24: Coolify/Docker health check cần endpoint trả 200 cho unauthenticated.
 /// Trước đây v0.9.23 yêu cầu admin auth → Coolify health check fail → container bị mark unhealthy.
-/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.27"}` (không lộ data nhạy cảm).
+/// Giờ: unauthenticated nhận 200 `{"status":"ok","version":"0.9.28"}` (không lộ data nhạy cảm).
 /// Admin/mod auth nhận full response (DB version, features, role hierarchy, user counts).
 async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> Response {
     use crate::handlers::get_user_from_session;
@@ -532,7 +541,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.27",
+            "version": "0.9.28",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -562,11 +571,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.27",
+        "version": "0.9.28",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 32,
-        "phase_name": "Giai đoạn 32 — Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness",
+        "phase": 33,
+        "phase_name": "Giai đoạn 33 — CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

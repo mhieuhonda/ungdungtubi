@@ -642,20 +642,28 @@ impl UserMinimal {
 }
 
 /// Trang lỗi đơn giản (dùng khi OAuth thất bại).
+///
+/// v0.9.28 — Giai đoạn 33: HTML-escape `title` và `msg` trước khi inject vào HTML
+/// để chống reflected XSS. Trước đây, `msg` chứa `&query.error` (user-controlled)
+/// → attacker craft URL `?error=<script>...</script>` → script execute trong
+/// context của victim khi victim click link lừa đảo.
 fn error_page(title: &str, msg: &str) -> Response {
+    use crate::handlers::html_escape;
+    let title_esc = html_escape(title);
+    let msg_esc = html_escape(msg);
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="vi"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{title} — Ứng Dụng Từ Bi</title>
+<title>{title_esc} — Ứng Dụng Từ Bi</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center px-4">
 <div class="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg text-center">
   <div class="text-5xl mb-4">🪷</div>
-  <h1 class="text-xl font-bold text-tubi-800 mb-2" style="color:#1B5E20">{title}</h1>
-  <p class="text-gray-600 text-sm mb-6">{msg}</p>
+  <h1 class="text-xl font-bold text-tubi-800 mb-2" style="color:#1B5E20">{title_esc}</h1>
+  <p class="text-gray-600 text-sm mb-6">{msg_esc}</p>
   <a href="/" class="inline-block bg-tubi-800 text-white px-6 py-2 rounded-xl hover:bg-tubi-900 transition" style="background-color:#2E7D32">← Về trang chủ</a>
   <a href="/dang-nhap" class="inline-block ml-2 text-tubi-700 px-6 py-2 rounded-xl border border-tubi-300 hover:bg-tubi-50 transition" style="color:#388E3C;border-color:#A5D6A7">Thử lại →</a>
 </div>

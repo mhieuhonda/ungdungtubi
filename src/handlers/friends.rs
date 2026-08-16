@@ -209,6 +209,13 @@ pub async fn send_friend_request(
         }
     };
 
+    // v0.9.28: HTML-escape display_name + avatar_url để chống stored XSS.
+    // display_name là user-controlled (POST /ca-nhan/cap-nhat), có thể chứa
+    // <script>, onerror=, ... → khi user khác xem friend list, script execute.
+    use crate::handlers::html_escape;
+    let display_name = html_escape(&display_name);
+    let avatar_url: Option<String> = avatar_url.map(|u| html_escape(&u));
+
     // Helper: render avatar HTML
     let avatar_html = match &avatar_url {
         Some(url) => format!(
@@ -362,6 +369,10 @@ pub async fn accept_friend_request(
         .flatten();
 
         if let Some((display_name, avatar_url)) = other {
+            // v0.9.28: HTML-escape display_name + avatar_url để chống stored XSS.
+            use crate::handlers::html_escape;
+            let display_name = html_escape(&display_name);
+            let avatar_url: Option<String> = avatar_url.map(|u| html_escape(&u));
             let avatar_html = match &avatar_url {
                 Some(url) => format!(
                     r#"<img src="{url}" alt="avatar" class="w-10 h-10 rounded-full border border-gray-200" referrerpolicy="no-referrer">"#
@@ -948,6 +959,10 @@ async fn handle_dm_socket(
     }
 
     send_task.abort();
+    // v0.9.28: Cleanup DM channel nếu không còn receiver nào → chống memory leak.
+    // Trước v0.9.28: channels HashMap grow unbounded, mỗi conversation mới thêm
+    // entry nhưng không bao giờ remove → leak RAM theo thời gian.
+    state.dm_chat_hub.cleanup_if_empty(conversation_id).await;
     log::info!("💬 DM WS disconnected: user={} conv={}", user_id, conversation_id);
 }
 

@@ -37,6 +37,36 @@ pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, 
     u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
     u.avatar_upload_id, u.role";
 
+/// HTML-escape một string để chống XSS khi inject vào HTML response.
+///
+/// v0.9.28 — Giai đoạn 33: Thêm utility này để fix stored XSS trong HTMX responses
+/// (friends.rs) và reflected XSS trong auth.rs::error_page.
+///
+/// Askama tự escape khi render template, nhưng các handler trả HTML qua `format!()`
+/// thì phải escape thủ công. Quên escape → user ác ý đặt `display_name = "<script>..."`
+/// → khi user khác xem danh sách bạn bè / accept friend request, script execute.
+///
+/// Escape các ký tự nguy hiểm theo OWASP recommendations:
+///   & → &amp;   (phải escape đầu tiên)
+///   < → &lt;
+///   > → &gt;
+///   " → &quot;
+///   ' → &#x27;  (HTML5: &apos; không được hỗ trợ rộng rãi)
+pub fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            _ => out.push(ch),
+        }
+    }
+    out
+}
+
 /// Helper: Extract authenticated user from session cookie.
 ///
 /// v0.9.10: Thêm fallback — nếu SELECT với USER_COLUMNS thất bại
@@ -591,7 +621,7 @@ fn placeholder_page(
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-tubi-700 text-center text-sm text-tubi-400">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.26 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.28 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

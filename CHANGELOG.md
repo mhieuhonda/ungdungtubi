@@ -6,6 +6,67 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.28] — 2026-08-16 — Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix
+
+### 🚨 Sửa lỗi CRITICAL — CSP thiếu `'unsafe-eval'` làm Alpine.js hoàn toàn không hoạt động
+
+- **[CSP-1] Alpine.js fail silently trên production** — Nguyên nhân gốc rễ của TẤT CẢ lỗi UI mà user report ở v0.9.27:
+  - **Hamburger menu (3 gạch) bị liệt** — click không có tác dụng
+  - **Cả 2 icon (☰ hamburger + ✕ close) cùng hiện** — x-show directive không evaluate được
+  - **Chat bubble biến mất** (khi logged in) — x-data="globalChat()" không init được, x-cloak vẫn còn → CSS `[x-cloak] { display: none !important; }` ẩn element
+  - **Mega menu desktop không mở** được
+  - **Theme toggle không hoạt động**
+  - **Notification badge không update**
+  - **Mọi tính năng dựa trên Alpine.js đều hỏng**
+
+  **Nguyên nhân**: CSP header `script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://www.googletagmanager.com` thiếu `'unsafe-eval'`. Alpine.js 3.x dùng `new Function()` để evaluate các expression trong `x-data`, `x-show`, `x-text`, `@click`, v.v. Browser block eval theo CSP → Alpine throw warning nhưng fail silently.
+
+  **Fix**: Thêm `'unsafe-eval'` vào `script-src` trong `src/middleware/headers.rs`. Trong tương lai có thể migrate sang Alpine CSP build (`alpine.csp.js`) + `Alpine.data()` registrations để bỏ `'unsafe-eval'`, nhưng đó là refactor lớn chạm toàn bộ templates.
+
+  **Xác minh**: Test trên production bằng headless browser — trước fix, browser console có 50+ warnings "Alpine Expression Error: Evaluating a string as JavaScript violates the following Content Security Policy directive because 'unsafe-eval' is not an allowed source of script". Sau fix, không còn warning nào, Alpine.js hoạt động bình thường.
+
+### 🔒 Sửa lỗi HIGH — Reflected XSS trong OAuth error page
+
+- **[XSS-1] `auth.rs::error_page` không escape HTML** — Hàm `error_page(title, msg)` dùng `format!()` để inject `title` và `msg` trực tiếp vào HTML. Tại `google_callback`, `&query.error` (từ URL query string, hoàn toàn user-controlled) được chèn vào `msg`:
+  ```rust
+  error_page("Chưa đăng nhập được bằng Google",
+      &format!("Google báo lỗi: {err}. Vui lòng thử lại."));
+  ```
+  Attacker craft URL `https://tubi.../auth/google/callback?error=<script>fetch('/admin/thanh-vien/VICTIM_ID/ban',{method:'POST'})</script>` rồi lừa victim click → script execute trong session của victim. CSP có `'unsafe-inline'` nên script chạy được. Attacker có thể thực hiện actions thay victim (ban user, gửi mail, đổi avatar...).
+
+  **Fix**: Thêm utility `html_escape()` trong `src/handlers/mod.rs`. Escape `title` và `msg` trước khi `format!()`.
+
+### 🔒 Sửa lỗi HIGH — Stored XSS trong friends.rs HTMX responses
+
+- **[XSS-2] `send_friend_request` và `accept_friend_request` không escape `display_name` + `avatar_url`** — Các handler trả về HTMX partial HTML xây bằng `format!()`:
+  ```rust
+  format!(r#"...<div class="font-semibold ...">{display_name}</div>..."#)
+  format!(r#"<img src="{url}" alt="avatar" ...>"#)
+  ```
+  `display_name` là user-controlled qua `POST /ca-nhan/cap-nhat` (chỉ trim + check length ≤ 100, không sanitize HTML). User ác ý đặt `display_name = "<img src=x onerror=fetch('/admin/thanh-vien/VICTIM_ID/ban',{method:'POST'})>"` → khi victim xem danh sách bạn bè / gửi lời mời kết bạn / chấp nhận lời mời, script execute trong session của victim. Có thể dùng để tự động ban user khác (nếu victim là admin), gửi mail spam, v.v.
+
+  **Fix**: HTML-escape `display_name` và `avatar_url` bằng `html_escape()` trước khi `format!()`.
+
+### 🔧 Sửa lỗi HIGH — Memory leak trong DmChatHub
+
+- **[LEAK-1] `DmChatHub::channels` HashMap grow unbounded** — `DmChatHub` giữ `Arc<Mutex<HashMap<Uuid, broadcast::Sender<BroadcastPayload>>>>`. Mỗi conversation_id mới tạo entry `or_insert_with(|| broadcast::channel(128))` nhưng **không bao giờ remove** entry khi conversation hết active receivers. Sau hàng ngàn conversation, HashMap leak RAM (mỗi entry giữ broadcast buffer 128 slots). Server phải restart mới giải phóng.
+
+  **Fix**: Thêm method `cleanup_if_empty(conversation_id)` — gọi sau khi DM WebSocket disconnect. Nếu `sender.receiver_count() == 0` thì `map.remove(&conversation_id)`. So sánh: `GlobalChatHub` chỉ 1 channel nên không cần cleanup.
+
+### 📦 Version Sync
+
+- Bump version `0.9.27` → `0.9.28` ở: `Cargo.toml`, `src/main.rs` (log + health check response 2 nơi + comment), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder_page footer — fix drift từ v0.9.26).
+- Update phase 32 → 33 trong health check.
+- Update `HEALTH_FEATURES` (+8 features v0.9.28).
+
+### 📋 Ghi chú
+
+- **Báo cáo lỗi của user**: User report "không thấy bong bóng live chat đâu, nút 3 gạch bị liệt, bên dưới có dấu x". Đây là các triệu chứng của cùng 1 root cause (CSP thiếu 'unsafe-eval' → Alpine.js fail). Fix 1 lỗi CSP → tất cả triệu chứng biến mất.
+- **Security tradeoff**: `'unsafe-eval'` giảm security posture, nhưng đã có `'unsafe-inline'` từ trước nên impact thêm là nhỏ. Long-term plan: migrate sang Alpine CSP build.
+- **Không có DB migration** trong release này — chỉ thay đổi code + CSP header.
+
+---
+
 ## [0.9.27] — 2026-08-15 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness + Security
 
 ### Sửa lỗi (CRITICAL — FOUC / Flash of Unstyled Content)
