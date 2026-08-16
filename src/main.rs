@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.28 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.29 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.28 — Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix");
+    log::info!("📦 Phiên bản: v0.9.29 — Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -513,6 +513,17 @@ const HEALTH_FEATURES: &[&str] = &[
     "mobile-menu-click-working-v0.9.28",
     "chat-bubble-visible-when-logged-in-v0.9.28",
     "hamburger-icon-no-longer-duplicate-v0.9.28",
+    // v0.9.29 — Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance
+    "admin-equal-permissions-rebalance-v0.9.29",
+    "doi-ngu-page-sync-with-code-v0.9.29",
+    "live-chat-popup-taller-v0.9.29",
+    "live-chat-backdrop-removed-v0.9.29",
+    "admin-mod-msg-effects-removed-v0.9.29",
+    "dm-send-queue-enabled-v0.9.29",
+    "dm-autoreconnect-fast-v0.9.29",
+    "css-animations-reduced-v0.9.29",
+    "chat-scroll-performance-v0.9.29",
+    "permission-count-sync-migration-021-v0.9.29",
     // v0.9.27 — Giai đoạn 32: Critical UI Fix (FOUC + Chat + Menu) + Chat History Robustness
     "fouc-fix-style-display-none-fallback-v0.9.27",
     "fouc-fix-x-cloak-class-specificity-v0.9.27",
@@ -541,7 +552,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.28",
+            "version": "0.9.29",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -571,11 +582,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.28",
+        "version": "0.9.29",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 33,
-        "phase_name": "Giai đoạn 33 — CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix",
+        "phase": 34,
+        "phase_name": "Giai đoạn 34 — Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

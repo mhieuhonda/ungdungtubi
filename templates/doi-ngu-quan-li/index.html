@@ -87,18 +87,18 @@
             </div>
         </div>
 
-        <!-- Member 2: Võ Đăng Trọng Nghĩa — Admin Phát Triển -->
+        <!-- Member 2: Võ Đăng Trọng Nghĩa — Admin Cộng Đồng (v0.9.29: đổi từ Admin Phát Triển) -->
         <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-shadow overflow-hidden border border-gray-100 dark:border-slate-700">
-            <div class="h-2 bg-gradient-to-r from-violet-400 to-violet-600"></div>
+            <div class="h-2 bg-gradient-to-r from-blue-400 to-blue-600"></div>
             <div class="p-5 sm:p-6">
                 <div class="flex items-start gap-4">
-                    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-violet-100 to-violet-200 dark:from-violet-900/30 dark:to-violet-800/30 flex items-center justify-center text-2xl shadow-inner">
-                        🧭
+                    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 flex items-center justify-center text-2xl shadow-inner">
+                        🛡️
                     </div>
                     <div class="flex-1 min-w-0">
                         <h2 class="text-lg font-bold text-ink dark:text-slate-100">Võ Đăng Trọng Nghĩa</h2>
-                        <div class="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300">
-                            🧭 Admin Phát Triển
+                        <div class="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                            🛡️ Admin Cộng Đồng
                         </div>
                     </div>
                 </div>
@@ -108,7 +108,7 @@
                         <span class="text-gray-400 dark:text-slate-500 mt-0.5 flex-shrink-0">📋</span>
                         <div>
                             <span class="text-gray-500 dark:text-slate-400">Chức vụ:</span>
-                            <span class="text-ink dark:text-slate-200 font-medium ml-1">Phát triển sản phẩm và định hướng dự án</span>
+                            <span class="text-ink dark:text-slate-200 font-medium ml-1">Định hướng nội dung, cộng đồng, truyền thông và sự kiện</span>
                         </div>
                     </div>
                     <div class="flex items-start gap-2">
@@ -270,40 +270,50 @@
 
     </div>
 
-    <!-- Hierarchy Info -->
+    <!-- v0.9.29: Hệ Thống Vai Trò Quản Lí — admin NGANG HÀNH (cùng cấp 3) -->
     <div class="mt-10 bg-gradient-to-r from-tubi-50 to-tubi-100 dark:from-slate-800 dark:to-slate-700 rounded-2xl p-6 sm:p-8 border border-tubi-200 dark:border-slate-600">
         <h2 class="text-lg font-bold text-ink dark:text-slate-100 mb-4 flex items-center gap-2">
-            <span>📐</span> Hệ Thống Phân Cấp Quản Lí
+            <span>⚖️</span> Hệ Thống Vai Trò Quản Lí
         </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
-            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-600">
-                <div class="text-xl mb-1">⚙️</div>
-                <div class="text-xs font-bold text-emerald-700 dark:text-emerald-400">Admin Kỹ Thuật</div>
-                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 5 — Toàn quyền</div>
+        <p class="text-xs text-gray-600 dark:text-slate-300 mb-4 leading-relaxed">
+            <strong>Tất cả admin đều bằng nhau ngang hàng, cùng cấp, không ai hơn ai.</strong> Mỗi người phụ trách một mảng riêng với quyền hạn theo lĩnh vực — không phân cấp cao/thấp giữa các admin.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div class="text-center p-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-emerald-300 dark:border-emerald-700">
+                <div class="text-2xl mb-1">⚙️</div>
+                <div class="text-sm font-bold text-emerald-700 dark:text-emerald-400">Admin Kỹ Thuật</div>
+                <div class="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 3 · 41 quyền</div>
+                <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-1">Hệ thống · Bảo mật · Infrastructure</div>
             </div>
-            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-600">
-                <div class="text-xl mb-1">🧭</div>
-                <div class="text-xs font-bold text-violet-700 dark:text-violet-400">Admin Phát Triển</div>
-                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 4 — Định hướng</div>
+            <div class="text-center p-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-amber-300 dark:border-amber-700">
+                <div class="text-2xl mb-1">👑</div>
+                <div class="text-sm font-bold text-amber-700 dark:text-amber-400">Admin Quản Lí</div>
+                <div class="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 3 · 40 quyền</div>
+                <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-1">Thành viên · Nội dung · Quỹ</div>
             </div>
-            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-600">
-                <div class="text-xl mb-1">👑</div>
-                <div class="text-xs font-bold text-amber-700 dark:text-amber-400">Admin Quản Lí</div>
-                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 3 — Quản lý</div>
+            <div class="text-center p-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 border-blue-300 dark:border-blue-700">
+                <div class="text-2xl mb-1">🛡️</div>
+                <div class="text-sm font-bold text-blue-700 dark:text-blue-400">Admin Cộng Đồng</div>
+                <div class="text-[11px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 3 · 45 quyền</div>
+                <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-1">Cộng đồng · Sự kiện · Media</div>
             </div>
-            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-600">
-                <div class="text-xl mb-1">🛡️</div>
-                <div class="text-xs font-bold text-blue-700 dark:text-blue-400">Admin Cộng Đồng</div>
-                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 2 — Cộng đồng</div>
-            </div>
-            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-600">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600">
                 <div class="text-xl mb-1">📜</div>
                 <div class="text-xs font-bold text-teal-700 dark:text-teal-400">Mod</div>
-                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 1 — Kiểm duyệt</div>
+                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 2 · 15 quyền</div>
+                <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">Kiểm duyệt cơ bản</div>
+            </div>
+            <div class="text-center p-3 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-600">
+                <div class="text-xl mb-1">🪷</div>
+                <div class="text-xs font-bold text-tubi-700 dark:text-tubi-300">Thành Viên</div>
+                <div class="text-[10px] text-gray-500 dark:text-slate-400 mt-0.5">Cấp 1 · 0 quyền admin</div>
+                <div class="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">Người dùng thường</div>
             </div>
         </div>
         <p class="mt-4 text-xs text-gray-500 dark:text-slate-400 leading-relaxed">
-            Hệ thống phân cấp đảm bảo mỗi thành viên quản lí có phạm vi quyền hạn rõ ràng. Admin Kỹ Thuật nắm toàn quyền hệ thống (150/150 quyền), Admin Phát Triển quản lý định hướng (100/150), Admin Quản Lí phụ trách chuyên mục (75/150), và Mod hỗ trợ kiểm duyệt nội dung cộng đồng.
+            <strong>v0.9.29 — Nguyên tắc mới:</strong> 3 admin (Kỹ Thuật · Quản Lí · Cộng Đồng) đều ngang hàng ở cấp 3 — không còn phân cấp cao/thấp. Mỗi admin có scope quyền riêng theo phần mình phụ trách (Kỹ thuật: 41 quyền hệ thống; Quản Lí: 40 quyền thành viên/nội dung/quỹ; Cộng Đồng: 45 quyền cộng đồng/sự kiện/media). Mod ở cấp 2 hỗ trợ kiểm duyệt, Thành Viên ở cấp 1 là người dùng thường.
         </p>
     </div>
 

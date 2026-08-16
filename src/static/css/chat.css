@@ -74,23 +74,21 @@
  * 2. Global Chat popup — PHÓNG TO (v0.9.20)
  * ==================================================================== */
 
-/* Desktop: 340px → 380px wide, 60dvh → 65dvh, max 480 → 580
-   v0.9.26: giữ nguyên desktop, chỉ giảm mobile để fix bug che màn hình */
+/* v0.9.29: Tăng chiều cao popup desktop (theo yêu cầu user).
+   v0.9.28: 380x65dvh → v0.9.29: 400x85dvh (chat dài hơn, hiển thị nhiều tin nhắn hơn). */
 .chat-chung-popup {
-    width: 380px;
-    height: 65dvh;
-    max-height: 580px;
-    min-height: 360px;
+    width: 400px;
+    height: 85dvh;
+    max-height: 880px;
+    min-height: 420px;
 }
 
-/* v0.9.27: Giảm mobile height thêm từ 50dvh → 45dvh + giảm min-height.
-   v0.9.26 giảm từ 60dvh → 50dvh nhưng vẫn che nhiều trên điện thoại nhỏ.
-   v0.9.27: 45dvh + min 240px → chỉ chiếm ~45% viewport, còn 55% để tương tác. */
+/* v0.9.29: Mobile cao 78dvh (tăng từ 45dvh) — không che mờ nền. */
 @media (max-width: 768px) {
     .chat-chung-popup {
-        height: 45dvh;
-        max-height: 50dvh;
-        min-height: 240px;
+        height: 78dvh;
+        max-height: 82dvh;
+        min-height: 360px;
     }
 }
 
@@ -104,23 +102,25 @@
  * 3. Message animations — MƯỢT MÀ, KHÔNG LAG (v0.9.20)
  * ==================================================================== */
 
-/* Slide-in + fade-in cho message mới — dùng transform (GPU-accelerated) */
+/* v0.9.29: XÓA slide-in animation cho message — giảm lag khi nhiều tin nhắn.
+   v0.9.28: msg-slide-in 0.25s ease-out → v0.9.29: animation: none (plain render). */
 @keyframes msg-slide-in {
     from {
-        opacity: 0;
-        transform: translateY(8px);
+        opacity: 1;
+        transform: none;
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: none;
     }
 }
 
-/* Apply cho tất cả chat message containers */
+/* v0.9.29: Apply animation: none cho tất cả chat message containers
+   để tránh lag trên thiết bị yếu khi nhiều tin nhắn đổ về. */
 .chat-messages > div,
 .chat-chung-messages > div {
-    animation: msg-slide-in 0.25s ease-out;
-    will-change: opacity, transform;
+    animation: none;
+    will-change: auto;
 }
 
 /* Cho riêng message bubble — pop nhẹ khi appear */
@@ -142,25 +142,16 @@
  * 4. Send button + connection indicator animations (v0.9.20)
  * ==================================================================== */
 
-/* Pulse khi click send */
-@keyframes send-btn-pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(0.92); }
-    100% { transform: scale(1); }
-}
-
+/* v0.9.29: XÓA pulse animation cho send button — giảm jank. */
 .send-btn:active {
-    animation: send-btn-pulse 0.2s ease-out;
+    animation: none;
+    transform: scale(0.96);
+    transition: transform 0.05s;
 }
 
-/* Connection indicator — pulse nhẹ khi connected */
-@keyframes conn-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
+/* v0.9.29: XÓA pulse cho connection indicator — cũng là animation vô dụng. */
 .conn-indicator {
-    animation: conn-pulse 2s ease-in-out infinite;
+    animation: none;
 }
 
 /* ====================================================================

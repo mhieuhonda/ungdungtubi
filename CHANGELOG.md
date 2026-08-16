@@ -6,6 +6,119 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.29] — 2026-08-16 — Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance
+
+### 🎯 Mục tiêu giai đoạn
+
+Đồng bộ hóa toàn bộ hệ thống admin với nguyên tắc "mọi admin đều bằng nhau ngang hàng", tối ưu hiệu năng chat và fix lỗi gửi tin nhắn cho bạn bè. Đây là giai đoạn chuyển tiếp từ Alpha (Giai đoạn I — 6 tháng) chuẩn bị bước sang Giai đoạn II — 100 ngày phát triển hệ sinh thái.
+
+### 👥 Sửa hệ thống admin — Tất cả admin đều bằng nhau, ngang hàng, không phân cấp
+
+- **[ADMIN-1] Đồng bộ code với migration 021** — Migration 021 từ v0.9.24 đã redesign admin ngang hàng (3 admin cùng cấp 3, scope quyền riêng), nhưng code và template vẫn còn nhiều chỗ lệch:
+  - Trước v0.9.29: trang `/admin/quan-li` hiển thị "100/150 quyền", `/admin/cong-dong` hiển thị "75/150 quyền" (sai — số cũ từ v0.9.19 khi admin_ky_thuat có 150/150).
+  - Trước v0.9.29: trang `/admin/users` ghi "KT (150/150) > QL (100/100) > CD (75/75) > Mod (15) > TV (0)" (sai — phân cấp cũ).
+  - Trước v0.9.29: trang `/admin/ky-thuat` ghi "Admin Kỹ Thuật có toàn bộ 150 quyền (cao nhất), Admin Quản Lý 100, Admin Cộng Đồng 75" (sai).
+
+  **Fix v0.9.29**:
+  - Cập nhật comment header trong `src/handlers/admin.rs` — phản ánh đúng nguyên tắc ngang hàng.
+  - Cập nhật `templates/admin/quan-li/index.html`: "100/150 quyền" → "40/150 quyền (admin ngang hàng)".
+  - Cập nhật `templates/admin/cong-dong/index.html`: "75/150 quyền (UI/hệ thống)" → "45/150 quyền (admin ngang hàng)".
+  - Cập nhật `templates/admin/ky-thuat/index.html`: "Admin Kỹ Thuật có toàn bộ 150 quyền (cao nhất)" → "3 admin NGANG HÀNH (cấp 3) — Kỹ Thuật 41 quyền · Quản Lí 40 quyền · Cộng Đồng 45 quyền".
+  - Cập nhật `templates/admin/users.html`: note footer "v0.9.19: KT > QL > CD > Mod > TV" → "v0.9.29: 3 admin NGANG HÀNH (cấp 3) — KT (41) · QL (40) · CD (45) — không phân cấp cao/thấp".
+
+- **[ADMIN-2] Sửa trang "Đội Ngũ Quản Lí"** — Trang `/doi-ngu-quan-li` hiển thị sai:
+  - **Võ Đăng Trọng Nghĩa** được dán nhãn "Admin Phát Triển" — nhưng role `admin_phat_trien` KHÔNG TỒN TẠI trong code (chỉ có `member`, `mod`, `admin_ky_thuat`, `admin_cong_dong`, `admin_quan_li`).
+  - Section "Hệ Thống Phân Cấp Quản Lí" hiển thị 5 cấp (5/4/3/2/1) — sai với code thực tế (3 admin ngang hàng cấp 3 + Mod cấp 2 + Member cấp 1).
+  - Hiển thị "Admin Kỹ Thuật 150/150 quyền" — sai (code trả về 41 quyền).
+
+  **Fix v0.9.29**:
+  - Đổi vai trò Võ Đăng Trọng Nghĩa từ "Admin Phát Triển" → "Admin Cộng Đồng" (vai trò phù hợp với phụ trách: định hướng nội dung, cộng đồng, truyền thông, sự kiện).
+  - Đổi icon từ 🧭 (violet) → 🛡️ (blue) — đồng bộ với CSS role_color của `admin_cong_dong`.
+  - Đổi section "Hệ Thống Phân Cấp Quản Lí" → "Hệ Thống Vai Trò Quản Lí" — hiển thị 3 admin ngang hàng (cấp 3) + Mod (cấp 2) + Thành Viên (cấp 1), kèm số quyền đúng (41/40/45/15/0).
+  - Thêm ghi chú nguyên tắc: "Tất cả admin đều bằng nhau ngang hàng, cùng cấp, không ai hơn ai."
+  - Cập nhật `src/handlers/doi_ngu.rs` — đổi `role_title` của Võ Đăng Trọng Nghĩa trong `TEAM_MEMBERS` const.
+
+### 💬 Live Chat Chung — Kéo dài + xóa che mờ + xóa hiệu ứng
+
+- **[CHAT-1] Kéo dài màn hình Live Chat Chung** — User yêu cầu chat popup "dài hơn":
+  - Desktop: `height: 65dvh` → `85dvh`, `max-height: 580px` → `880px`, `min-height: 360px` → `420px`, `width: 380px` → `400px`.
+  - Mobile: `height: 45dvh` → `78dvh`, `max-height: 50dvh` → `82dvh`, `min-height: 240px` → `360px`.
+  - Áp dụng cho cả `src/static/css/app.css` (selector `.chat-chung-popup`) và `src/static/css/chat.css` (override).
+
+- **[CHAT-2] Xóa backdrop che mờ khi mở Live Chat Chung** — User yêu cầu "xóa che mờ khi mở live chat chung":
+  - Xóa `<div class="chat-chung-backdrop md:hidden">` khỏi `templates/layout.html`.
+  - Vô hiệu hóa CSS `.chat-chung-backdrop` (`display: none !important; background: transparent !important;`).
+  - Xóa `body.chat-popup-open` lock scroll (CSS override `overflow: auto; position: static`).
+  - Xóa `document.body.classList.add('chat-popup-open')` trong `toggleChat()` của `src/static/js/chat.js`.
+  - Chat popup giờ mở trong suốt — user vẫn scroll trang được khi đang chat.
+
+- **[CHAT-3] Xóa hiệu ứng tin nhắn admin/mod** — User yêu cầu "xóa hiệu ứng nhắn tin của các admin hay mod để tránh lag":
+  - Vô hiệu hóa hoàn toàn CSS hiệu ứng trong `src/static/css/app.css`:
+    - `chat-msg-admin-ky-thuat` (Matrix Terminal: scanline, glow, monospace) → bubble thường.
+    - `chat-msg-admin-quan-li` (Premium Gold Frame: gradient, glow, 👑) → bubble thường.
+    - `chat-msg-admin-cong-dong` (Shield Blue Frame: gradient, glow, 🛡️) → bubble thường.
+    - `chat-msg-mod` (Teal Frame: gradient, glow, 📜) → bubble thường.
+    - Xóa `::before` pseudo-element (đã từng là icon 👑/🛡️/📜).
+    - Xóa animation `scanline`, `chat-msg-glow-green`, `chat-avatar-pulse-green`.
+    - Avatar admin/mod: viền thường, không glow, không pulse.
+  - Xóa prefix `[SYS]` trước tên admin_ky_thuat trong `authorLabel()` của `src/static/js/chat.js`.
+  - Chỉ giữ role badge mini cạnh tên (để user vẫn biết đây là admin/mod) — không animation, không glow.
+
+### 🔧 Fix lỗi không thể gửi tin nhắn cho bạn bè
+
+- **[DM-1] Cho phép gửi tin nhắn ngay cả khi WebSocket chưa kết nối** — User report "không thể gửi tin nhắn cho bạn bè":
+  - **Nguyên nhân gốc rễ**: Nút Gửi trong `templates/ban-be/conversation.html` có `:disabled="!connected || !draft.trim()"` → nếu WS chưa connect (vd. mạng chập, server restart), nút bị disable → user không thể gửi.
+  - Cũng áp dụng cho chat chung trong `templates/layout.html` (`:disabled="!connected || !draft.trim()"`).
+
+  **Fix v0.9.29**:
+  - Đổi `:disabled="!connected || !draft.trim()"` → `:disabled="!draft.trim()"` — chỉ disable khi draft rỗng.
+  - Cập nhật hàm `send()` trong cả `globalChat()` và `dmChat()` của `src/static/js/chat.js`:
+    - Nếu WS chưa open, push tin nhắn vào `_queue`, clear draft (optimistic UX), auto-reconnect ngay lập tức.
+    - Khi WS mở lại (onopen), flush queue tự động (đã có từ v0.9.20).
+    - Nếu socket đang ở trạng thái CLOSING/CLOSED, chủ động `close(1000)` rồi `scheduleReconnect()`.
+  - Thêm indicator "đang kết nối lại..." trong conversation.html khi `!connected`.
+
+- **[DM-2] Tăng tốc auto-reconnect WebSocket**:
+  - Trước v0.9.29: delay = `min(1000 * 2^(attempts-1), 30000)` → attempt 1 = 1s, attempt 5 = 16s, max 30s.
+  - v0.9.29: delay = `min(500 * 1.8^(attempts-1), 8000)` → attempt 1 = 500ms (gần như ngay lập tức), attempt 5 = 2.9s, max 8s.
+  - User experience: khi WS rớt, chỉ cần nửa giây để thử lại, tối đa 8s giữa các lần thử.
+
+### ⚡ Tăng độ mượt và tốc độ load web
+
+- **[PERF-1] Xóa CSS animation thừa gây lag**:
+  - Xóa `msg-slide-in` animation (0.25s ease-out) cho tất cả chat message containers — thay bằng `animation: none`.
+  - Xóa `send-btn-pulse` animation — thay bằng `transform: scale(0.96)` đơn giản.
+  - Xóa `conn-pulse` animation cho connection indicator — `animation: none`.
+  - Lý do: với 50+ tin nhắn trong chat, mỗi tin nhắn đều chạy animation riêng → CPU/GPU overload trên thiết bị yếu → lag/jank khi scroll.
+
+- **[PERF-2] Giảm polling frequency**:
+  - Notification badge poll: 30s → 60s (`src/static/js/chat.js`).
+  - Session heartbeat: 5 phút → 10 phút (`src/static/js/app.js`).
+  - Lý do: giảm số request không cần thiết tới server, tiết kiệm bandwidth và CPU.
+
+- **[PERF-3] Tăng transition speed cho chat popup**:
+  - Enter transition: 200ms → 150ms.
+  - Leave transition: 150ms → 100ms.
+  - Cảm giác mở/đóng popup nhanh và responsive hơn.
+
+### 📚 Đồng bộ version & tài liệu
+
+- **[DOC-1] Cập nhật version lên v0.9.29**:
+  - `Cargo.toml`: `version = "0.9.29"`.
+  - `src/main.rs`: log startup, `HEALTH_FEATURES`, `health_check_secure`, `health_check_inner` đều cập nhật `0.9.29` + Giai đoạn 34.
+  - `templates/layout.html`: footer version.
+  - Thêm 10 feature flags v0.9.29 vào `HEALTH_FEATURES` array.
+  - Cập nhật `phase_name` trong health_check_inner: "Giai đoạn 34 — Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance".
+
+- **[DOC-2] Cập nhật comment trong source code**:
+  - `src/handlers/admin.rs`: header comment phản ánh đúng phân quyền ngang hàng v0.9.29.
+  - `src/handlers/doi_ngu.rs`: comment giải thích lý do đổi vai trò Võ Đăng Trọng Nghĩa.
+  - `src/static/css/app.css`: comment chi tiết về lý do xóa hiệu ứng admin/mod.
+  - `src/static/css/chat.css`: comment về lý do xóa animation message slide-in.
+  - `src/static/js/chat.js`: comment về fix lỗi gửi tin nhắn khi WS disconnected.
+
+---
+
 ## [0.9.28] — 2026-08-16 — Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix
 
 ### 🚨 Sửa lỗi CRITICAL — CSP thiếu `'unsafe-eval'` làm Alpine.js hoàn toàn không hoạt động

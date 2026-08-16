@@ -1,12 +1,17 @@
 //! Handlers cho trang Quản Trị (Giai đoạn 12 — v0.9.14).
 //!
-//! Hệ thống vai trò (v0.9.14 — hierarchy mới):
-//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (CAO NHẤT — 6/50 quyền: UI/hệ thống)
-//!   - `admin_quan_li`   — Admin Quản Lý (4/30 quyền: UI/hệ thống)
-//!   - `admin_cong_dong` — Admin Cộng Đồng (4/20 quyền: UI/hệ thống)
+//! Hệ thống vai trò (v0.9.29 — admin NGANG HÀNH, không phân cấp):
+//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (cấp 3, 41 quyền: system/security/media/analytics)
+//!   - `admin_quan_li`   — Admin Quản Lý (cấp 3, 40 quyền: users/content/community/fund)
+//!   - `admin_cong_dong` — Admin Cộng Đồng (cấp 3, 45 quyền: content/community/friends/mail/events/achievements/media)
+//!   - `mod`             — Mod (cấp 2, 15 quyền: moderation cơ bản)
 //!   - `member`          — Thành Viên (mặc định, 0 quyền admin)
 //!
-//! 3 giao diện admin riêng biệt:
+//! v0.9.29 — Nguyên tắc: "Các admin đều bằng nhau ngang hàng,
+//!                       nhưng mỗi người phụ trách một mảng khác nhau.
+//!                       Không ai cao hơn ai — quyền hạn theo lĩnh vực."
+//!
+//! 3 giao diện admin riêng biệt (phong cách khác nhau, ngang hàng về quyền):
 //!   - /admin/ky-thuat    — Phong cách coder/terminal (tối, ngầu, Matrix)
 //!   - /admin/cong-dong   — Phong cách community mod (xanh, social)
 //!   - /admin/quan-li     — Phong cách executive (vàng, premium)

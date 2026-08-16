@@ -44,12 +44,13 @@ const PrayerCounter = {
 
 // ====================================================================
 // Session heartbeat (keep session alive)
+// v0.9.29: Tăng interval từ 5 phút → 10 phút để giảm tải server.
 // ====================================================================
 
 function sessionHeartbeat() {
     setInterval(() => {
         fetch('/api/heartbeat', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
-    }, 5 * 60 * 1000);
+    }, 10 * 60 * 1000);
 }
 
 // ====================================================================

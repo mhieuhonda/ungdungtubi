@@ -54,9 +54,8 @@ function roleBadgeHtml(role) {
 }
 
 function authorLabel(msg) {
-    if (msg.author_role === 'admin_ky_thuat') {
-        return '[SYS] ' + msg.author_display_name;
-    }
+    // v0.9.29: Bỏ prefix [SYS] cho admin_ky_thuat — đồng nhất style.
+    // Theo yêu cầu user: "Xóa hiệu ứng nhắn tin của các admin hay mod".
     return msg.author_display_name;
 }
 
@@ -194,7 +193,9 @@ function chatSocketMixin(getUrl) {
                 return;
             }
             this.reconnectAttempts += 1;
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts - 1), 30000);
+            // v0.9.29: Giảm delay reconnect để nhắn tin nhanh phục hồi.
+            // v0.9.28: max 30s → v0.9.29: max 8s, attempt 1 = 500ms (liền lập tức).
+            const delay = Math.min(500 * Math.pow(1.8, this.reconnectAttempts - 1), 8000);
             // v0.9.21: Không hiển thị thông báo reconnect — tránh gây rối
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = setTimeout(() => this.connect(), delay);
@@ -334,11 +335,18 @@ function globalChat() {
                 return;
             }
 
+            // v0.9.29: Luôn cho phép gửi — nếu WS chưa open, queue và tự reconnect.
             if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
                 this._queue.push(body);
                 this.draft = '';
-                // v0.9.21: Không hiển thị "đang kết nối lại" — tránh gây rối
-                if (!this.connected) this.scheduleReconnect();
+                if (!this.connected) {
+                    this.scheduleReconnect();
+                } else if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
+                    try { this.socket.close(1000, 'reconnect-for-send'); } catch (_) {}
+                    this.socket = null;
+                    this.connected = false;
+                    this.scheduleReconnect();
+                }
                 return;
             }
 
@@ -370,10 +378,9 @@ function globalChat() {
             if (this.isOpen) {
                 this.unreadCount = 0;
                 this.$nextTick(() => this.scrollToBottom());
-                // v0.9.26: Lock body scroll khi chat popup mở (mobile)
-                document.body.classList.add('chat-popup-open');
+                // v0.9.29: Đã XÓA body scroll lock — chat popup mở nhưng vẫn scroll trang được.
             } else {
-                // v0.9.26: Unlock body scroll khi chat popup đóng
+                // v0.9.29: Đã XÓA body scroll unlock (không còn cần thiết).
                 document.body.classList.remove('chat-popup-open');
             }
         },
@@ -548,10 +555,23 @@ function dmChat(opts) {
                 return;
             }
 
+            // v0.9.29: Luôn cho phép gửi — nếu WS chưa open, queue và tự reconnect.
+            // Trước v0.9.29: nếu !connected thì queue + scheduleReconnect, nhưng user
+            // không có phản hồi → tưởng "không gửi được". Giờ: optimistic clear draft,
+            // hiển thị "đang gửi...", queue + auto-reconnect.
             if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
                 this._queue.push(body);
                 this.draft = '';
-                if (!this.connected) this.scheduleReconnect();
+                // v0.9.29: Auto-reconnect ngay lập tức nếu chưa connected
+                if (!this.connected) {
+                    this.scheduleReconnect();
+                } else if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
+                    // Socket đang closing/closed → reconnect
+                    try { this.socket.close(1000, 'reconnect-for-send'); } catch (_) {}
+                    this.socket = null;
+                    this.connected = false;
+                    this.scheduleReconnect();
+                }
                 return;
             }
 
@@ -561,6 +581,7 @@ function dmChat(opts) {
                 this.error = '';
             } else {
                 this._queue.push(body);
+                this.draft = '';
                 this.scheduleReconnect();
             }
         },
@@ -597,7 +618,8 @@ function notificationBadge() {
         unreadCount: 0,
         init() {
             this.fetchUnread();
-            setInterval(() => this.fetchUnread(), 30000);
+            // v0.9.29: Tăng interval từ 30s → 60s để giảm tải server.
+            setInterval(() => this.fetchUnread(), 60000);
         },
         async fetchUnread() {
             try {

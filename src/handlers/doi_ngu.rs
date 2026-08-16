@@ -62,11 +62,14 @@ pub const TEAM_MEMBERS: &[TeamMember] = &[
         birth_year: 1991,
         hometown: "Duy Vinh, Quảng Nam (nay Nam Phước, Đà Nẵng)",
         religion: "Phật giáo",
-        role_title: "Admin Phát Triển",
-        role_detail: "Phát triển sản phẩm và định hướng dự án",
+        // v0.9.29: Đổi từ "Admin Phát Triển" (role không tồn tại trong code)
+        // sang "Admin Cộng Đồng" — vai trò phù hợp với phụ trách:
+        // định hướng nội dung, cộng đồng, truyền thông, sự kiện.
+        role_title: "Admin Cộng Đồng",
+        role_detail: "Định hướng nội dung, cộng đồng, truyền thông và sự kiện",
         facebook_url: "https://www.facebook.com/likedliti?mibextid=ZbWKwL",
-        icon: "🧭",
-        accent_color: "#8b5cf6", // violet-500
+        icon: "🛡️",
+        accent_color: "#1565C0", // blue-800 — Shield Blue
     },
     TeamMember {
         full_name: "Đỗ Văn Cường",

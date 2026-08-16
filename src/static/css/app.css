@@ -185,16 +185,16 @@
     border: 2px solid white;
 }
 
-/* Global chat popup — v0.9.21: fix overflow trên mobile.
-   v0.9.26: giảm height mobile (60dvh→50dvh), thêm backdrop overlay class. */
+/* v0.9.29: Tăng chiều cao chat popup cho "dài hơn" (user yêu cầu).
+   v0.9.28: 60dvh desktop / 45dvh mobile → v0.9.29: 85dvh desktop / 78dvh mobile. */
 .chat-chung-popup {
     position: fixed;
     bottom: 80px;
     right: 16px;
-    width: 340px;
-    height: 60dvh;
-    max-height: 480px;
-    min-height: 320px;
+    width: 380px;
+    height: 85dvh;
+    max-height: 880px;
+    min-height: 420px;
     background: white;
     border-radius: 16px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -206,32 +206,33 @@
     box-sizing: border-box;
 }
 
-/* v0.9.26: Lock body scroll khi chat popup mở trên mobile */
+/* v0.9.29: XÓA body scroll lock (chat popup mở nhưng vẫn scroll trang được).
+   v0.9.26: Đã từng lock body scroll khi chat popup mở trên mobile. */
 @media (max-width: 768px) {
     body.chat-popup-open {
-        overflow: hidden;
-        position: fixed;
-        width: 100%;
+        overflow: auto;
+        position: static;
+        width: auto;
     }
 }
 
-/* v0.9.26: Backdrop overlay cho mobile — mờ nền, tap để đóng popup */
+/* v0.9.29: Backdrop overlay đã bị XÓA hoàn toàn (theo yêu cầu user).
+   Lớp .chat-chung-backdrop không còn được dùng — giữ lại class CSS để tránh
+   break selector trong layout cũ, nhưng không có hiệu ứng mờ.
+   (div backdrop đã bị xóa khỏi layout.html) */
 .chat-chung-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 9997;
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    display: none !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
 }
 
 .dark .chat-chung-backdrop {
-    background: rgba(0, 0, 0, 0.6);
+    display: none !important;
+    background: transparent !important;
 }
 
-/* v0.9.27: Fix overflow trên mobile — dùng safe-area-inset + box-sizing.
-   Giảm height thêm: 50dvh → 45dvh, min 280 → 240, max 55dvh → 50dvh.
-   Chỉ chiếm ~45% viewport trên mobile → không che hết màn hình. */
+/* v0.9.29: Mobile popup cao 78dvh (tăng từ 45dvh), gần full màn hình, không che mờ nền. */
 @media (max-width: 768px) {
     .chat-chung-popup {
         bottom: 72px;
@@ -239,9 +240,9 @@
         left: 0;
         width: 100%;
         max-width: 100vw;
-        height: 45dvh;
-        max-height: 50dvh;
-        min-height: 240px;
+        height: 78dvh;
+        max-height: 82dvh;
+        min-height: 360px;
         border-radius: 16px 16px 0 0;
         margin-left: 0;
         margin-right: 0;
@@ -418,204 +419,90 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
    - member: Default — không có hiệu ứng đặc biệt
    ==================================================================== */
 
-/* ─── Admin Kỹ Thuật: Coder Effect (Matrix Terminal) ─── */
-.chat-msg-admin-ky-thuat {
-    background: #0a0e0a !important;
-    color: #00ff41 !important;
-    border: 1px solid #00ff41 !important;
-    border-left: 4px solid #00ff41 !important;
-    font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
-    box-shadow: 0 0 12px rgba(0, 255, 65, 0.4), inset 0 0 8px rgba(0, 255, 65, 0.1) !important;
-    position: relative;
-    overflow: hidden;
-    text-shadow: 0 0 4px rgba(0, 255, 65, 0.6);
-    animation: chat-msg-glow-green 2s ease-in-out infinite;
-}
+/* ─── v0.9.29: XÓA HIỆU ỨNG TIN NHẮN ADMIN/MOD ─────────────────────────────
+ *
+ * Theo yêu cầu user: "Xóa hiệu ứng nhắn tin của các admin hay mod để tránh lag"
+ *
+ * Trước v0.9.29: mỗi vai trò admin/mod có hiệu ứng phức tạp:
+ *   - admin_ky_thuat: Matrix Terminal (scanline animation, glow, monospace)
+ *   - admin_quan_li: Premium Gold Frame (gradient + glow + 👑 badge)
+ *   - admin_cong_dong: Shield Blue Frame (gradient + glow + 🛡️ badge)
+ *   - mod: Teal Frame (gradient + glow + 📜 badge)
+ *
+ * v0.9.29: TẤT CẢ hiệu ứng bị xóa. Chỉ giữ BADGE nhỏ cạnh tên (để user
+ * vẫn biết đây là tin nhắn của admin/mod) — KHÔNG có animation, không glow,
+ * không gradient, không scanline. Tin nhắn render như member thường.
+ *
+ * Lợi ích:
+ *   - Giảm CSS animation → giảm CPU/GPU usage → không còn lag
+ *   - Tăng FPS khi scroll chat có nhiều tin nhắn admin/mod
+ *   - Đồng nhất UX: mọi tin nhắn đều hiển thị như nhau, chỉ khác badge role
+ * ───────────────────────────────────────────────────────────────────────── */
 
-/* Scan-line effect cho admin_ky_thuat */
-.chat-msg-admin-ky-thuat::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-        to bottom,
-        transparent 0%,
-        rgba(0, 255, 65, 0.03) 50%,
-        transparent 100%
-    );
-    background-size: 100% 4px;
-    pointer-events: none;
-    animation: scanline 8s linear infinite;
-}
-
-@keyframes scanline {
-    0% { background-position: 0 0; }
-    100% { background-position: 0 100%; }
-}
-
-@keyframes chat-msg-glow-green {
-    0%, 100% { box-shadow: 0 0 12px rgba(0, 255, 65, 0.4), inset 0 0 8px rgba(0, 255, 65, 0.1); }
-    50% { box-shadow: 0 0 20px rgba(0, 255, 65, 0.7), inset 0 0 12px rgba(0, 255, 65, 0.2); }
-}
-
-/* Prefix "[SYS]" trước tên admin_ky_thuat */
-.chat-msg-admin-ky-thuat-name {
-    color: #00ff41 !important;
-    font-family: 'Courier New', 'Monaco', 'Menlo', monospace !important;
-    font-weight: bold !important;
-    text-shadow: 0 0 4px rgba(0, 255, 65, 0.6);
-}
-
-/* Avatar admin_ky_thuat — viền xanh lá phát sáng */
-.chat-avatar-admin-ky-thuat {
-    border: 2px solid #00ff41 !important;
-    box-shadow: 0 0 8px rgba(0, 255, 65, 0.6);
-    animation: chat-avatar-pulse-green 2s ease-in-out infinite;
-}
-
-@keyframes chat-avatar-pulse-green {
-    0%, 100% { box-shadow: 0 0 8px rgba(0, 255, 65, 0.6); }
-    50% { box-shadow: 0 0 14px rgba(0, 255, 65, 0.9); }
-}
-
-/* ─── Admin Quản Lý: Premium Gold Frame ─── */
-.chat-msg-admin-quan-li {
-    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%) !important;
-    color: #78350f !important;
-    border: 2px solid #f59e0b !important;
-    border-left: 4px solid #FF6F00 !important;
-    box-shadow: 0 0 12px rgba(255, 111, 0, 0.3), 0 2px 8px rgba(255, 215, 0, 0.2) !important;
-    position: relative;
-    font-weight: 500;
-}
-
-.chat-msg-admin-quan-li::before {
-    content: '👑';
-    position: absolute;
-    top: -8px;
-    right: 8px;
-    font-size: 14px;
-    background: #FF6F00;
-    color: white;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(255, 111, 0, 0.5);
-}
-
-.chat-msg-admin-quan-li-name {
-    color: #FF6F00 !important;
-    font-weight: bold !important;
-    text-shadow: 0 0 4px rgba(255, 111, 0, 0.3);
-}
-
-.chat-avatar-admin-quan-li {
-    border: 2px solid #FF6F00 !important;
-    box-shadow: 0 0 8px rgba(255, 111, 0, 0.5);
-}
-
-/* ─── Admin Cộng Đồng: Shield Blue Frame ─── */
-.chat-msg-admin-cong-dong {
-    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
-    color: #1e3a8a !important;
-    border: 2px solid #1565C0 !important;
-    border-left: 4px solid #1565C0 !important;
-    box-shadow: 0 0 12px rgba(21, 101, 192, 0.3), 0 2px 8px rgba(21, 101, 192, 0.2) !important;
-    position: relative;
-    font-weight: 500;
-}
-
-.chat-msg-admin-cong-dong::before {
-    content: '🛡️';
-    position: absolute;
-    top: -8px;
-    right: 8px;
-    font-size: 14px;
-    background: #1565C0;
-    color: white;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(21, 101, 192, 0.5);
-}
-
-.chat-msg-admin-cong-dong-name {
-    color: #1565C0 !important;
-    font-weight: bold !important;
-    text-shadow: 0 0 4px rgba(21, 101, 192, 0.3);
-}
-
-.chat-avatar-admin-cong-dong {
-    border: 2px solid #1565C0 !important;
-    box-shadow: 0 0 8px rgba(21, 101, 192, 0.5);
-}
-
-/* ─── Mod: Moderator Teal Frame ─── */
+/* v0.9.29: Vô hiệu hóa hoàn toàn hiệu ứng admin/mod message — giữ class nhưng
+   không có style đặc biệt (chỉ là bubble thường). */
+.chat-msg-admin-ky-thuat,
+.chat-msg-admin-quan-li,
+.chat-msg-admin-cong-dong,
 .chat-msg-mod {
-    background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%) !important;
-    color: #134e4a !important;
-    border: 2px solid #0F766E !important;
-    border-left: 4px solid #0F766E !important;
-    box-shadow: 0 0 10px rgba(15, 118, 110, 0.3), 0 2px 6px rgba(15, 118, 110, 0.2) !important;
-    position: relative;
-    font-weight: 500;
+    /* Không style đặc biệt — render như .chat-msg-bubble thường */
+    background: white !important;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb !important;
+    font-family: inherit !important;
+    box-shadow: none !important;
+    animation: none !important;
+    text-shadow: none !important;
+    font-weight: 400 !important;
+    position: static !important;
+    overflow: visible !important;
 }
 
+/* v0.9.29: Xóa ::before pseudo-element (đã từng là 👑/🛡️/📜 icon) */
+.chat-msg-admin-ky-thuat::before,
+.chat-msg-admin-quan-li::before,
+.chat-msg-admin-cong-dong::before,
 .chat-msg-mod::before {
-    content: '📜';
-    position: absolute;
-    top: -8px;
-    right: 8px;
-    font-size: 14px;
-    background: #0F766E;
-    color: white;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(15, 118, 110, 0.5);
+    content: none !important;
+    display: none !important;
 }
 
+/* v0.9.29: Tên author admin/mod — không màu đặc biệt, không glow */
+.chat-msg-admin-ky-thuat-name,
+.chat-msg-admin-quan-li-name,
+.chat-msg-admin-cong-dong-name,
 .chat-msg-mod-name {
-    color: #0F766E !important;
-    font-weight: bold !important;
+    color: #374151 !important;
+    font-family: inherit !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
 }
 
+/* v0.9.29: Avatar admin/mod — không viền glow, không pulse */
+.chat-avatar-admin-ky-thuat,
+.chat-avatar-admin-quan-li,
+.chat-avatar-admin-cong-dong,
 .chat-avatar-mod {
-    border: 2px solid #0F766E !important;
-    box-shadow: 0 0 8px rgba(15, 118, 110, 0.5);
+    border: 1px solid #e5e7eb !important;
+    box-shadow: none !important;
+    animation: none !important;
 }
 
-/* ─── Dark mode overrides cho admin/mod messages ─── */
-.dark .chat-msg-admin-ky-thuat {
-    background: #0a0e0a !important;
-    color: #00ff41 !important;
-}
-
-.dark .chat-msg-admin-quan-li {
-    background: linear-gradient(135deg, #451a03 0%, #78350f 100%) !important;
-    color: #fef3c7 !important;
-}
-
-.dark .chat-msg-admin-cong-dong {
-    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%) !important;
-    color: #dbeafe !important;
-}
-
+/* v0.9.29: Dark mode — cũng giữ style đồng nhất, không gradient phức tạp */
+.dark .chat-msg-admin-ky-thuat,
+.dark .chat-msg-admin-quan-li,
+.dark .chat-msg-admin-cong-dong,
 .dark .chat-msg-mod {
-    background: linear-gradient(135deg, #134e4a 0%, #115e59 100%) !important;
-    color: #ccfbf1 !important;
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+}
+
+.dark .chat-msg-admin-ky-thuat-name,
+.dark .chat-msg-admin-quan-li-name,
+.dark .chat-msg-admin-cong-dong-name,
+.dark .chat-msg-mod-name {
+    color: #cbd5e1 !important;
 }
 
 /* ─── Role badge mini trong chat (cạnh tên) ─── */

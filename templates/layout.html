@@ -448,7 +448,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.28 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.29 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -464,18 +464,7 @@
     <div x-data="globalChat()" x-init="init()"
          @toggle-global-chat.window="toggleChat()"
          @keydown.escape.window="if (isOpen) toggleChat()">
-      <!-- v0.9.27: Backdrop overlay (mobile only) — tap outside để đóng chat popup.
-           style="display:none" fallback chống FOUC khi Alpine chưa load. -->
-      <div x-show="isOpen" x-cloak
-           style="display:none"
-           x-transition:enter="transition ease-out duration-200"
-           x-transition:enter-start="opacity-0"
-           x-transition:enter-end="opacity-100"
-           x-transition:leave="transition ease-in duration-150"
-           x-transition:leave-start="opacity-100"
-           x-transition:leave-end="opacity-0"
-           @click="toggleChat()"
-           class="chat-chung-backdrop md:hidden"></div>
+      <!-- v0.9.29: Đã XÓA backdrop overlay che mờ (theo yêu cầu user) — chat popup mở trong suốt, không che nền. -->
       <!-- v0.9.27: chat bubble — style="display:none" fallback chống FOUC -->
       <div x-data="chatBubble()" x-init="init()"
            x-show="!isOpen"
@@ -496,14 +485,15 @@
       </div>
 
       <!-- v0.9.27: Chat popup — style="display:none" fallback chống FOUC.
+           v0.9.29: Tăng height tối đa (85dvh desktop / 75dvh mobile) để chat "dài hơn".
            Alpine x-show="isOpen" sẽ override display khi init xong.
            Nếu Alpine fail (JS error, CDN down) → popup vẫn ẩn → không che màn hình. -->
       <div x-show="isOpen" x-cloak
            style="display:none"
-           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter="transition ease-out duration-150"
            x-transition:enter-start="opacity-0 scale-95"
            x-transition:enter-end="opacity-100 scale-100"
-           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave="transition ease-in duration-100"
            x-transition:leave-start="opacity-100 scale-100"
            x-transition:leave-end="opacity-0 scale-95"
            class="chat-chung-popup">
@@ -563,7 +553,7 @@
                    placeholder="Nhập tin nhắn… (Enter để gửi)"
                    class="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-tubi-300 focus:border-transparent">
             <button type="submit"
-                    :disabled="!connected || !draft.trim()"
+                    :disabled="!draft.trim()"
                     class="send-btn px-3 py-2 rounded-lg text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
                     style="background-color:#15803d">
               🙏
