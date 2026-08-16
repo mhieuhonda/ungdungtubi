@@ -1,1 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🪷</text></svg>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Favicon — Ứng Dụng Từ Bi (v0.9.33 — Giai đoạn 38)
+  Emoji 🪷 lotus — sharpened render với:
+    - font-family fallback cho Apple/Google/Microsoft emoji fonts
+    - text-rendering="geometricPrecision" + shape-rendering="geometricPrecision"
+    - Lớn viewBox 256×256 (upscalable, không bị mờ khi downscale 16/32/64)
+    - font-size 240 gần tràn viewport để glyph fill tối đa
+    - dominant-baseline="central" + text-anchor="middle" để center chính xác
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 256 256"
+     shape-rendering="geometricPrecision">
+  <text x="128" y="128"
+        font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, EmojiOne Color, system-ui, sans-serif"
+        font-size="240"
+        text-anchor="middle"
+        dominant-baseline="central"
+        text-rendering="geometricPrecision">🪷</text>
+</svg>

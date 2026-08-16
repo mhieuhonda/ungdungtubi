@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.32 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.33 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.32 — Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync");
+    log::info!("📦 Phiên bản: v0.9.33 — Giai đoạn 38: Nhà Nhạc + Logo Emoji Sharpened 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -193,6 +193,18 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/tuong-phat/sam-hoi", post(handlers::khong_gian::tuong_phat_sam_hoi))
         .route("/tuong-phat/hoi-huong", post(handlers::khong_gian::tuong_phat_hoi_huong))
         .route("/api/khong-gian/stats", get(handlers::khong_gian::khong_gian_stats_api))
+        // Routes — Nhà Nhạc (v0.9.33 — Giai đoạn 38: Music House — KG-03)
+        // Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx":
+        //   5 thư mục nhạc (Niem/Thien/Dao/KhongLoi/CaNhan) + 5 chế độ phát + hẹn giờ tắt.
+        .route("/khong-gian/nha-nhac", get(handlers::nha_nhac::nha_nhac_index))
+        .route("/khong-gian/nha-nhac/{category}", get(handlers::nha_nhac::nha_nhac_category))
+        .route("/api/nha-nhac/tracks", get(handlers::nha_nhac::nha_nhac_tracks_api))
+        .route("/api/nha-nhac/tracks/{category}", get(handlers::nha_nhac::nha_nhac_tracks_by_category_api))
+        .route("/api/nha-nhac/preferences", get(handlers::nha_nhac::nha_nhac_prefs_api).post(handlers::nha_nhac::nha_nhac_prefs_update))
+        .route("/api/nha-nhac/ca-nhan/them", post(handlers::nha_nhac::nha_nhac_ca_nhan_add))
+        .route("/api/nha-nhac/ca-nhan/xoa/{track_id}", post(handlers::nha_nhac::nha_nhac_ca_nhan_remove))
+        .route("/api/nha-nhac/track/{track_id}/play", post(handlers::nha_nhac::nha_nhac_track_play))
+        .route("/api/nha-nhac/stats", get(handlers::nha_nhac::nha_nhac_stats_api))
         // Routes — Kinh Sách (v0.9.6 — Giai đoạn 10)
         .route("/kinh-sach/tim-kiem", get(handlers::kinh_sach::kinh_sach_search))
         .route("/kinh-sach/thu-vien/{category_slug}", get(handlers::kinh_sach::kinh_sach_category))
@@ -554,6 +566,17 @@ const HEALTH_FEATURES: &[&str] = &[
     "logo-emoji-lotus-v0.9.32",
     "favicon-emoji-lotus-v0.9.32",
     "version-sync-v0.9.32",
+    // v0.9.33 — Giai đoạn 38: Nhà Nhạc (Music House — KG-03) + Logo Emoji Sharpened
+    "nha-nhac-music-house-v0.9.33",
+    "music-player-5-categories-v0.9.33",
+    "music-playback-modes-4-v0.9.33",
+    "music-sleep-timer-v0.9.33",
+    "music-personal-playlist-v0.9.33",
+    "music-preferences-persisted-v0.9.33",
+    "music-stats-play-count-v0.9.33",
+    "logo-emoji-sharpened-geometric-precision-v0.9.33",
+    "favicon-svg-256-viewbox-v0.9.33",
+    "emoji-font-family-fallback-v0.9.33",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -572,7 +595,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.32",
+            "version": "0.9.33",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -602,11 +625,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.32",
+        "version": "0.9.33",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 37,
-        "phase_name": "Giai đoạn 37 — Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync",
+        "phase": 38,
+        "phase_name": "Giai đoạn 38 — Nhà Nhạc (Music House) + Logo Emoji Sharpened 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -621,6 +644,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "admin_quan_li_dashboard": "/admin/quan-li",
             "admin_phat_trien_dashboard": "/admin/phat-trien",
             "mod_dashboard": "/admin/thanh-vien",
+            "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",
             "v0_9_24_note": "Tất cả admin NGANG HÀNH (level 3) — mỗi admin có scope quyền riêng theo phần phụ trách"
@@ -631,9 +655,17 @@ async fn health_check_inner(state: &AppState) -> Response {
         },
         "khong_gian": {
             "status": "ok",
-            "features": ["niem-phat", "tuong-phat-vows", "practice-diary", "i-balance"],
+            "features": ["niem-phat", "tuong-phat-vows", "practice-diary", "i-balance", "nha-nhac-music-house"],
             "vow_types": ["prayer", "repentance", "dedication"],
-            "i_rewards": {"prayer": 1, "repentance": 2, "dedication": 3}
+            "i_rewards": {"prayer": 1, "repentance": 2, "dedication": 3},
+            "nha_nhac": {
+                "status": "ok",
+                "route": "/khong-gian/nha-nhac",
+                "categories": ["niem", "thien", "dao", "khong_loi", "ca_nhan"],
+                "playback_modes": ["single_repeat", "shuffle", "repeat_all", "loop"],
+                "sleep_timer": true,
+                "personal_playlist": true
+            }
         },
         "kinh_sach": kinh_sach_stats,
         "admin": admin_stats,

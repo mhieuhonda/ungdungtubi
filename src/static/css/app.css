@@ -531,3 +531,127 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
 /* ====================================================================
    End v0.9.19 — Admin/Mod Message Effects
    ==================================================================== */
+
+/* ====================================================================
+   v0.9.33 — Giai đoạn 38: Logo Emoji Sharpening + Nhà Nhạc CSS
+   ==================================================================== */
+
+/* v0.9.33: Sharpen emoji 🪷 render trên tất cả platform.
+   Trước đây (v0.9.32) emoji render mờ vì:
+     - Không chỉ định font-family → browser pick font mặc định (thường là sans-serif) →
+       fallback đến emoji font nhưng không phải lúc nào cũng optimal.
+     - text-rendering mặc định (auto) không tối ưu cho emoji.
+     - -webkit-font-smoothing không bật → trên macOS Safari/Chrome, emoji bị subpixel-rendered.
+   Fix v0.9.33:
+     - font-family fallback: Apple Color Emoji (macOS/iOS) → Segoe UI Emoji (Windows) →
+       Noto Color Emoji (Linux/Android) → Twemoji Mozilla (Firefox) → system-ui fallback.
+     - text-rendering: geometricPrecision cho vector glyph nét hơn.
+     - -webkit-font-smoothing: antialiased + -moz-osx-font-smoothing: grayscale.
+     - font-feature-settings: "liga" 1 (ligature) cho emoji ZWJ sequences.
+   Áp dụng cho:
+     - .lotus-emoji — class helper cho logo header, hero, footer
+     - .niem-btn span — nút niệm Phật (emoji to)
+     - .buddha-statue — tượng Phật
+     - favicon SVG (xem trong layout.html — data URI đã set shape-rendering)
+*/
+.lotus-emoji,
+.buddha-statue,
+.niem-btn {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+                 "Twemoji Mozilla", "EmojiOne Color", system-ui, sans-serif;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "liga" 1, "calt" 1;
+    font-variant-emoji: emoji;
+    /* Slight transform để "snap" glyph vào pixel grid — giảm blur ở small sizes */
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* v0.9.33: Logo header — ensure crisp render ở 36px (w-9 h-9) */
+.lotus-logo-header {
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+                 "Twemoji Mozilla", "EmojiOne Color", system-ui, sans-serif;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "liga" 1;
+    /* Hint: pick color emoji glyph instead of monochrome text variant */
+    font-variant-emoji: emoji;
+    line-height: 1;
+}
+
+/* v0.9.33: Nút niệm Phật — emoji to, cần render nét ở 48px+ */
+.niem-btn {
+    /* Override font-family to ensure emoji renders as color glyph (not text) */
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+                 "Twemoji Mozilla", "EmojiOne Color", system-ui, sans-serif;
+}
+
+/* ====================================================================
+   v0.9.33 — Giai đoạn 38: Nhà Nhạc (Music House)
+   CSS cho music player UI — Không Gian / Nhà Nhạc
+   ==================================================================== */
+
+.nha-nhac-player {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+    color: #e0e7ff;
+}
+
+.nha-nhac-btn {
+    transition: all 0.15s ease-out;
+}
+.nha-nhac-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+}
+.nha-nhac-btn:active {
+    transform: scale(0.96);
+}
+
+.nha-nhac-btn-active {
+    background: linear-gradient(135deg, #6366f1, #4338ca);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.nha-nhac-track {
+    transition: background-color 0.15s, transform 0.15s;
+}
+.nha-nhac-track:hover {
+    background-color: rgba(99, 102, 241, 0.12);
+    transform: translateX(2px);
+}
+.nha-nhac-track-playing {
+    background-color: rgba(99, 102, 241, 0.18);
+    border-left: 3px solid #6366f1;
+}
+
+@keyframes nha-nhac-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.08); opacity: 0.85; }
+}
+.nha-nhac-playing-indicator {
+    animation: nha-nhac-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes nha-nhac-bar {
+    0%   { height: 30%; }
+    50%  { height: 90%; }
+    100% { height: 30%; }
+}
+.nha-nhac-equalizer-bar {
+    display: inline-block;
+    width: 3px;
+    background: #818cf8;
+    border-radius: 2px;
+    animation: nha-nhac-bar 0.9s ease-in-out infinite;
+}
+.nha-nhac-equalizer-bar:nth-child(2) { animation-delay: 0.15s; }
+.nha-nhac-equalizer-bar:nth-child(3) { animation-delay: 0.30s; }
+.nha-nhac-equalizer-bar:nth-child(4) { animation-delay: 0.45s; }
+
+/* ====================================================================
+   End v0.9.33 — Giai đoạn 38
+   ==================================================================== */

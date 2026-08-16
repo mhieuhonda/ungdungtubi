@@ -1,0 +1,542 @@
+{% extends "layout.html" %}
+
+{% block title %}🎵 Nhà Nhạc — Không Gian — Ứng Dụng Từ Bi{% endblock %}
+
+{% block head %}
+<style>
+  .music-player-bar {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+  }
+  .category-pill-active {
+    background: linear-gradient(135deg, #6366f1, #4338ca);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+  }
+  .track-row:hover .track-play-btn {
+    opacity: 1;
+  }
+  .track-play-btn {
+    opacity: 0.6;
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .track-play-btn:hover {
+    transform: scale(1.1);
+    opacity: 1 !important;
+  }
+  audio::-webkit-media-controls-panel {
+    background-color: #e0e7ff;
+  }
+  .vol-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: #c7d2fe;
+    border-radius: 3px;
+    outline: none;
+  }
+  .vol-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #4338ca;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(67, 56, 202, 0.4);
+  }
+  .vol-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #4338ca;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+  }
+  .sleep-timer-active {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    animation: pulse-amber 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-amber {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    50%      { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if let Some(u) = user %}
+<section class="max-w-7xl mx-auto px-4 py-6 md:py-10"
+         x-data="musicPlayer({
+            currentTrackId: {{ last_track_id }},
+            tracks: {{ tracks_json | safe }},
+            playbackMode: &quot;{{ playback_mode }}&quot;,
+            volume: {{ volume }},
+            sleepTimerMinutes: {{ sleep_timer_minutes }},
+            sleepTimerEnd: null
+         })">
+
+    <!-- ─── Breadcrumb + Header ─────────────────────────────────────────── -->
+    <div class="mb-6">
+        <nav class="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap">
+            <a href="/khong-gian" class="hover:text-tubi-700 transition">🌍 Không Gian</a>
+            <span class="text-gray-300">/</span>
+            <span class="text-tubi-700 font-semibold">🎵 Nhà Nhạc</span>
+        </nav>
+        <div class="bg-gradient-to-r from-indigo-900 to-violet-700 rounded-2xl p-5 sm:p-6 text-white shadow-lg">
+            <div class="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                    <h1 class="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+                        <span class="lotus-emoji">🎵</span> Nhà Nhạc
+                    </h1>
+                    <p class="text-sm text-indigo-200 mt-1">
+                        Phát nhạc thiền · Nhạc niệm · Nhạc đạo · Không lời · Cá nhân
+                    </p>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-indigo-200">Tổng kho nhạc</div>
+                    <div class="text-2xl font-bold">{{ stats.total_tracks }} bài</div>
+                    <div class="text-[10px] text-indigo-300 mt-0.5">{{ stats.total_plays }} lượt nghe · {{ personal_count }} cá nhân</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Category Tabs ───────────────────────────────────────────────── -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-3 sm:p-4 mb-6 shadow-sm">
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2 shrink-0">Thư mục:</span>
+            {% for tab in category_tabs %}
+            <a href="/khong-gian/nha-nhac/{{ tab.db_value }}"
+               class="px-3 sm:px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition shrink-0
+                      {% if tab.is_current %}category-pill-active{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200{% endif %}">
+                {{ tab.icon }} {{ tab.display }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ─── Main Grid: Track list (left) + Player (right) ───────────────── -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- LEFT: Track list -->
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span class="text-2xl">{{ current_category_icon }}</span>
+                    <span>{{ current_category_display }}</span>
+                </h2>
+                <div class="text-xs text-gray-500">{{ tracks.len() }} bài</div>
+            </div>
+
+            <p class="text-xs text-gray-500 mb-4 italic">{{ current_category_description }}</p>
+
+            {% if tracks.is_empty() %}
+            <div class="text-center py-12 text-gray-400">
+                <span class="text-5xl block mb-3">🎵</span>
+                <p class="text-sm font-medium text-gray-600 mb-1">Chưa có bài nhạc nào trong thư mục này.</p>
+                <p class="text-xs">
+                    {% if current_category == "ca_nhan" %}
+                    Hãy thêm bài từ các thư mục khác vào Cá Nhân bằng nút <strong>⭐ Thêm</strong>.
+                    {% else %}
+                    Quản trị viên sẽ bổ sung nhạc sớm.
+                    {% endif %}
+                </p>
+            </div>
+            {% else %}
+            <div class="space-y-1">
+                {% for t in tracks %}
+                <div class="track-row nha-nhac-track flex items-center gap-3 p-3 rounded-lg cursor-pointer
+                            {% if t.id == last_track_id %}nha-nhac-track-playing{% endif %}"
+                     @click="playTrack({{ t.id }})">
+                    <!-- Cover -->
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-gradient-to-br from-indigo-100 to-violet-200
+                                flex items-center justify-center text-2xl shrink-0 relative overflow-hidden">
+                        <span class="lotus-emoji">{{ t.cover_emoji() }}</span>
+                        <!-- Play overlay -->
+                        <div class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition">
+                            <span x-show="currentTrackId !== {{ t.id }}" class="text-white text-xl">▶</span>
+                            <span x-show="currentTrackId === {{ t.id }}" x-cloak class="text-white text-xl nha-nhac-playing-indicator">⏸</span>
+                        </div>
+                    </div>
+                    <!-- Title + meta -->
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-semibold text-gray-800 truncate"
+                             :class="{ 'text-indigo-700': currentTrackId === {{ t.id }} }">
+                            {{ t.title }}
+                        </div>
+                        <div class="text-xs text-gray-500 truncate">
+                            {% if let Some(artist) = &t.artist %}{{ artist }} · {% endif %}{{ t.duration_display() }} · {{ t.play_count }} lượt
+                        </div>
+                    </div>
+                    <!-- Add to Cá Nhân button (hidden for ca_nhan category) -->
+                    {% if current_category != "ca_nhan" %}
+                    <form hx-post="/api/nha-nhac/ca-nhan/them"
+                          hx-target="#prefs-result" hx-swap="innerHTML"
+                          class="shrink-0"
+                          @click.stop>
+                        <input type="hidden" name="track_id" value="{{ t.id }}">
+                        <button type="submit"
+                                title="Thêm vào Cá Nhân"
+                                class="track-play-btn w-8 h-8 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-700 flex items-center justify-center text-sm transition">
+                            ⭐
+                        </button>
+                    </form>
+                    {% else %}
+                    <!-- Remove from Cá Nhân button -->
+                    <form hx-post="/api/nha-nhac/ca-nhan/xoa/{{ t.id }}"
+                          hx-target="#prefs-result" hx-swap="innerHTML"
+                          class="shrink-0"
+                          @click.stop>
+                        <button type="submit"
+                                title="Xoá khỏi Cá Nhân"
+                                class="track-play-btn w-8 h-8 rounded-full bg-red-100 hover:bg-red-200 text-red-700 flex items-center justify-center text-sm transition">
+                            🗑️
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Quick link back to Không Gian -->
+            <div class="mt-6 pt-4 border-t border-gray-100 text-center">
+                <a href="/khong-gian" class="text-xs text-gray-500 hover:text-tubi-700 transition">← Quay lại Không Gian</a>
+            </div>
+        </div>
+
+        <!-- RIGHT: Player + Preferences -->
+        <div class="lg:col-span-1 space-y-4">
+            <!-- Player card -->
+            <div class="nha-nhac-player rounded-2xl p-5 shadow-lg text-indigo-50">
+                <h3 class="text-xs uppercase tracking-wider text-indigo-300 mb-3">🎵 Trình Phát</h3>
+
+                <!-- Now playing display -->
+                <div class="text-center mb-4">
+                    <div class="w-24 h-24 mx-auto rounded-full bg-white/10 backdrop-blur flex items-center justify-center text-5xl mb-3 ring-4 ring-white/20">
+                        <span class="lotus-emoji" x-text="currentTrack ? currentTrack.cover_emoji : '🎵'">🎵</span>
+                    </div>
+                    <div class="text-sm font-semibold text-white truncate" x-text="currentTrack ? currentTrack.title : 'Chưa chọn bài'">Chưa chọn bài</div>
+                    <div class="text-xs text-indigo-300 truncate mt-0.5" x-text="currentTrack ? currentTrack.artist : ''"></div>
+                </div>
+
+                <!-- Audio element -->
+                <audio x-ref="audio"
+                       :volume="volume / 100"
+                       @ended="onEnded()"
+                       @timeupdate="onTimeUpdate()"
+                       class="w-full mb-3"
+                       style="display: block;"></audio>
+
+                <!-- Controls -->
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <button @click="prevTrack()"
+                            class="nha-nhac-btn w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                            title="Bài trước">
+                        ⏮
+                    </button>
+                    <button @click="togglePlay()"
+                            class="nha-nhac-btn w-14 h-14 rounded-full bg-white text-indigo-900 flex items-center justify-center text-2xl font-bold shadow-lg"
+                            title="Phát/Tạm dừng">
+                        <span x-show="!isPlaying">▶</span>
+                        <span x-show="isPlaying" x-cloak>⏸</span>
+                    </button>
+                    <button @click="nextTrack()"
+                            class="nha-nhac-btn w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+                            title="Bài tiếp">
+                        ⏭
+                    </button>
+                </div>
+
+                <!-- Playback mode selector -->
+                <div class="mb-3">
+                    <div class="text-[10px] uppercase tracking-wider text-indigo-300 mb-1.5">Chế độ phát</div>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <!-- 4 playback modes — hardcoded vì là fixed set (SingleRepeat · Shuffle · RepeatAll · Loop) -->
+                        <button @click="setPlaybackMode('single_repeat')"
+                                class="px-2 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="playbackMode === 'single_repeat' ? 'nha-nhac-btn-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'"
+                                title="🔂 Một bài liên tục">
+                            🔂 Một bài liên tục
+                        </button>
+                        <button @click="setPlaybackMode('shuffle')"
+                                class="px-2 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="playbackMode === 'shuffle' ? 'nha-nhac-btn-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'"
+                                title="🔀 Ngẫu nhiên liên tục">
+                            🔀 Ngẫu nhiên liên tục
+                        </button>
+                        <button @click="setPlaybackMode('repeat_all')"
+                                class="px-2 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="playbackMode === 'repeat_all' ? 'nha-nhac-btn-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'"
+                                title="🔁 Lặp lại liên tục">
+                            🔁 Lặp lại liên tục
+                        </button>
+                        <button @click="setPlaybackMode('loop')"
+                                class="px-2 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="playbackMode === 'loop' ? 'nha-nhac-btn-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'"
+                                title="🔄 Lặp lại một vòng">
+                            🔄 Lặp lại một vòng
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Volume -->
+                <div class="mb-3">
+                    <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-indigo-300 mb-1">
+                        <span>🔊 Âm lượng</span>
+                        <span x-text="volume + '%'">{{ prefs.volume }}%</span>
+                    </div>
+                    <input type="range" min="0" max="100" step="5"
+                           x-model.number="volume"
+                           @change="savePrefs()"
+                           class="vol-slider w-full">
+                </div>
+
+                <!-- Sleep timer -->
+                <div class="mb-1">
+                    <div class="text-[10px] uppercase tracking-wider text-indigo-300 mb-1.5">⏰ Hẹn giờ tắt</div>
+                    <div class="grid grid-cols-4 gap-1">
+                        <button @click="setSleepTimer(15)"
+                                class="px-1 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="sleepTimerMinutes === 15 ? 'sleep-timer-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
+                            15p
+                        </button>
+                        <button @click="setSleepTimer(30)"
+                                class="px-1 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="sleepTimerMinutes === 30 ? 'sleep-timer-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
+                            30p
+                        </button>
+                        <button @click="setSleepTimer(60)"
+                                class="px-1 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="sleepTimerMinutes === 60 ? 'sleep-timer-active' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
+                            60p
+                        </button>
+                        <button @click="setSleepTimer(0)"
+                                class="px-1 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
+                                       :class="sleepTimerMinutes === 0 ? 'bg-white/10 text-indigo-200 hover:bg-white/20' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
+                            Tắt
+                        </button>
+                    </div>
+                    <div x-show="sleepTimerEnd" x-cloak class="text-[10px] text-amber-300 mt-1.5 text-center">
+                        ⏰ Tự tắt lúc <span x-text="sleepTimerEnd"></span>
+                    </div>
+                </div>
+
+                <!-- Empty audio URL notice -->
+                <div x-show="currentTrack && !currentTrack.audio_url" x-cloak
+                     class="mt-3 p-2 bg-amber-500/20 border border-amber-400/40 rounded-md text-[11px] text-amber-200 text-center">
+                    ℹ️ File nhạc đang được bổ sung. Vui lòng quay lại sau.
+                </div>
+            </div>
+
+            <!-- Preferences update result (HTMX target) -->
+            <div id="prefs-result" class="text-xs"></div>
+
+            <!-- Quick info card -->
+            <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <h3 class="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                    <span>ℹ️</span> Về Nhà Nhạc
+                </h3>
+                <p class="text-xs text-gray-600 leading-relaxed">
+                    Nhà Nhạc là nơi phát nhạc thiền, nhạc niệm, nhạc đạo và không lời — hỗ trợ tu học và thư giãn.
+                    Khi mở nhạc, thành viên trong Không Gian có thể nghe cùng (sẽ triển khai ở giai đoạn sau với tính năng cộng tu âm nhạc).
+                </p>
+                <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-center">
+                    <div>
+                        <div class="text-lg font-bold text-indigo-700">{{ stats.total_tracks }}</div>
+                        <div class="text-[10px] text-gray-500">Bài trong kho</div>
+                    </div>
+                    <div>
+                        <div class="text-lg font-bold text-amber-600">{{ personal_count }}</div>
+                        <div class="text-[10px] text-gray-500">Bài Cá Nhân</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer note -->
+    <div class="mt-6 text-xs text-gray-400 text-center">
+        🪷 Nhà Nhạc — v0.9.33 · Giai đoạn 38 · 5 thư mục · 5 chế độ phát · Hẹn giờ tắt<br>
+        <span class="text-[10px]">"Tu cũng niệm Phật. Chơi cũng niệm Phật."</span>
+    </div>
+</section>
+
+<script>
+// Alpine.js component cho Nhà Nhạc music player.
+function musicPlayer(initial) {
+    return {
+        tracks: initial.tracks || [],
+        currentTrackId: initial.currentTrackId || 0,
+        isPlaying: false,
+        playbackMode: initial.playbackMode || 'repeat_all',
+        volume: initial.volume ?? 70,
+        sleepTimerMinutes: initial.sleepTimerMinutes || 0,
+        sleepTimerEnd: null,
+        sleepTimerTimeout: null,
+        currentTime: 0,
+        duration: 0,
+
+        get currentTrack() {
+            return this.tracks.find(t => t.id === this.currentTrackId) || null;
+        },
+
+        init() {
+            // Restore last track — but không auto-play (browser block autoplay).
+            if (this.currentTrackId && !this.currentTrack) {
+                this.currentTrackId = 0;
+            }
+            // Apply volume to audio element if exists.
+            this.$watch('volume', (v) => {
+                if (this.$refs.audio) this.$refs.audio.volume = v / 100;
+            });
+        },
+
+        playTrack(trackId) {
+            const track = this.tracks.find(t => t.id === trackId);
+            if (!track) return;
+            if (!track.audio_url) {
+                // Track chưa có audio — chỉ select, không play.
+                this.currentTrackId = trackId;
+                this.isPlaying = false;
+                return;
+            }
+            if (this.currentTrackId === trackId) {
+                this.togglePlay();
+                return;
+            }
+            this.currentTrackId = trackId;
+            this.isPlaying = true;
+            this.$nextTick(() => {
+                const audio = this.$refs.audio;
+                if (audio) {
+                    audio.src = track.audio_url;
+                    audio.volume = this.volume / 100;
+                    audio.play().catch(err => {
+                        console.warn('Audio play blocked:', err);
+                        this.isPlaying = false;
+                    });
+                    // Increment play count via API.
+                    fetch('/api/nha-nhac/track/' + trackId + '/play', { method: 'POST' }).catch(()=>{});
+                }
+            });
+            this.savePrefs();
+        },
+
+        togglePlay() {
+            const audio = this.$refs.audio;
+            if (!audio || !this.currentTrack || !this.currentTrack.audio_url) return;
+            if (audio.paused) {
+                audio.play().catch(err => console.warn(err));
+                this.isPlaying = true;
+            } else {
+                audio.pause();
+                this.isPlaying = false;
+            }
+        },
+
+        onEnded() {
+            // Apply playback mode.
+            if (this.playbackMode === 'single_repeat') {
+                audio.play();
+            } else {
+                this.nextTrack();
+            }
+        },
+
+        onTimeUpdate() {
+            const audio = this.$refs.audio;
+            if (audio) {
+                this.currentTime = audio.currentTime;
+                this.duration = audio.duration || 0;
+            }
+        },
+
+        nextTrack() {
+            if (this.tracks.length === 0) return;
+            const playable = this.tracks.filter(t => t.audio_url);
+            if (playable.length === 0) return;
+            let next;
+            if (this.playbackMode === 'shuffle') {
+                next = playable[Math.floor(Math.random() * playable.length)];
+            } else {
+                const idx = playable.findIndex(t => t.id === this.currentTrackId);
+                next = playable[(idx + 1) % playable.length];
+            }
+            this.playTrack(next.id);
+        },
+
+        prevTrack() {
+            if (this.tracks.length === 0) return;
+            const playable = this.tracks.filter(t => t.audio_url);
+            if (playable.length === 0) return;
+            const idx = playable.findIndex(t => t.id === this.currentTrackId);
+            const prev = playable[(idx - 1 + playable.length) % playable.length];
+            this.playTrack(prev.id);
+        },
+
+        setPlaybackMode(mode) {
+            this.playbackMode = mode;
+            this.savePrefs();
+        },
+
+        setSleepTimer(minutes) {
+            // Clear existing timer.
+            if (this.sleepTimerTimeout) {
+                clearTimeout(this.sleepTimerTimeout);
+                this.sleepTimerTimeout = null;
+            }
+            this.sleepTimerMinutes = minutes;
+            if (minutes > 0) {
+                const end = new Date(Date.now() + minutes * 60000);
+                this.sleepTimerEnd = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                this.sleepTimerTimeout = setTimeout(() => {
+                    const audio = this.$refs.audio;
+                    if (audio) audio.pause();
+                    this.isPlaying = false;
+                    this.sleepTimerMinutes = 0;
+                    this.sleepTimerEnd = null;
+                }, minutes * 60000);
+            } else {
+                this.sleepTimerEnd = null;
+            }
+            this.savePrefs();
+        },
+
+        savePrefs() {
+            // Debounce save via fetch.
+            clearTimeout(this._saveTimer);
+            this._saveTimer = setTimeout(() => {
+                const form = new URLSearchParams();
+                form.set('playback_mode', this.playbackMode);
+                form.set('volume', String(this.volume));
+                if (this.sleepTimerMinutes > 0) {
+                    form.set('sleep_timer_minutes', String(this.sleepTimerMinutes));
+                } else {
+                    form.set('sleep_timer_minutes', '');
+                }
+                if (this.currentTrackId) {
+                    form.set('last_track_id', String(this.currentTrackId));
+                }
+                fetch('/api/nha-nhac/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: form.toString()
+                }).catch(err => console.warn('Save prefs failed:', err));
+            }, 600);
+        }
+    };
+}
+</script>
+{% else %}
+<section class="max-w-md mx-auto px-4 py-20 text-center">
+    <span class="lotus-emoji text-6xl">🎵</span>
+    <h1 class="text-2xl font-bold text-indigo-800 mt-4 mb-2">Vui lòng đăng nhập</h1>
+    <p class="text-sm text-gray-500 mb-6">Đăng nhập để vào Nhà Nhạc — nghe nhạc thiền, nhạc niệm, nhạc đạo.</p>
+    <a href="/auth/google?next=/khong-gian/nha-nhac" class="inline-block bg-indigo-700 hover:bg-indigo-800 text-white px-6 py-3 rounded-xl font-semibold transition shadow-md">
+        🪷 Đăng Nhập Bằng Google
+    </a>
+</section>
+{% endif %}
+{% endblock %}

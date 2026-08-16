@@ -4,11 +4,52 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.32 — Giai đoạn 37
+## 📦 Phiên bản hiện tại: v0.9.33 — Giai đoạn 38
 
-**Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync**
+**Giai đoạn 38: Nhà Nhạc (Music House — KG-03) + Logo Emoji Sharpened 🪷**
 
-Tạo dashboard riêng cho Admin Phát Triển (`/admin/phat-trien`) — indigo/vision/roadmap theme. Đổi hoàn toàn logo sang emoji hoa sen 🪷. Đồng bộ version v0.9.32 trên tất cả file.
+Triển khai **Nhà Nhạc** — phòng KG-03 trong Không Gian (theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết"). 5 thư mục nhạc (Niem · Thien · Dao · KhongLoi · CaNhan), 4 chế độ phát (SingleRepeat · Shuffle · RepeatAll · Loop), hẹn giờ tắt, playlist Cá Nhân. Làm nét logo emoji 🪷 (giữ nguyên emoji, tối ưu render `geometricPrecision` + emoji font fallback + 256 viewBox).
+
+### 🎵 Nhà Nhạc — `/khong-gian/nha-nhac`
+
+- **[MUSIC-1]** `migrations/023_nha_nhac.sql` — Tạo 3 bảng: `music_tracks` (kho nhạc hệ thống), `user_music_prefs` (preferences per-user), `user_personal_tracks` (playlist Cá Nhân). Seed 12 track mẫu cho 4 category.
+- **[MUSIC-2]** `src/models/nha_nhac.rs` — Models: `MusicCategory` (5 enum), `PlaybackMode` (4 enum), `MusicTrack`, `UserMusicPrefs`, `MusicPrefsForm`, `PersonalPlaylistItem`, `NhaNhacStats`.
+- **[MUSIC-3]** `src/handlers/nha_nhac.rs` — 9 handlers: index, category filter, tracks API (all + by category), preferences GET/POST, add/remove Cá Nhân, play count, stats.
+- **[MUSIC-4]** `templates/khong-gian/nha-nhac.html` — Player UI: HTML5 audio + Alpine.js component `musicPlayer()` với play/pause/next/prev, playback mode selector, volume slider, sleep timer (15/30/60 phút), category tabs, track list với ⭐ thêm vào Cá Nhân.
+- **[MUSIC-5]** `src/main.rs` — 10 routes mới:
+  - `GET /khong-gian/nha-nhac` — Trang Nhà Nhạc (default category: niem)
+  - `GET /khong-gian/nha-nhac/{category}` — Lọc theo category
+  - `GET /api/nha-nhac/tracks` — JSON tất cả track
+  - `GET /api/nha-nhac/tracks/{category}` — JSON track theo category
+  - `GET|POST /api/nha-nhac/preferences` — Read/update preferences
+  - `POST /api/nha-nhac/ca-nhan/them` — Add track → Cá Nhân
+  - `POST /api/nha-nhac/ca-nhan/xoa/{track_id}` — Remove track khỏi Cá Nhân
+  - `POST /api/nha-nhac/track/{track_id}/play` — Increment play count
+  - `GET /api/nha-nhac/stats` — Stats JSON
+- **[MUSIC-6]** `templates/khong-gian/index.html` — Thêm card "Nhà Nhạc" (gradient indigo→violet) với CTA "🎵 Mở Nhà Nhạc →" ngay dưới hero Không Gian.
+- **[MUSIC-7]** `src/static/css/app.css` — CSS cho player: `.nha-nhac-player`, `.nha-nhac-btn`, `.nha-nhac-track`, `.nha-nhac-playing-indicator`, `.nha-nhac-equalizer-bar` (animated equalizer bars).
+
+### 🪷 Logo Emoji Sharpened (giữ nguyên emoji 🪷)
+
+- **[LOGO-1]** `src/static/favicon.svg` — Bump viewBox 100→256, font-size 90→240, thêm `shape-rendering="geometricPrecision"`, `text-rendering="geometricPrecision"`, `text-anchor="middle"`, `dominant-baseline="central"`, font-family fallback.
+- **[LOGO-2]** `src/static/logo.svg` — Tương tự favicon (256×256, geometricPrecision).
+- **[LOGO-3]** `src/static/logo-inline.svg` — Tương tự (256×256, geometricPrecision).
+- **[LOGO-4]** `templates/layout.html` — Favicon data URI: bump 100→256 viewBox, thêm font-family fallback (Apple Color Emoji → Segoe UI Emoji → Noto Color Emoji → Twemoji Mozilla → system-ui), thêm `shape-rendering` + `text-rendering="geometricPrecision"`. URL-encode `%3C` `%3E` cho data URI SVG hợp lệ.
+- **[LOGO-5]** `src/static/css/app.css` — Thêm class `.lotus-emoji`, `.lotus-logo-header`, override `.niem-btn` + `.buddha-statue` với `font-family` emoji fallback, `text-rendering: geometricPrecision`, `-webkit-font-smoothing: antialiased`, `-moz-osx-font-smoothing: grayscale`, `font-feature-settings: "liga" 1`, `font-variant-emoji: emoji`, `transform: translateZ(0)`.
+- **[LOGO-6]** Layout.html + home.html — Thêm class `lotus-logo-header` (header + bottom nav center button) + `lotus-emoji` (hero home + chat bubble).
+
+### 📦 Version Sync v0.9.33
+
+- Bump version `0.9.32` → `0.9.33` ở: `Cargo.toml`, `src/main.rs` (startup log + health check public + health check inner + phase 37 → 38), `templates/layout.html` (footer), `templates/khong-gian/index.html` (footer), `Dockerfile.coolify` (comment), `templates/admin/phat-trien/index.html` (phase badge + roadmap), và footer version ở 6 admin templates.
+- Update phase 37 → 38 trong health check + main log.
+- Thêm 9 feature flags v0.9.33 vào `HEALTH_FEATURES` array.
+- Cập nhật `khong_gian.features` trong health check: thêm `nha-nhac-music-house`.
+- Thêm `khong_gian.nha_nhac` object trong health check (status, route, categories, playback_modes, sleep_timer, personal_playlist).
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 37 → "Hoàn thành" (green), Giai đoạn 38 → "Đang triển khai" (indigo).
+
+---
+
+## 📦 Phiên bản trước: v0.9.32 — Giai đoạn 37
 
 ### 🧭 Admin Phát Triển Dashboard — /admin/phat-trien
 

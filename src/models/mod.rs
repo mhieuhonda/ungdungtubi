@@ -2,6 +2,7 @@ pub mod community;
 pub mod friends;
 pub mod kinh_sach;
 pub mod khong_gian;
+pub mod nha_nhac;
 pub mod quy_tu_bi;
 pub mod user;
 

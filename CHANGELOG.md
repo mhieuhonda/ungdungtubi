@@ -6,6 +6,148 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.33] — 2026-08-16 — Giai đoạn 38: Nhà Nhạc (Music House — KG-03) + Logo Emoji Sharpened 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Triển khai **Nhà Nhạc** — phòng KG-03 trong Không Gian (theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx" mục 3). Đây là giai đoạn tiếp theo theo roadmap đã công bố ở v0.9.32: `37 (đang triển khai) · 38 (Nhà Nhạc) · 39 (Thương Thành) · 40 (Game Siêu Độ)`.
+
+**Nhà Nhạc** là nơi mở nhạc + cài đặt chế độ nghe nhạc, gồm:
+- 5 thư mục: Nhạc Niệm · Nhạc Thiền · Nhạc Đạo · Không Lời · Cá Nhân
+- 4 chế độ phát: Một bài liên tục · Ngẫu nhiên liên tục · Lặp lại liên tục · Lặp lại một vòng
+- Hẹn thời gian tắt (sleep timer 15/30/60 phút)
+- Playlist Cá Nhân — user add track hệ thống vào danh sách riêng
+
+Đồng thời **làm nét logo emoji 🪷** theo yêu cầu user: giữ nguyên emoji (không đổi thành hình khác) nhưng render sắc nét hơn — bump viewBox 100→256, thêm font-family fallback (Apple/Segoe/Noto/Twemoji), `text-rendering="geometricPrecision"`, `shape-rendering="geometricPrecision"`, `-webkit-font-smoothing: antialiased`.
+
+### 🎵 Nhà Nhạc (Music House) — `/khong-gian/nha-nhac` (MAJOR)
+
+- **[MUSIC-1] `migrations/023_nha_nhac.sql`** — Tạo schema cho Nhà Nhạc:
+  - `music_tracks` — kho nhạc hệ thống (id, title, category, description, artist, audio_url, duration_seconds, cover_url, is_public, upload_user_id, sort_order, is_active, play_count, created_at, updated_at). CHECK constraint cho `category` ∈ {niem, thien, dao, khong_loi}.
+  - `user_music_prefs` — preferences per-user (user_id PK, playback_mode CHECK ∈ {single_repeat, shuffle, repeat_all, loop}, volume CHECK 0–100, sleep_timer_minutes nullable, last_track_id nullable, updated_at).
+  - `user_personal_tracks` — playlist Cá Nhân (id, user_id, track_id, sort_order, added_at) với UNIQUE(user_id, track_id) chống duplicate.
+  - Indexes: `idx_music_tracks_category_sort` (category, sort_order, id) WHERE is_active AND is_public — query nhanh cho category browse. `idx_music_tracks_upload_user` + `idx_user_personal_tracks_user`.
+  - Seed 12 track mẫu (3 per category × 4 category): Nam Mô A Di Đà Phật, Lục Tự Đại Minh Chú, Thiền Chuông Tây Tạng, Mưa Nhẹ Rơi Trên Lá Sen, Hymn To The Lotus, Đường Về Tịnh Độ, Mộc Tần, Trúc Điếu, Cổ Cầm...
+  - Idempotent: tất cả CREATE TABLE IF NOT EXISTS + INSERT ... ON CONFLICT DO NOTHING.
+
+- **[MUSIC-2] `src/models/nha_nhac.rs`** — Models:
+  - `MusicCategory` enum: Niem, Thien, Dao, KhongLoi, CaNhan — methods `from_str`, `db_value`, `display`, `icon`, `color`, `description`, `all_system()`.
+  - `PlaybackMode` enum: SingleRepeat, Shuffle, RepeatAll, Loop — methods `from_str`, `db_value`, `display`, `icon`, `all()`. Default: RepeatAll.
+  - `MusicTrack` struct (FromRow) — methods `category_enum()`, `duration_display()` (MM:SS / HH:MM:SS), `can_play()` (check audio_url non-empty), `cover_emoji()` (fallback emoji per category).
+  - `UserMusicPrefs` struct (FromRow) — `playback_mode_enum()`, Default impl.
+  - `MusicPrefsForm` — form payload cho POST preferences. `validate()` trả về tuple (mode, volume, sleep, last_track) đã sanitize — volume clamped 0–100, sleep_timer > 0 hoặc None.
+  - `AddPersonalTrackForm` — form payload cho add track → Cá Nhân.
+  - `PersonalPlaylistItem` struct (FromRow).
+  - `NhaNhacStats` struct: total_tracks, tracks_by_category, personal_tracks, total_plays.
+
+- **[MUSIC-3] `src/handlers/nha_nhac.rs`** — 9 handlers:
+  - `nha_nhac_index` — GET /khong-gian/nha-nhac (default category: niem).
+  - `nha_nhac_category` — GET /khong-gian/nha-nhac/{category} — render template với category đã chọn; invalid category → redirect về index.
+  - `nha_nhac_tracks_api` — GET /api/nha-nhac/tracks — JSON tất cả track (auth required).
+  - `nha_nhac_tracks_by_category_api` — GET /api/nha-nhac/tracks/{category} — JSON track theo category (ca_nhan → empty, frontend gọi API khác).
+  - `nha_nhac_prefs_api` — GET /api/nha-nhac/preferences — JSON preferences của user (lazy-create default nếu chưa có).
+  - `nha_nhac_prefs_update` — POST /api/nha-nhac/preferences — HTMX partial response (success message với mode label + volume + sleep timer status).
+  - `nha_nhac_ca_nhan_add` — POST /api/nha-nhac/ca-nhan/them — Add track → Cá Nhân (UNIQUE constraint → idempotent, trả "đã có" nếu duplicate).
+  - `nha_nhac_ca_nhan_remove` — POST /api/nha-nhac/ca-nhan/xoa/{track_id} — Remove track khỏi Cá Nhân.
+  - `nha_nhac_track_play` — POST /api/nha-nhac/track/{track_id}/play — Increment play_count (analytics).
+  - `nha_nhac_stats_api` — GET /api/nha-nhac/stats — JSON stats cho dashboard.
+  - Internal helpers: `render_nha_nhac()` (chia sẻ logic render cho index + category), `fetch_all_tracks()`, `fetch_tracks_by_category()`, `fetch_personal_tracks()` (JOIN user_personal_tracks + music_tracks), `fetch_prefs()` (lazy insert default nếu chưa có), `upsert_prefs()` (dynamic SET với COALESCE — chỉ update fields được cung cấp), `fetch_stats()`.
+
+- **[MUSIC-4] `templates/khong-gian/nha-nhac.html`** — Player UI:
+  - Hero banner gradient indigo→violet với total tracks stats.
+  - Category tabs (5 pills): Niem · Thien · Dao · KhongLoi · CaNhan — active state với gradient.
+  - Main grid 2 cột (lg): track list (left, 2/3) + player card (right, 1/3).
+  - Track list: cover emoji (large), title, artist, duration, play_count, ⭐ Add to Cá Nhân button (hoặc 🗑️ Remove khi ở tab CaNhan).
+  - Player card (gradient indigo-900): now playing display (cover emoji 96×96, title, artist), HTML5 `<audio>` element, controls (⏮ ▶/⏸ ⏭), playback mode selector (4 buttons), volume slider (range input 0–100), sleep timer (15/30/60/Tắt) với amber pulse animation khi active, "empty audio URL" notice cho track chưa có file.
+  - "Về Nhà Nhạc" info card với stats (total tracks · personal count).
+  - Alpine.js component `musicPlayer({tracks, currentTrackId, playbackMode, volume, sleepTimerMinutes})`:
+    - `playTrack(id)` — set current, play audio, increment play count via fetch.
+    - `togglePlay()` — play/pause.
+    - `onEnded()` — apply playback mode (single_repeat → replay, else nextTrack).
+    - `nextTrack()` / `prevTrack()` — navigation theo playback mode (shuffle → random).
+    - `setPlaybackMode(mode)` + `setSleepTimer(minutes)` — update + savePrefs().
+    - `savePrefs()` — debounced (600ms) POST /api/nha-nhac/preferences với URLSearchParams body.
+    - Sleep timer: setTimeout (minutes × 60000) → pause audio + clear state.
+  - Auth gate: không đăng nhập → show "Vui lòng đăng nhập" + Google OAuth button.
+
+- **[MUSIC-5] `src/main.rs`** — 10 routes mới (xem README cho danh sách đầy đủ). Lưu ý: `GET|POST /api/nha-nhac/preferences` chain trong 1 route() call (axum 0.8 không cho phép 2 route() trùng path).
+
+- **[MUSIC-6] `templates/khong-gian/index.html`** — Thêm card "Nhà Nhạc" (gradient indigo→violet) ngay dưới hero Không Gian, với badge "MỚI · v0.9.33" và CTA "🎵 Mở Nhà Nhạc →" link tới /khong-gian/nha-nhac.
+
+- **[MUSIC-7] `src/static/css/app.css`** — CSS cho Nhà Nhạc:
+  - `.nha-nhac-player` — gradient indigo-900 → indigo-700, color #e0e7ff.
+  - `.nha-nhac-btn` — transition + hover (translateY -1px + shadow) + active (scale 0.96).
+  - `.nha-nhac-btn-active` — gradient indigo-500 → indigo-700, white text, shadow.
+  - `.nha-nhac-track` — hover (bg indigo/12% + translateX 2px).
+  - `.nha-nhac-track-playing` — bg indigo/18% + border-left 3px indigo.
+  - `.nha-nhac-playing-indicator` — pulse animation 1.2s.
+  - `.nha-nhac-equalizer-bar` — animated equalizer bars (4 bars, staggered delay 0/0.15/0.30/0.45s).
+
+### 🪷 Logo Emoji Sharpened (giữ nguyên emoji 🪷)
+
+- **[LOGO-1] `src/static/favicon.svg`** — Bump viewBox 100→256, font-size 90→240. Thêm `shape-rendering="geometricPrecision"` trên `<svg>`. Thêm `text-anchor="middle"` + `dominant-baseline="central"` để center chính xác. Thêm `text-rendering="geometricPrecision"` trên `<text>`. Thêm `font-family` fallback: `"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", "EmojiOne Color", system-ui, sans-serif`.
+
+- **[LOGO-2] `src/static/logo.svg`** — Tương tự favicon (256×256, geometricPrecision, font-family fallback). Dùng cho home hero + og:image.
+
+- **[LOGO-3] `src/static/logo-inline.svg`** — Tương tự (256×256, geometricPrecision, font-family fallback). Dùng cho header navbar.
+
+- **[LOGO-4] `templates/layout.html`** — Favicon data URI:
+  - Bump viewBox 100→256, font-size 90→240.
+  - Thêm `shape-rendering='geometricPrecision'` trên `<svg>`.
+  - Thêm `text-rendering='geometricPrecision'` + `text-anchor='middle'` + `dominant-baseline='central'` trên `<text>`.
+  - Thêm `font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, system-ui, sans-serif'`.
+  - URL-encode `<`→`%3C`, `>`→`%3E` cho data URI SVG hợp lệ (trước đây dùng raw `<` `>` hoạt động trên Chrome nhưng fail trên một số browser cũ).
+  - Thêm `<link rel="alternate icon" href="/static/favicon.svg">` fallback cho trình duyệt cũ không hỗ trợ SVG data URI.
+  - Thêm `type="image/svg+xml"` cho `<link rel="icon">` để browser biết content type.
+
+- **[LOGO-5] `src/static/css/app.css`** — Thêm CSS class mới:
+  - `.lotus-emoji` — class helper cho mọi chỗ dùng emoji 🪷 as logo/hero. `font-family` emoji fallback, `text-rendering: geometricPrecision`, `-webkit-font-smoothing: antialiased`, `-moz-osx-font-smoothing: grayscale`, `font-feature-settings: "liga" 1, "calt" 1`, `font-variant-emoji: emoji`, `transform: translateZ(0)` (GPU acceleration), `backface-visibility: hidden`.
+  - `.lotus-logo-header` — variant cho header navbar logo (36px displayed). Tương tự `.lotus-emoji` + `line-height: 1`.
+  - Override `.niem-btn` + `.buddha-statue` — thêm `font-family` emoji fallback để emoji render as color glyph (không phải text monochrome).
+
+- **[LOGO-6] Layout.html + home.html** — Apply class:
+  - `templates/layout.html` header logo: `<span class="text-2xl leading-none">🪷</span>` → `<span class="lotus-logo-header text-2xl">🪷</span>`.
+  - `templates/layout.html` bottom nav center button: tương tự.
+  - `templates/layout.html` chat bubble: wrap `🪷` trong `<span class="lotus-emoji">🪷</span>`.
+  - `templates/home.html` hero: `<span class="text-5xl leading-none">🪷</span>` → `<span class="lotus-emoji text-5xl leading-none">🪷</span>`.
+
+### 📦 Version Sync v0.9.33
+
+- **[VER-1] `Cargo.toml`** — `version = "0.9.33"`.
+- **[VER-2] `src/main.rs`** — Startup log v0.9.33 + phase 38 + health check version/phase (public + inner).
+- **[VER-3] `templates/layout.html`** — Footer: v0.9.33.
+- **[VER-4] `templates/khong-gian/index.html`** — Footer: v0.9.33.
+- **[VER-5] `Dockerfile.coolify`** — Comment: v0.9.33 — Giai đoạn 38.
+- **[VER-6] `templates/admin/phat-trien/index.html`** — Phase badge: GIAI ĐOẠN 38. Roadmap: 37 → "Hoàn thành" (green), 38 → "Đang triển khai" (indigo, "Nhà Nhạc (Music House)"). Footer: v0.9.33.
+- **[VER-7] 6 admin templates** — Footer version sync: `templates/admin/{ky-thuat,quan-li,cong-dong,cong-dong/cam-ngo,users,placeholder}.html` — display version v0.9.32 → v0.9.33.
+
+### 📋 Health Check Updates
+
+- `HEALTH_FEATURES` thêm 9 features mới:
+  - `nha-nhac-music-house-v0.9.33`
+  - `music-player-5-categories-v0.9.33`
+  - `music-playback-modes-4-v0.9.33`
+  - `music-sleep-timer-v0.9.33`
+  - `music-personal-playlist-v0.9.33`
+  - `music-preferences-persisted-v0.9.33`
+  - `music-stats-play-count-v0.9.33`
+  - `logo-emoji-sharpened-geometric-precision-v0.9.33`
+  - `favicon-svg-256-viewbox-v0.9.33`
+  - `emoji-font-family-fallback-v0.9.33`
+- `khong_gian.features` thêm `nha-nhac-music-house`.
+- `khong_gian.nha_nhac` object mới (status, route, categories, playback_modes, sleep_timer, personal_playlist).
+- `v0_9_33_note` — Mô tả thay đổi giai đoạn 38.
+- Phase 37 → 38 trong health check.
+
+### 🛠️ Yêu cầu kỹ thuật
+
+- **Rust 1.97.1** — đã pin trong `Cargo.toml` (`rust-version = "1.97.1"`) và `Dockerfile` (`FROM rust:1.97.1-slim-bookworm`).
+- **PostgreSQL 17** — migration 023 sử dụng `BIGSERIAL`, `TIMESTAMPTZ`, `UUID`, `CHECK` constraint, `ON CONFLICT` (PostgreSQL 9.5+).
+- **axum 0.8** — route chain `get().post()` cho `/api/nha-nhac/preferences`.
+- **askama 0.14** — template `khong-gian/nha-nhac.html` extends `layout.html`.
+
+---
+
 ## [0.9.32] — 2026-08-16 — Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync
 
 ### 🎯 Mục tiêu giai đoạn
