@@ -1,13 +1,14 @@
 //! Handlers cho trang Quản Trị (Giai đoạn 12 — v0.9.14).
 //!
-//! Hệ thống vai trò (v0.9.29 — admin NGANG HÀNH, không phân cấp):
-//!   - `admin_ky_thuat`  — Admin Kỹ Thuật (cấp 3, 41 quyền: system/security/media/analytics)
-//!   - `admin_quan_li`   — Admin Quản Lý (cấp 3, 40 quyền: users/content/community/fund)
-//!   - `admin_cong_dong` — Admin Cộng Đồng (cấp 3, 45 quyền: content/community/friends/mail/events/achievements/media)
-//!   - `mod`             — Mod (cấp 2, 15 quyền: moderation cơ bản)
-//!   - `member`          — Thành Viên (mặc định, 0 quyền admin)
+//! Hệ thống vai trò (v0.9.30 — admin NGANG HÀNG, không phân cấp):
+//!   - `admin_ky_thuat`   — Admin Kỹ Thuật (cấp 3, 41 quyền: system/security/media/analytics)
+//!   - `admin_quan_li`    — Admin Quản Lý (cấp 3, 40 quyền: users/content/community/fund)
+//!   - `admin_cong_dong`  — Admin Cộng Đồng (cấp 3, 45 quyền: content/community/friends/mail/events/achievements/media)
+//!   - `admin_phat_trien` — Admin Phát Triển (cấp 3, 39 quyền: system/security/media/analytics/navigation/api) — v0.9.30
+//!   - `mod`              — Mod (cấp 2, 15 quyền: moderation cơ bản)
+//!   - `member`           — Thành Viên (mặc định, 0 quyền admin)
 //!
-//! v0.9.29 — Nguyên tắc: "Các admin đều bằng nhau ngang hàng,
+//! v0.9.30 — Nguyên tắc: "Các admin đều bằng nhau ngang hàng,
 //!                       nhưng mỗi người phụ trách một mảng khác nhau.
 //!                       Không ai cao hơn ai — quyền hạn theo lĩnh vực."
 //!
@@ -15,6 +16,7 @@
 //!   - /admin/ky-thuat    — Phong cách coder/terminal (tối, ngầu, Matrix)
 //!   - /admin/cong-dong   — Phong cách community mod (xanh, social)
 //!   - /admin/quan-li     — Phong cách executive (vàng, premium)
+//!   (admin_phat_trien dùng dashboard /admin/ky-thuat vì scope giao thoa)
 //!
 //! Routes:
 //!   - GET  /admin                       — Redirect đến dashboard tương ứng role
@@ -77,6 +79,7 @@ impl AdminUserRow {
             "admin_quan_li" => "#FF6F00",
             "admin_cong_dong" => "#1565C0",
             "admin_ky_thuat" => "#6A1B9A",
+            "admin_phat_trien" => "#312E81",  // v0.9.30: indigo-900 cho Admin Phát Triển
             "mod" => "#0F766E",  // v0.9.19: teal-700 cho Mod
             _ => "#2E7D32",
         }
@@ -89,11 +92,13 @@ impl AdminUserRow {
 
     /// HTML cho role badge (top-right của card).
     /// v0.9.19: thêm option "Mod".
+    /// v0.9.30: thêm option "Admin Phát Triển".
     pub fn role_badge_html(&self) -> String {
         let (icon, label) = match self.role.as_str() {
             "admin_quan_li" => ("👑", "Admin Quản Lý"),
             "admin_cong_dong" => ("🛡️", "Admin Cộng Đồng"),
             "admin_ky_thuat" => ("⚙️", "Admin Kỹ Thuật"),
+            "admin_phat_trien" => ("🧭", "Admin Phát Triển"),
             "mod" => ("📜", "Mod"),
             _ => ("🪷", "Thành Viên"),
         };
@@ -424,15 +429,16 @@ pub async fn admin_change_role(
 
     // Validate role
     // v0.9.19: thêm 'mod' vào danh sách role hợp lệ.
+    // v0.9.30: thêm 'admin_phat_trien' vào danh sách role hợp lệ.
     let new_role = form.role.trim().to_string();
     if !matches!(
         new_role.as_str(),
-        "member" | "mod" | "admin_ky_thuat" | "admin_cong_dong" | "admin_quan_li"
+        "member" | "mod" | "admin_ky_thuat" | "admin_cong_dong" | "admin_quan_li" | "admin_phat_trien"
     ) {
         return render_users_error(
             &state.pool,
             &actor,
-            "Role không hợp lệ. Phải là: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li",
+            "Role không hợp lệ. Phải là: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li | admin_phat_trien",
         )
         .await;
     }

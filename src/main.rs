@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.29 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.30 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.29 — Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance");
+    log::info!("📦 Phiên bản: v0.9.30 — Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -318,6 +318,12 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/api/ban-be/tin-nhan/{conversation_id}/history",
             get(handlers::friends::dm_history),
         )
+        // v0.9.30: REST fallback gửi DM — đảm bảo tin nhắn LUÔN gửi được
+        // ngay cả khi WebSocket fail (fix lỗi "không thể gửi tin nhắn cho bạn bè")
+        .route(
+            "/api/ban-be/tin-nhan/{conversation_id}/gui",
+            post(handlers::friends::dm_send_message),
+        )
         .route("/ban-be/thu", get(handlers::friends::mail_inbox))
         .route("/ban-be/thu/gui", get(handlers::friends::mail_compose_form).post(handlers::friends::mail_send))
         .route("/ban-be/thu/{mail_id}", get(handlers::friends::mail_view))
@@ -552,7 +558,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.29",
+            "version": "0.9.30",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -582,24 +588,26 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.29",
+        "version": "0.9.30",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 34,
-        "phase_name": "Giai đoạn 34 — Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance",
+        "phase": 35,
+        "phase_name": "Giai đoạn 35 — Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
         "roles": {
-            "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod", "member"],
+            "hierarchy": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "admin_phat_trien", "mod", "member"],
             "default": "member",
-            "permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
-            "system_permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "mod": 15, "member": 0},
-            "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "mod"],
+            "permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "admin_phat_trien": 39, "mod": 15, "member": 0},
+            "system_permission_counts": {"admin_ky_thuat": 41, "admin_quan_li": 40, "admin_cong_dong": 45, "admin_phat_trien": 39, "mod": 15, "member": 0},
+            "admin_panel_access": ["admin_ky_thuat", "admin_quan_li", "admin_cong_dong", "admin_phat_trien", "mod"],
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",
             "admin_quan_li_dashboard": "/admin/quan-li",
+            "admin_phat_trien_dashboard": "/admin/ky-thuat",
             "mod_dashboard": "/admin/thanh-vien",
+            "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",
             "v0_9_24_note": "Tất cả admin NGANG HÀNH (level 3) — mỗi admin có scope quyền riêng theo phần phụ trách"
         },
         "database": {

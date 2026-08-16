@@ -24,6 +24,12 @@ use uuid::Uuid;
 ///   - `mod`             — Mod (level 2, dưới admin, trên member) — moderation cơ bản
 ///   - `member`          — Thành Viên (mặc định, 0 quyền admin)
 ///
+/// **v0.9.30 (Giai đoạn 35) — THÊM ROLE admin_phat_trien:**
+///   - `admin_phat_trien` — Admin Phát Triển (level 3, 39 quyền:
+///     system + development + deployment + analytics + navigation + api).
+///     Phụ trách định hướng phát triển sản phẩm, CI/CD, roadmap, kỹ thuật xây dựng.
+///     NGANG HÀNH với 3 admin kia — không phân cấp.
+///
 /// Nguyên tắc: "Các admin đều bằng nhau ngang hàng,
 ///              nhưng mỗi người phụ trách một mảng khác nhau."
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -60,8 +66,9 @@ pub struct User {
     pub bio: Option<String>,
     /// ID ảnh avatar user tự upload (ưu tiên trước Google `avatar_url`).
     pub avatar_upload_id: Option<Uuid>,
-    /// Vai trò quản trị: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li
-    /// v0.9.24: tất cả admin NGANG HÀNG (level 3), khác nhau ở permission scope.
+    /// Vai trò quản trị: member | mod | admin_ky_thuat | admin_cong_dong | admin_quan_li | admin_phat_trien
+    /// v0.9.24: tất cả admin NGANG HÀNH (level 3), khác nhau ở permission scope.
+    /// v0.9.30: thêm admin_phat_trien (Admin Phát Triển — cấp 3, 39 quyền).
     pub role: String,
 }
 
@@ -179,22 +186,26 @@ impl User {
 
     /// Tên hiển thị tiếng Việt của vai trò.
     /// Dùng cho badge trên profile / header.
+    /// v0.9.30: thêm admin_phat_trien → "Admin Phát Triển".
     pub fn role_display(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "Admin Quản Lý",
             "admin_cong_dong" => "Admin Cộng Đồng",
             "admin_ky_thuat" => "Admin Kỹ Thuật",
+            "admin_phat_trien" => "Admin Phát Triển",
             "mod" => "Mod",
             _ => "Thành Viên",
         }
     }
 
     /// Emoji đại diện cho vai trò.
+    /// v0.9.30: admin_phat_trien → 🧭 (la bàn — định hướng phát triển).
     pub fn role_icon(&self) -> &str {
         match self.role.as_str() {
             "admin_quan_li" => "👑",
             "admin_cong_dong" => "🛡️",
             "admin_ky_thuat" => "⚙️",
+            "admin_phat_trien" => "🧭",
             "mod" => "📜",
             _ => "🪷",
         }
@@ -202,13 +213,15 @@ impl User {
 
     /// Màu sắc đại diện cho vai trò (hex).
     /// v0.9.24: 3 admin dùng 3 màu khác nhau nhưng cùng level — không "cao hơn" nhau.
+    /// v0.9.30: admin_phat_trien → indigo-700 (violet đậm — phát triển/sáng tạo).
     pub fn role_color(&self) -> &str {
         match self.role.as_str() {
-            "admin_quan_li" => "#FF6F00",   // amber-900 (gold) — quản lý
-            "admin_cong_dong" => "#1565C0",  // blue-800 — cộng đồng
-            "admin_ky_thuat" => "#6A1B9A",   // purple-800 — kỹ thuật
-            "mod" => "#0F766E",              // teal-700 (moderator)
-            _ => "#2E7D32",                   // tubi-800 (green)
+            "admin_quan_li" => "#FF6F00",      // amber-900 (gold) — quản lý
+            "admin_cong_dong" => "#1565C0",     // blue-800 — cộng đồng
+            "admin_ky_thuat" => "#6A1B9A",      // purple-800 — kỹ thuật
+            "admin_phat_trien" => "#312E81",    // indigo-900 — phát triển
+            "mod" => "#0F766E",                 // teal-700 (moderator)
+            _ => "#2E7D32",                      // tubi-800 (green)
         }
     }
 
@@ -226,19 +239,20 @@ impl User {
     pub fn role_level(&self) -> u8 {
         match self.role.as_str() {
             "mod" => 2,
-            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong" => 3, // NGANG HÀNG
+            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong" | "admin_phat_trien" => 3, // NGANG HÀNG
             _ => 1,
         }
     }
 
-    /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý).
+    /// True nếu user là bất kỳ vai trò admin nào (kỹ thuật / cộng đồng / quản lý / phát triển).
     /// v0.9.24: Tất cả 3 admin đều ngang hàng — không phân cấp.
+    /// v0.9.30: Thêm admin_phat_trien — 4 admin ngang hàng.
     /// v0.9.19: Mod KHÔNG phải là admin — Mod là chức vụ riêng (dưới admin, trên member).
     /// Dùng `is_staff()` để kiểm tra "admin HOẶC mod".
     pub fn is_admin(&self) -> bool {
         matches!(
             self.role.as_str(),
-            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong"
+            "admin_ky_thuat" | "admin_quan_li" | "admin_cong_dong" | "admin_phat_trien"
         )
     }
 
@@ -268,6 +282,13 @@ impl User {
     /// True nếu user chính xác là Admin Quản Lý.
     pub fn is_admin_quan_li(&self) -> bool {
         matches!(self.role.as_str(), "admin_quan_li")
+    }
+
+    /// True nếu user chính xác là Admin Phát Triển (v0.9.30 — Giai đoạn 35).
+    /// Admin Phát Triển phụ trách định hướng phát triển sản phẩm, CI/CD, roadmap.
+    /// NGANG HÀNG với 3 admin kia (cùng cấp 3).
+    pub fn is_admin_phat_trien(&self) -> bool {
+        matches!(self.role.as_str(), "admin_phat_trien")
     }
 
     /// True nếu user có quyền kỹ thuật (Admin Kỹ Thuật).
@@ -420,6 +441,36 @@ impl User {
             ),
 
             // ════════════════════════════════════════════════════════════════
+            // admin_phat_trien — Phụ trách PHÁT TRIỂN (39 quyền) — v0.9.30 Giai đoạn 35
+            // Scope: system, development, deployment, analytics, navigation, api
+            // Giao thoa với admin_ky_thuat nhưng tập trung vào phát triển sản phẩm
+            // ════════════════════════════════════════════════════════════════
+            "admin_phat_trien" => matches!(code,
+                // System (10) — toàn quyền hệ thống (giao thoa admin_ky_thuat)
+                "system_view_status" | "system_manage_config" | "system_manage_migrate" |
+                "system_view_logs" | "system_manage_cache" | "system_restart_server" |
+                "system_manage_cron" | "system_view_metrics" | "system_manage_backup" |
+                "system_debug_mode" |
+                // Users (7) — xem + đổi role + kỹ thuật
+                "users_view_list" | "users_view_detail" | "users_view_sessions" |
+                "users_change_role" | "users_activate" | "users_ban" | "users_export_data" |
+                // Security (5) — chuyên môn kỹ thuật
+                "sec_view_audit" | "sec_view_login_log" | "sec_session_revoke" |
+                "sec_spam_filter" | "sec_report_manage" |
+                // Media (5) — technical storage
+                "media_view_all" | "media_view_storage" | "media_delete_any" |
+                "media_moderate" | "media_restore" |
+                // Analytics (6) — theo dõi phát triển sản phẩm
+                "an_view_dashboard" | "an_view_user_stats" | "an_view_content_stats" |
+                "an_view_revenue" | "an_export_reports" | "an_view_realtime" |
+                // Navigation (5) — định hướng UI/UX phát triển
+                "nav_edit_announce" | "nav_manage_home" | "nav_edit_meta" |
+                "nav_view_settings_log" | "nav_manage_features" |
+                // API keys
+                "api_manage_keys"
+            ),
+
+            // ════════════════════════════════════════════════════════════════
             // mod — Moderator cơ bản (15 quyền)
             // Scope: content moderation, chat moderation, basic community
             // ════════════════════════════════════════════════════════════════
@@ -441,6 +492,7 @@ impl User {
     }
 
     /// Số quyền có giao diện UI thực tế (cho badge/hiển thị).
+    /// v0.9.30: Đồng bộ với migration 022 (+admin_phat_trien → 39 quyền).
     /// v0.9.25: Đồng bộ với migration 021 (+users_change_role cho admin_ky_thuat → 41 quyền).
     /// v0.9.24: Đồng bộ với migration 021 — admin ngang hàng, mỗi role có scope riêng.
     pub fn permission_count(&self) -> u16 {
@@ -448,6 +500,7 @@ impl User {
             "admin_ky_thuat" => 41,
             "admin_quan_li" => 40,
             "admin_cong_dong" => 45,
+            "admin_phat_trien" => 39,
             "mod" => 15,
             _ => 0,
         }
@@ -467,6 +520,9 @@ impl User {
             "admin_ky_thuat" => "/admin/ky-thuat",
             "admin_cong_dong" => "/admin/cong-dong",
             "admin_quan_li" => "/admin/quan-li",
+            // v0.9.30: admin_phat_trien dùng dashboard /admin/ky-thuat vì scope giao thoa
+            // (system, security, analytics, navigation). Dashboard riêng sẽ thêm ở giai đoạn sau.
+            "admin_phat_trien" => "/admin/ky-thuat",
             "mod" => "/admin/thanh-vien",
             _ => "/admin",
         }

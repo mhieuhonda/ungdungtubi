@@ -61,15 +61,18 @@ pub const TEAM_MEMBERS: &[TeamMember] = &[
         phap_danh: "Thích Giác Ti",
         birth_year: 1991,
         hometown: "Duy Vinh, Quảng Nam (nay Nam Phước, Đà Nẵng)",
-        religion: "Phật giáo",
-        // v0.9.29: Đổi từ "Admin Phát Triển" (role không tồn tại trong code)
-        // sang "Admin Cộng Đồng" — vai trò phù hợp với phụ trách:
-        // định hướng nội dung, cộng đồng, truyền thông, sự kiện.
-        role_title: "Admin Cộng Đồng",
-        role_detail: "Định hướng nội dung, cộng đồng, truyền thông và sự kiện",
+        // v0.9.30: Cập nhật theo yêu cầu user — Võ Đăng Trọng Nghĩa không theo tôn giáo nào.
+        // (v0.9.29 ghi "Phật giáo" — sai theo thông tin cập nhật.)
+        religion: "Không",
+        // v0.9.30: Đổi lại thành "Admin Phát Triển" — role `admin_phat_trien` đã được
+        // thêm vào code (migration 022 + user.rs + admin.rs). Võ Đăng Trọng Nghĩa
+        // phụ trách mảng phát triển sản phẩm, định hướng roadmap, CI/CD.
+        // (v0.9.29 đã tạm đổi sang "Admin Cộng Đồng" vì role chưa tồn tại — giờ đã có.)
+        role_title: "Admin Phát Triển",
+        role_detail: "Định hướng phát triển sản phẩm, roadmap và kỹ thuật xây dựng",
         facebook_url: "https://www.facebook.com/likedliti?mibextid=ZbWKwL",
-        icon: "🛡️",
-        accent_color: "#1565C0", // blue-800 — Shield Blue
+        icon: "🧭",
+        accent_color: "#312E81", // indigo-900 — Development / Compass
     },
     TeamMember {
         full_name: "Đỗ Văn Cường",

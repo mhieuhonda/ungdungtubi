@@ -4,73 +4,44 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.29 — Giai đoạn 34
+## 📦 Phiên bản hiện tại: v0.9.30 — Giai đoạn 35
 
-**Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance**
+**Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep**
 
-Giai đoạn chuyển tiếp từ Alpha (Giai đoạn I — 6 tháng) chuẩn bị bước sang Giai đoạn II — 100 ngày phát triển hệ sinh thái. Tập trung đồng bộ hóa nguyên tắc "mọi admin đều bằng nhau ngang hàng", tối ưu hiệu năng chat và fix lỗi gửi tin nhắn cho bạn bè.
+Thêm chính thức chức vụ "Admin Phát Triển" (`admin_phat_trien`) vào hệ thống — vai trò mà v0.9.29 đã phải tạm đổi sang "Admin Cộng Đồng" vì role chưa tồn tại. Cập nhật thông tin Võ Đăng Trọng Nghĩa (đổi sang Admin Phát Triển, không tôn giáo). Fix triệt để lỗi "không thể gửi tin nhắn cho bạn bè" bằng REST fallback endpoint đảm bảo tin nhắn LUÔN gửi được.
 
-### 👥 Sửa hệ thống admin — Tất cả admin đều bằng nhau, ngang hàng, không phân cấp
+### 🧭 Thêm role `admin_phat_trien` — Admin Phát Triển
 
-- **[ADMIN-1] Đồng bộ code với migration 021** — Migration 021 từ v0.9.24 đã redesign admin ngang hàng (3 admin cùng cấp 3, scope quyền riêng), nhưng nhiều template vẫn còn hiển thị số quyền sai (100/150, 75/150). v0.9.29 cập nhật tất cả template `/admin/quan-li`, `/admin/cong-dong`, `/admin/ky-thuat`, `/admin/users` để hiển thị đúng số quyền (40/45/41/15/0) và ghi chú nguyên tắc ngang hàng.
+- **[ROLE-1] Migration 022** — Thêm role `admin_phat_trien` vào hệ thống (6 giá trị trong CHECK constraint: member, mod, admin_ky_thuat, admin_cong_dong, admin_quan_li, **admin_phat_trien**). Seed 39 quyền: system + users + security + media + analytics + navigation + api. Scope: định hướng phát triển sản phẩm, CI/CD, roadmap.
 
-- **[ADMIN-2] Sửa trang "Đội Ngũ Quản Lí"** — Trang `/doi-ngu-quan-li` hiển thị sai:
-  - **Võ Đăng Trọng Nghĩa** được dán nhãn "Admin Phát Triển" — nhưng role `admin_phat_trien` KHÔNG TỒN TẠI trong code.
-  - **Fix v0.9.29**: Đổi vai trò Võ Đăng Trọng Nghĩa → "Admin Cộng Đồng" (vai trò phù hợp với phụ trách: định hướng nội dung, cộng đồng, truyền thông, sự kiện). Đổi icon 🧭 → 🛡️ (blue). Đổi section "Hệ Thống Phân Cấp Quản Lí" → "Hệ Thống Vai Trò Quản Lí" — hiển thị 3 admin ngang hàng cấp 3 + Mod cấp 2 + Thành Viên cấp 1, kèm số quyền đúng (41/40/45/15/0).
+- **[ROLE-2] `src/models/user.rs` — Full support** — `role_display()` → "Admin Phát Triển", `role_icon()` → 🧭, `role_color()` → indigo-900, `role_level()` → 3 (ngang hàng), `is_admin()` → include, `has_permission_code()` → 39 quyền, `permission_count()` → 39, `admin_dashboard_path()` → `/admin/ky-thuat`.
 
-### 💬 Live Chat Chung — Kéo dài + xóa che mờ + xóa hiệu ứng
+- **[ROLE-3] `src/handlers/admin.rs`** — Validate role trong `admin_change_role`, badge 🧭, color indigo. `templates/admin/users.html` — thêm option trong dropdown.
 
-- **[CHAT-1] Kéo dài màn hình Live Chat Chung** — User yêu cầu chat popup "dài hơn":
-  - Desktop: `height: 65dvh` → `85dvh`, `max-height: 580px` → `880px`, `width: 380px` → `400px`.
-  - Mobile: `height: 45dvh` → `78dvh`, `max-height: 50dvh` → `82dvh`, `min-height: 240px` → `360px`.
+### 👥 Cập nhật trang Đội Ngũ Quản Lí — Võ Đăng Trọng Nghĩa
 
-- **[CHAT-2] Xóa backdrop che mờ khi mở Live Chat Chung** — Xóa `<div class="chat-chung-backdrop">` khỏi `layout.html`, vô hiệu hóa CSS `.chat-chung-backdrop`, xóa `body.chat-popup-open` lock scroll. Chat popup giờ mở trong suốt — user vẫn scroll trang được khi đang chat.
+- **Võ Đăng Trọng Nghĩa**: đổi vai trò từ "Admin Cộng Đồng" → **"Admin Phát Triển"** (role `admin_phat_trien` giờ đã tồn tại trong code). Đổi tôn giáo từ "Phật giáo" → **"Không"** (cập nhật thông tin). Đổi icon 🛡️ → 🧭, màu blue → indigo. Đổi `role_detail` → "Định hướng phát triển sản phẩm, roadmap và kỹ thuật xây dựng".
+- Section "Hệ Thống Vai Trò Quản Lí": grid 4 cột hiển thị **4 admin ngang hàng** (Kỹ Thuật · Quản Lí · Cộng Đồng · Phát Triển) + Mod + Thành Viên.
 
-- **[CHAT-3] Xóa hiệu ứng tin nhắn admin/mod** — User yêu cầu "xóa hiệu ứng nhắn tin của các admin hay mod để tránh lag":
-  - Vô hiệu hóa hoàn toàn CSS hiệu ứng Matrix Terminal (admin_ky_thuat), Premium Gold Frame (admin_quan_li), Shield Blue Frame (admin_cong_dong), Teal Frame (mod).
-  - Xóa `::before` pseudo-element (icon 👑/🛡️/📜).
-  - Xóa animation `scanline`, `chat-msg-glow-green`, `chat-avatar-pulse-green`.
-  - Xóa prefix `[SYS]` trước tên admin_ky_thuat.
-  - Chỉ giữ role badge mini cạnh tên — không animation, không glow.
+### 🔧 Fix lỗi không thể gửi tin nhắn cho bạn bè (CRITICAL — DM REST Fallback)
 
-### 🔧 Fix lỗi không thể gửi tin nhắn cho bạn bè
+- **[DM-1] REST fallback endpoint** `POST /api/ban-be/tin-nhan/{conversation_id}/gui` — v0.9.29 đã fix nút Gửi bị disable, nhưng nếu WS fail vĩnh viễn (exhausted 10 reconnect attempts), tin nhắn vẫn kẹt trong queue. v0.9.30 thêm endpoint REST dự phòng: frontend thử WS trước, nếu không OPEN thì fallback HTTP POST → server lưu DB + broadcast hub → tin nhắn LUÔN gửi được.
 
-- **[DM-1] Cho phép gửi tin nhắn ngay cả khi WebSocket chưa kết nối** — User report "không thể gửi tin nhắn cho bạn bè":
-  - **Nguyên nhân gốc rễ**: Nút Gửi có `:disabled="!connected || !draft.trim()"` → nếu WS chưa connect thì nút bị disable → user không thể gửi.
-  - **Fix v0.9.29**: Đổi `:disabled="!draft.trim()"` — chỉ disable khi draft rỗng. Nếu WS chưa open, push tin nhắn vào `_queue`, clear draft (optimistic UX), auto-reconnect ngay lập tức. Khi WS mở lại, flush queue tự động.
+- **[DM-2] `chat.js` — `dmChat.send()` cập nhật** — WS OPEN → gửi WS (fast path); WS không OPEN → `_sendViaRest()` (reliable path). Optimistic clear draft, error handling đầy đủ (401/403/400/network), reset reconnectAttempts khi network error.
 
-- **[DM-2] Tăng tốc auto-reconnect WebSocket**:
-  - Trước v0.9.29: delay = `min(1000 * 2^(attempts-1), 30000)` → attempt 1 = 1s, max 30s.
-  - v0.9.29: delay = `min(500 * 1.8^(attempts-1), 8000)` → attempt 1 = 500ms, max 8s.
-  - User experience: khi WS rớt, chỉ cần nửa giây để thử lại.
+- **[DM-3] Thêm role `admin_phat_trien` vào chat helpers** — `msgBubbleClass`, `roleBadgeHtml` (🧭 DEV badge) cho admin_phat_trien.
 
-### ⚡ Tăng độ mượt và tốc độ load web
+### 📦 Version Sync
 
-- **[PERF-1] Xóa CSS animation thừa gây lag**:
-  - Xóa `msg-slide-in` animation (0.25s ease-out) cho tất cả chat message containers.
-  - Xóa `send-btn-pulse` animation.
-  - Xóa `conn-pulse` animation cho connection indicator.
-  - Lý do: với 50+ tin nhắn trong chat, mỗi tin nhắn đều chạy animation riêng → CPU/GPU overload trên thiết bị yếu → lag/jank khi scroll.
-
-- **[PERF-2] Giảm polling frequency**:
-  - Notification badge poll: 30s → 60s.
-  - Session heartbeat: 5 phút → 10 phút.
-  - Lý do: giảm số request không cần thiết tới server, tiết kiệm bandwidth và CPU.
-
-- **[PERF-3] Tăng transition speed cho chat popup**: Enter 200ms → 150ms, Leave 150ms → 100ms.
-
-### 📚 Đồng bộ version & tài liệu
-
-- Bump version `0.9.28` → `0.9.29` ở: `Cargo.toml`, `src/main.rs` (log + health check + phase 33 → 34), `templates/layout.html` (footer).
-- Thêm 10 feature flags v0.9.29 vào `HEALTH_FEATURES` array.
-- Cập nhật comment trong `src/handlers/admin.rs`, `src/handlers/doi_ngu.rs`, `src/static/css/app.css`, `src/static/css/chat.css`, `src/static/js/chat.js`.
-- Thêm entry CHANGELOG.md chi tiết cho v0.9.29.
+- Bump version `0.9.29` → `0.9.30` ở: `Cargo.toml`, `src/main.rs` (log + health check + phase 34 → 35), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder footer — fix version drift v0.9.28 → v0.9.30).
+- Thêm 10 feature flags v0.9.30 vào `HEALTH_FEATURES` array.
+- Cập nhật `roles` object trong health check: hierarchy + permission_counts + admin_panel_access thêm `admin_phat_trien`.
 
 ---
 
-## 📦 Phiên bản trước: v0.9.28 — Giai đoạn 33
+## 📦 Phiên bản trước: v0.9.29 — Giai đoạn 34
 
-**Giai đoạn 33: CSP Fix (Alpine.js) + XSS Hardening + Memory Leak Fix**
+**Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance**
 
 Xem chi tiết trong CHANGELOG.md.
 

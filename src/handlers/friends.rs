@@ -729,6 +729,142 @@ pub async fn dm_history(
     }
 }
 
+// ====================================================================
+// REST Fallback gửi DM — POST /api/ban-be/tin-nhan/{conversation_id}/gui
+// (v0.9.30 — Giai đoạn 35: fix lỗi "không thể gửi tin nhắn cho bạn bè")
+// ====================================================================
+
+/// Form/JSON body cho POST /api/ban-be/tin-nhan/{conversation_id}/gui.
+/// v0.9.30: REST fallback khi WebSocket không kết nối được — đảm bảo tin nhắn
+/// LUÔN được gửi và lưu vào DB, ngay cả khi WS fail (mạng chập, proxy, v.v.).
+#[derive(Debug, serde::Deserialize)]
+pub struct DmSendMessageBody {
+    pub body: String,
+}
+
+/// POST /api/ban-be/tin-nhan/{conversation_id}/gui — REST fallback gửi DM.
+///
+/// v0.9.30 (Giai đoạn 35): Fix lỗi "không thể gửi tin nhắn cho bạn bè".
+/// Trước v0.9.30: tin nhắn DM chỉ gửi qua WebSocket. Nếu WS fail (mạng chập,
+/// server restart, proxy timeout, exhausted reconnect attempts), user không
+/// thể gửi tin nhắn → tin nhắn bị kẹt trong queue không bao giờ gửi.
+///
+/// Fix: thêm REST endpoint dự phòng. Frontend `dmChat.send()` sẽ:
+///   1. Thử gửi qua WebSocket (fast path — realtime, không overhead HTTP)
+///   2. Nếu WS chưa connected sau ~1.5s, fallback sang HTTP POST (reliable path)
+///
+/// Endpoint này:
+///   - Auth bắt buộc (session cookie)
+///   - Verify user là participant của conversation
+///   - Validate body (không rỗng, tối đa 1000 ký tự)
+///   - Lưu message vào DB (cùng logic như WS handler)
+///   - Broadcast qua DmChatHub → user khác online nhận realtime
+///   - Trả về message đã lưu (JSON) để frontend hiển thị
+pub async fn dm_send_message(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(conversation_id): Path<Uuid>,
+    axum::Json(body): axum::Json<DmSendMessageBody>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
+        Some(u) => u,
+        None => {
+            return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập.").into_response();
+        }
+    };
+
+    // Verify participant
+    let is_participant: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM conversation_participants
+         WHERE conversation_id = $1 AND user_id = $2)",
+    )
+    .bind(conversation_id)
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+
+    if !is_participant {
+        return (
+            axum::http::StatusCode::FORBIDDEN,
+            "Bạn không phải thành viên của conversation này.",
+        )
+            .into_response();
+    }
+
+    // Validate body
+    let trimmed = body.body.trim().to_string();
+    if trimmed.is_empty() {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Tin nhắn không được để trống.",
+        )
+            .into_response();
+    }
+    if trimmed.chars().count() > MAX_DM_BODY_CHARS {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            format!("Tin nhắn quá dài (tối đa {MAX_DM_BODY_CHARS} ký tự)."),
+        )
+            .into_response();
+    }
+
+    // Lưu message vào DB
+    match sqlx::query_as::<_, DirectMessage>(
+        "INSERT INTO direct_messages (conversation_id, author_id, body)
+         VALUES ($1, $2, $3)
+         RETURNING id, conversation_id, author_id, body, is_active, created_at",
+    )
+    .bind(conversation_id)
+    .bind(user.id)
+    .bind(&trimmed)
+    .fetch_one(&state.pool)
+    .await
+    {
+        Ok(m) => {
+            let msg = DirectMessageWithAuthor {
+                id: m.id,
+                conversation_id: m.conversation_id,
+                author_id: m.author_id,
+                body: m.body,
+                is_active: m.is_active,
+                created_at: m.created_at,
+                author_display_name: user.display_name.clone(),
+                author_avatar_url: user.avatar_url.clone(),
+                author_rank: user.rank.clone(),
+                author_role: Some(user.role.clone()),
+            };
+
+            // Broadcast qua DmChatHub → user khác online nhận realtime
+            let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
+            let _ = state.dm_chat_hub.broadcast(conversation_id, payload).await;
+
+            // Update conversations.updated_at
+            let _ = sqlx::query("UPDATE conversations SET updated_at = NOW() WHERE id = $1")
+                .bind(conversation_id)
+                .execute(&state.pool)
+                .await;
+
+            log::info!(
+                "💬 DM REST fallback: user={} conv={} msg_id={}",
+                user.id,
+                conversation_id,
+                msg.id
+            );
+
+            axum::Json(msg).into_response()
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi lưu DM message (REST fallback): {e}");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Không lưu được tin nhắn. Vui lòng thử lại.",
+            )
+                .into_response()
+        }
+    }
+}
+
 /// GET /ws/ban-be/tin-nhan/{conversation_id} — WebSocket upgrade cho DM.
 #[allow(clippy::too_many_lines)]
 pub async fn dm_ws_upgrade(

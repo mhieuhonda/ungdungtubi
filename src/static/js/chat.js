@@ -22,6 +22,7 @@ function msgBubbleClass(role) {
     if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat';
     if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li';
     if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong';
+    if (role === 'admin_phat_trien') return 'chat-msg-admin-phat-trien';
     if (role === 'mod') return 'chat-msg-mod';
     return 'chat-msg-bubble';
 }
@@ -30,6 +31,7 @@ function msgNameClass(role) {
     if (role === 'admin_ky_thuat') return 'chat-msg-admin-ky-thuat-name';
     if (role === 'admin_quan_li') return 'chat-msg-admin-quan-li-name';
     if (role === 'admin_cong_dong') return 'chat-msg-admin-cong-dong-name';
+    if (role === 'admin_phat_trien') return 'chat-msg-admin-phat-trien-name';
     if (role === 'mod') return 'chat-msg-mod-name';
     return '';
 }
@@ -38,6 +40,7 @@ function avatarClass(role) {
     if (role === 'admin_ky_thuat') return 'chat-avatar-admin-ky-thuat';
     if (role === 'admin_quan_li') return 'chat-avatar-admin-quan-li';
     if (role === 'admin_cong_dong') return 'chat-avatar-admin-cong-dong';
+    if (role === 'admin_phat_trien') return 'chat-avatar-admin-phat-trien';
     if (role === 'mod') return 'chat-avatar-mod';
     return '';
 }
@@ -48,6 +51,7 @@ function roleBadgeHtml(role) {
         'admin_ky_thuat': '<span class="chat-role-badge chat-role-badge-admin-ky-thuat">⚙️ SYS</span>',
         'admin_quan_li': '<span class="chat-role-badge chat-role-badge-admin-quan-li">👑 ADMIN</span>',
         'admin_cong_dong': '<span class="chat-role-badge chat-role-badge-admin-cong-dong">🛡️ ADMIN</span>',
+        'admin_phat_trien': '<span class="chat-role-badge chat-role-badge-admin-phat-trien">🧭 DEV</span>',
         'mod': '<span class="chat-role-badge chat-role-badge-mod">📜 MOD</span>',
     };
     return map[role] || '';
@@ -555,34 +559,72 @@ function dmChat(opts) {
                 return;
             }
 
-            // v0.9.29: Luôn cho phép gửi — nếu WS chưa open, queue và tự reconnect.
-            // Trước v0.9.29: nếu !connected thì queue + scheduleReconnect, nhưng user
-            // không có phản hồi → tưởng "không gửi được". Giờ: optimistic clear draft,
-            // hiển thị "đang gửi...", queue + auto-reconnect.
-            if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                this._queue.push(body);
-                this.draft = '';
-                // v0.9.29: Auto-reconnect ngay lập tức nếu chưa connected
-                if (!this.connected) {
-                    this.scheduleReconnect();
-                } else if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
-                    // Socket đang closing/closed → reconnect
-                    try { this.socket.close(1000, 'reconnect-for-send'); } catch (_) {}
-                    this.socket = null;
-                    this.connected = false;
-                    this.scheduleReconnect();
+            // v0.9.30: Nếu WS đang OPEN → gửi qua WS (fast path, realtime).
+            if (this.connected && this.socket && this.socket.readyState === WebSocket.OPEN) {
+                const sent = this._sendRaw(body);
+                if (sent) {
+                    this.draft = '';
+                    this.error = '';
+                    return;
                 }
-                return;
+                // _sendRaw fail (vd. socket vừa đóng) → fallback sang REST
             }
 
-            const sent = this._sendRaw(body);
-            if (sent) {
-                this.draft = '';
-                this.error = '';
-            } else {
-                this._queue.push(body);
-                this.draft = '';
-                this.scheduleReconnect();
+            // v0.9.30: REST fallback — gửi tin nhắn qua HTTP POST.
+            // Fix lỗi "không thể gửi tin nhắn cho bạn bè": nếu WS không kết nối
+            // được (mạng chập, proxy, exhausted reconnect), tin nhắn vẫn gửi
+            // được qua REST endpoint /api/ban-be/tin-nhan/{id}/gui.
+            // Server lưu message vào DB + broadcast qua DmChatHub → user khác
+            // online vẫn nhận realtime; user gửi nhận lại message qua response.
+            this._sendViaRest(body);
+        },
+
+        // v0.9.30: Gửi tin nhắn qua REST API (fallback khi WS không khả dụng).
+        // Đảm bảo tin nhắn LUÔN được lưu + gửi, bất kể trạng thái WebSocket.
+        async _sendViaRest(body) {
+            const draftBackup = this.draft;
+            this.draft = ''; // optimistic clear — user thấy input trống ngay
+            this.error = '';
+            try {
+                const resp = await fetch(`/api/ban-be/tin-nhan/${encodeURIComponent(this.conversationId)}/gui`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ body: body }),
+                });
+                if (resp.ok) {
+                    const msg = await resp.json();
+                    // Thêm message vào danh sách nếu chưa có (tránh duplicate
+                    // khi broadcast WS cũng về cùng lúc)
+                    if (msg && msg.id && !this.messages.some((m) => m.id === msg.id)) {
+                        this.messages.push(msg);
+                        this._trimMessages();
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                    // Đánh dấu đã kết nối (tin nhắn gửi thành công qua REST)
+                    // — không hiện lỗi nữa
+                    return;
+                }
+                // HTTP error — restore draft để user thử lại
+                this.draft = draftBackup;
+                if (resp.status === 401) {
+                    this.error = 'Phiên đăng nhập hết hạn. Vui lòng tải lại trang.';
+                } else if (resp.status === 403) {
+                    this.error = 'Bạn không có quyền gửi tin nhắn trong cuộc trò chuyện này.';
+                } else if (resp.status === 400) {
+                    this.error = 'Tin nhắn không hợp lệ.';
+                } else {
+                    this.error = 'Không gửi được tin nhắn. Vui lòng thử lại.';
+                }
+            } catch (err) {
+                // Network error — restore draft
+                this.draft = draftBackup;
+                this.error = 'Lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.';
+                // Thử reconnect WS trong nền
+                if (!this.connected) {
+                    this.reconnectAttempts = 0; // reset để cho phép reconnect mới
+                    this.scheduleReconnect();
+                }
             }
         },
 

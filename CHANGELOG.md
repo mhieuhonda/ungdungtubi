@@ -6,6 +6,89 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.30] — 2026-08-16 — Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep
+
+### 🎯 Mục tiêu giai đoạn
+
+Thêm chính thức chức vụ **"Admin Phát Triển"** (`admin_phat_trien`) vào hệ thống — vai trò mà v0.9.29 đã phải tạm đổi sang "Admin Cộng Đồng" vì role chưa tồn tại. Cập nhật thông tin Võ Đăng Trọng Nghĩa (đổi sang Admin Phát Triển, không tôn giáo). Fix triệt để lỗi "không thể gửi tin nhắn cho bạn bè" bằng REST fallback endpoint. Quét và fix các lỗi logic/UI còn sót.
+
+### 🧭 Thêm role `admin_phat_trien` — Admin Phát Triển (MAJOR)
+
+- **[ROLE-1] Migration 022** — Thêm role `admin_phat_trien` vào hệ thống:
+  - Drop old CHECK constraint (5 giá trị) → add new CHECK constraint cho phép 6 giá trị (thêm `admin_phat_trien`).
+  - Seed `role_permissions` cho `admin_phat_trien` — 39 quyền: system (10) + users (7) + security (5) + media (5) + analytics (6) + navigation (5) + api (1).
+  - Scope: định hướng phát triển sản phẩm, CI/CD, roadmap, kỹ thuật xây dựng. Giao thoa với admin_ky_thuat nhưng tập trung vào "phát triển sản phẩm" thay vì "vận hành hệ thống".
+  - Update view `v_user_permissions` + comment trên `role_permissions`.
+  - File: `migrations/022_admin_phat_trien_role.sql`
+
+- **[ROLE-2] `db/mod.rs` — Cập nhật `ensure_schema_safety`** — CHECK constraint trong safety check cũng được cập nhật để cho phép `admin_phat_trien` (idempotent, chạy trên fresh deploy).
+
+- **[ROLE-3] `src/models/user.rs` — Full support admin_phat_trien**:
+  - `role_display()` → "Admin Phát Triển"
+  - `role_icon()` → 🧭 (la bàn — định hướng phát triển)
+  - `role_color()` → `#312E81` (indigo-900 — phát triển/sáng tạo)
+  - `role_level()` → 3 (NGANG HÀNH với 3 admin kia)
+  - `is_admin()` → include `admin_phat_trien` (4 admin ngang hàng)
+  - `is_admin_phat_trien()` — method mới, true chỉ cho role này
+  - `has_permission_code()` — arm mới với 39 quyền theo scope
+  - `permission_count()` → 39
+  - `admin_dashboard_path()` → `/admin/ky-thuat` (scope giao thoa, dashboard riêng sẽ thêm giai đoạn sau)
+
+- **[ROLE-4] `src/handlers/admin.rs` — Validate + badge + color**:
+  - `admin_change_role` chấp nhận `admin_phat_trien` trong danh sách role hợp lệ.
+  - `role_badge_html` hiển thị 🧭 Admin Phát Triển.
+  - `role_color_hint` trả `#312E81` (indigo-900).
+  - Comment header cập nhật — phản ánh 4 admin ngang hàng.
+
+- **[ROLE-5] `templates/admin/users.html` — Thêm option role dropdown**:
+  - Thêm form "🧭 Admin Phát Triển" với indigo styling, sau "⚙️ Admin Kỹ Thuật".
+  - Active state: `bg-indigo-50 text-indigo-700 font-semibold`.
+
+### 👥 Cập nhật trang Đội Ngũ Quản Lí — Võ Đăng Trọng Nghĩa
+
+- **[TEAM-1] `src/handlers/doi_ngu.rs`** — Cập nhật `TEAM_MEMBERS`:
+  - Võ Đăng Trọng Nghĩa: `role_title` đổi từ "Admin Cộng Đồng" → "Admin Phát Triển".
+  - `religion` đổi từ "Phật giáo" → "Không" (theo yêu cầu cập nhật thông tin).
+  - `role_detail` đổi thành "Định hướng phát triển sản phẩm, roadmap và kỹ thuật xây dựng".
+  - `icon` đổi từ 🛡️ → 🧭. `accent_color` đổi từ `#1565C0` (blue) → `#312E81` (indigo).
+
+- **[TEAM-2] `templates/doi-ngu-quan-li/index.html`** — Cập nhật card + section "Hệ Thống Vai Trò":
+  - Card Võ Đăng Trọng Nghĩa: gradient indigo, icon 🧭, badge "Admin Phát Triển", tôn giáo "Không".
+  - Section "Hệ Thống Vai Trò Quản Lí": grid 4 cột (lg:grid-cols-4) hiển thị 4 admin ngang hàng (Kỹ Thuật · Quản Lí · Cộng Đồng · Phát Triển) + Mod + Thành Viên.
+  - Cập nhật ghi chú nguyên tắc: "4 admin đều ngang hàng ở cấp 3".
+
+### 🔧 Fix lỗi không thể gửi tin nhắn cho bạn bè (CRITICAL — DM REST Fallback)
+
+- **[DM-1] Thêm REST fallback endpoint** `POST /api/ban-be/tin-nhan/{conversation_id}/gui`:
+  - **Nguyên nhân gốc rễ (còn sót từ v0.9.29)**: v0.9.29 đã fix nút Gửi bị disable khi WS chưa connect, nhưng nếu WS fail vĩnh viễn (mạng chập, proxy timeout, exhausted 10 reconnect attempts), tin nhắn vẫn bị kẹt trong queue `_queue` không bao giờ gửi → user vẫn "không gửi được tin nhắn".
+  - **Fix v0.9.30**: Thêm endpoint REST dự phòng. Frontend `dmChat.send()` thử WS trước (fast path), nếu WS không OPEN thì fallback sang HTTP POST (reliable path). Server lưu message vào DB + broadcast qua DmChatHub → user khác online vẫn nhận realtime; user gửi nhận lại message qua HTTP response.
+  - Handler `dm_send_message` in `src/handlers/friends.rs`: auth bắt buộc, verify participant, validate body (không rỗng, tối đa 1000 ký tự), save DB, broadcast hub, trả JSON message.
+  - Route đăng ký trong `src/main.rs`.
+
+- **[DM-2] `src/static/js/chat.js` — Cập nhật `dmChat.send()`**:
+  - Nếu WS connected + OPEN → gửi qua WS (fast path, realtime).
+  - Nếu WS không OPEN → gọi `_sendViaRest(body)` (HTTP POST fallback).
+  - `_sendViaRest`: optimistic clear draft, fetch POST, thêm message vào danh sách nếu chưa duplicate, xử lý error (401/403/400/network), restore draft nếu fail.
+  - Network error → reset `reconnectAttempts = 0` + `scheduleReconnect()` (cho phép reconnect mới sau khi đã exhausted).
+
+- **[DM-3] Thêm role `admin_phat_trien` vào chat helpers**:
+  - `msgBubbleClass`, `msgNameClass`, `avatarClass` — thêm class `chat-msg-admin-phat-trien` / `chat-avatar-admin-phat-trien`.
+  - `roleBadgeHtml` — thêm badge "🧭 DEV" cho admin_phat_trien.
+
+### 📦 Version Sync & Health Check
+
+- Bump version `0.9.29` → `0.9.30` ở: `Cargo.toml`, `src/main.rs` (log + health check public + health check inner + phase 34 → 35), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder footer — fix version drift v0.9.28 → v0.9.30).
+- Thêm 10 feature flags v0.9.30 vào `HEALTH_FEATURES` array.
+- Cập nhật `roles` object trong health check: hierarchy thêm `admin_phat_trien`, permission_counts thêm 39, admin_panel_access thêm role, thêm `admin_phat_trien_dashboard` + `v0_9_30_note`.
+
+### 🐛 Bug fixes (UI/Logic sweep)
+
+- **[BUG-1] Version drift trong placeholder footer** — `handlers/mod.rs:624` hiển thị "v0.9.28" (sai từ v0.9.29 chưa fix). Fix: đồng bộ v0.9.30.
+- **[BUG-2] admin_phat_trien không có trong chat role badges** — Fix: thêm role badge 🧭 DEV + CSS classes cho admin_phat_trien trong chat.js.
+- **[BUG-3] admin_phat_trien không có trong admin users dropdown** — Fix: thêm option 🧭 Admin Phát Triển trong role dropdown (templates/admin/users.html).
+
+---
+
 ## [0.9.29] — 2026-08-16 — Giai đoạn 34: Admin Equal Rebalance + Live Chat Optimize + DM Fix + Performance
 
 ### 🎯 Mục tiêu giai đoạn

@@ -136,6 +136,13 @@
                                     ⚙️ Admin Kỹ Thuật {% if m.role == "admin_ky_thuat" %}✓{% endif %}
                                 </button>
                             </form>
+                            <form method="POST" action="/admin/thanh-vien/{{ m.id }}/role" class="not-prose">
+                                <input type="hidden" name="role" value="admin_phat_trien">
+                                <button type="submit"
+                                        class="w-full text-left px-3 py-1.5 hover:bg-gray-50 {% if m.role == "admin_phat_trien" %}bg-indigo-50 text-indigo-700 font-semibold{% else %}text-gray-700{% endif %}">
+                                    🧭 Admin Phát Triển {% if m.role == "admin_phat_trien" %}✓{% endif %}
+                                </button>
+                            </form>
                             {# v0.9.24: ai có quyền users_ban (admin_ky_thuat, admin_quan_li) mới ban/activate #}
                             {% if u.can_ban_user() %}
                             <div class="my-1 border-t border-gray-100"></div>
@@ -164,7 +171,7 @@
     </div>
 
     <div class="mt-6 text-xs text-gray-500">
-        💡 <strong>v0.9.29:</strong> 3 admin NGANG HÀNH (cấp 3) — KT (41 quyền) · QL (40 quyền) · CD (45 quyền) — không phân cấp cao/thấp. Mod (15 quyền, cấp 2) · TV (0 quyền, cấp 1).
+        💡 <strong>v0.9.30:</strong> 4 admin NGANG HÀNG (cấp 3) — KT (41 quyền) · QL (40 quyền) · CD (45 quyền) · PT (39 quyền) — không phân cấp cao/thấp. Mod (15 quyền, cấp 2) · TV (0 quyền, cấp 1).
     </div>
 </section>
 {% else %}
