@@ -10,8 +10,6 @@
     <span>›</span>
     {% if item.store == "app" %}
     <a href="/thuong-thanh/cua-hang-app" class="hover:text-tubi-700">Cửa Hàng Ứng Dụng</a>
-    {% else if item.store == "game" %}
-    <a href="/thuong-thanh/cua-hang-game" class="hover:text-tubi-700">Cửa Hàng Game</a>
     {% else %}
     <a href="/thuong-thanh/pvp" class="hover:text-tubi-700">Chợ PvP</a>
     {% endif %}
@@ -116,8 +114,6 @@
   <div class="mt-6">
     {% if item.store == "app" %}
     <a href="/thuong-thanh/cua-hang-app" class="text-sm text-gray-500 hover:text-tubi-700 dark:text-slate-400">← Cửa Hàng Ứng Dụng</a>
-    {% else if item.store == "game" %}
-    <a href="/thuong-thanh/cua-hang-game" class="text-sm text-gray-500 hover:text-tubi-700 dark:text-slate-400">← Cửa Hàng Game</a>
     {% else %}
     <a href="/thuong-thanh/pvp" class="text-sm text-gray-500 hover:text-tubi-700 dark:text-slate-400">← Chợ PvP</a>
     {% endif %}

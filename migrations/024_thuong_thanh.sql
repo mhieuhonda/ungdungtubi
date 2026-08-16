@@ -1,17 +1,17 @@
 -- =====================================================================
 -- Migration 024 — Giai đoạn 39: Thương Thành MVP
--- v0.9.34 — 2026-08-16
+-- v0.9.35 — 2026-08-16 (updated: removed Game store)
 --
 -- Mục tiêu:
 --   Tạo schema cho Thương Thành (Marketplace) — theo tài liệu
 --   "Hệ Thống Và Chức Năng Chi Tiết.docx" mục V:
---     * 3 cửa hàng: Cửa Hàng Ứng Dụng (app), Cửa Hàng Game (game), PvP
+--     * 2 cửa hàng: Cửa Hàng Ứng Dụng (app), PvP
 --     * CRUD vật phẩm: tạo/xem/sửa/xoá items
 --     * Giỏ hàng: thêm/xoá/thanh toán
 --     * Giao dịch K: mua bán bằng tiền tệ K
 --
 -- Thiết kế:
---   1. shop_items — danh mục vật phẩm (cả 3 store)
+--   1. shop_items — danh mục vật phẩm (cả 2 store)
 --   2. cart_items — giỏ hàng tạm (chưa thanh toán)
 --   3. transactions — lịch sử giao dịch K (mua/bán/chuyển)
 --
@@ -20,12 +20,11 @@
 
 -- 1. Bảng shop_items — vật phẩm trong Thương Thành
 --    store = 'app'  → Cửa Hàng Ứng Dụng (system items, price cố định)
---    store = 'game' → Cửa Hàng Game (game items)
 --    store = 'pvp'  → PvP (người dùng tự đăng bán, 20% fee)
 CREATE TABLE IF NOT EXISTS shop_items (
     id              BIGSERIAL PRIMARY KEY,
-    -- Loại cửa hàng: app / game / pvp
-    store           TEXT        NOT NULL CHECK (store IN ('app', 'game', 'pvp')),
+    -- Loại cửa hàng: app / pvp
+    store           TEXT        NOT NULL CHECK (store IN ('app', 'pvp')),
     -- Danh mục vật phẩm
     category        TEXT        NOT NULL,
     -- Tên vật phẩm (VD: "Thẻ Tự Tu", "Thuốc A", "Tinh Thể")
@@ -38,7 +37,7 @@ CREATE TABLE IF NOT EXISTS shop_items (
     icon            TEXT        NOT NULL DEFAULT '📦',
     -- Màu sắc badge (hex)
     color           TEXT        NOT NULL DEFAULT '#0F766E',
-    -- Người đăng (NULL = system item cho app/game store)
+    -- Người đăng (NULL = system item cho app store)
     seller_id       UUID        REFERENCES users(id) ON DELETE SET NULL,
     -- Số lượng có sẵn (NULL = vô hạn — dùng cho system items)
     stock           INTEGER     CHECK (stock IS NULL OR stock >= 0),
@@ -158,52 +157,12 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- =====================================================================
--- Seed data — Vật phẩm cho Cửa Hàng Game (store = 'game')
--- Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx" mục V.2
--- =====================================================================
-
-INSERT INTO shop_items (store, category, name, description, price_k, icon, color, stock, sort_order, effects)
-VALUES
-    -- 💊 Thuốc
-    ('game', 'thuoc', 'Thuốc A (Nhỏ)', 'Thuốc hồi phục nhỏ — hồi 100 A (Niệm Lực).', 1, '💊', '#4CAF50', NULL, 1, '{"heal_a": 100}'),
-    ('game', 'thuoc', 'Thuốc A (Vừa)', 'Thuốc hồi phục vừa — hồi 500 A.', 5, '💊', '#2E7D32', NULL, 2, '{"heal_a": 500}'),
-    ('game', 'thuoc', 'Thuốc A (Lớn)', 'Thuốc hồi phục lớn — hồi 2000 A.', 20, '💊', '#1B5E20', NULL, 3, '{"heal_a": 2000}'),
-    ('game', 'thuoc', 'Thuốc A (Siêu)', 'Thuốc hồi phục siêu — hồi 10000 A.', 100, '💊', '#0D3B0D', NULL, 4, '{"heal_a": 10000}'),
-    ('game', 'thuoc', 'Thuốc I', 'Thuốc I — hồi phục Nguyên lực I.', 1, '🧪', '#9C27B0', NULL, 5, '{"heal_i": 100}'),
-
-    -- 💎 Tinh thạch
-    ('game', 'tinh_thach', 'Tinh Thể', 'Tinh thể — vật liệu cơ bản cho chế tạo.', 1, '💎', '#00BCD4', NULL, 10, '{}'),
-    ('game', 'tinh_thach', 'Tinh Thạch', 'Tinh thạch — vật liệu nâng cấp trang bị.', 2, '🔮', '#3F51B5', NULL, 11, '{}'),
-    ('game', 'tinh_thach', 'Linh Thạch', 'Linh thạch — vật liệu hiếm cho nâng cấp cao.', 5, '✨', '#673AB7', NULL, 12, '{}'),
-    ('game', 'tinh_thach', 'Tiên Thạch', 'Tiên thạch — vật liệu cực hiếm.', 100, '🌟', '#FFD600', NULL, 13, '{}'),
-
-    -- 🧬 Thuốc đặc biệt
-    ('game', 'thuoc_dac_biet', 'Thuốc Công', 'Thuốc Công — tăng công lực trong siêu độ.', 10, '⚔️', '#F44336', NULL, 20, '{"gong_bonus": 100}'),
-    ('game', 'thuoc_dac_biet', 'Thuốc Thuẫn', 'Thuốc Thuẫn — tăng thuẫn lực trong siêu độ.', 10, '🛡️', '#2196F3', NULL, 21, '{"thuan_bonus": 100}'),
-    ('game', 'thuoc_dac_biet', 'Thuốc Siêu Độ', 'Thuốc Siêu Độ — tăng tốc độ siêu độ.', 10, '🚀', '#FF9800', NULL, 22, '{"sieudo_speed": 2}'),
-
-    -- 🛤️ Vật phẩm di chuyển
-    ('game', 'di_chuyen', 'Tinh Lộ (Nhỏ)', 'Tinh lộ nhỏ — dịch chuyển 1 bước trên bản đồ.', 10, '🛤️', '#8BC34A', NULL, 30, '{"steps": 1}'),
-    ('game', 'di_chuyen', 'Tinh Lộ (Vừa)', 'Tinh lộ vừa — dịch chuyển 5 bước.', 100, '🛤️', '#689F38', NULL, 31, '{"steps": 5}'),
-    ('game', 'di_chuyen', 'Tinh Lộ (Lớn)', 'Tinh lộ lớn — dịch chuyển 50 bước.', 1000, '🛤️', '#33691E', NULL, 32, '{"steps": 50}'),
-    ('game', 'di_chuyen', 'Phù Về Nhà', 'Phù về nhà — dịch chuyển tức thời về nhà.', 10, '🏠', '#795548', NULL, 33, '{"teleport_home": true}'),
-
-    -- 🪤 Bẫy & đặc biệt
-    ('game', 'bay', 'Bẫy Quảng Cáo', 'Bẫy quảng cáo — loại bỏ quảng cáo 24h.', 10, '🪤', '#607D8B', NULL, 40, '{"ad_free_hours": 24}'),
-    ('game', 'bay', 'Bẫy Siêu Cấp', 'Bẫy siêu cấp — nhận phần thưởng ngẫu nhiên.', 50, '🎯', '#E91E63', NULL, 41, '{}'),
-
-    -- 🔮 Đá & nâng cấp
-    ('game', 'da_nang_cap', 'Đá Thức Tỉnh Thiên Phú', 'Đá thức tỉnh thiên phú — mở khả năng ẩn.', 10, '💎', '#00BCD4', NULL, 50, '{}'),
-    ('game', 'da_nang_cap', 'Đá Sửa Chữa', 'Đá sửa chữa — phục hồi trang bị hỏng.', 10, '🔧', '#78909C', NULL, 51, '{}')
-ON CONFLICT DO NOTHING;
-
--- =====================================================================
 -- Comments
 -- =====================================================================
 
 COMMENT ON TABLE shop_items IS
-    'v0.9.34 — Vật phẩm Thương Thành. 3 store: app (hệ thống), game (game items), pvp (người dùng đăng bán).';
+    'v0.9.35 — Vật phẩm Thương Thành. 2 store: app (hệ thống), pvp (người dùng đăng bán).';
 COMMENT ON TABLE cart_items IS
-    'v0.9.34 — Giỏ hàng: user thêm vật phẩm trước khi thanh toán. Mỗi user-item unique.';
+    'v0.9.35 — Giỏ hàng: user thêm vật phẩm trước khi thanh toán. Mỗi user-item unique.';
 COMMENT ON TABLE transactions IS
-    'v0.9.34 — Giao dịch K: mua/bán/chuyển/refund. Ghi lại mọi giao dịch tiền tệ K.';
+    'v0.9.35 — Giao dịch K: mua/bán/chuyển/refund. Ghi lại mọi giao dịch tiền tệ K.';

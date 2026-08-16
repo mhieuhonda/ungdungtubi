@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.34 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.35 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.34 — Giai đoạn 39: Thương Thành MVP 🪷");
+    log::info!("📦 Phiên bản: v0.9.35 — Giai đoạn 40: Nhạc Cộng Đồng + Game Cleanup 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -205,6 +205,13 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/api/nha-nhac/ca-nhan/xoa/{track_id}", post(handlers::nha_nhac::nha_nhac_ca_nhan_remove))
         .route("/api/nha-nhac/track/{track_id}/play", post(handlers::nha_nhac::nha_nhac_track_play))
         .route("/api/nha-nhac/stats", get(handlers::nha_nhac::nha_nhac_stats_api))
+        // Routes — Nhạc Cộng Đồng (v0.9.35 — Giai đoạn 40: User music submissions)
+        .route("/api/nha-nhac/dang-nhac", post(handlers::nha_nhac::nha_nhac_submit_music))
+        .route("/admin/nha-nhac/dang-cho-duyet", get(handlers::nha_nhac::admin_music_pending))
+        .route("/admin/nha-nhac/dang-cho-duyet/{id}", post(handlers::nha_nhac::admin_music_review))
+        .route("/api/nha-nhac/submissions", get(handlers::nha_nhac::nha_nhac_my_submissions_api))
+        .route("/api/nha-nhac/submissions/approved", get(handlers::nha_nhac::nha_nhac_community_music_api))
+        .route("/api/nha-nhac/submission/{id}/play", post(handlers::nha_nhac::nha_nhac_submission_play))
         // Routes — Kinh Sách (v0.9.6 — Giai đoạn 10)
         .route("/kinh-sach/tim-kiem", get(handlers::kinh_sach::kinh_sach_search))
         .route("/kinh-sach/thu-vien/{category_slug}", get(handlers::kinh_sach::kinh_sach_category))
@@ -267,11 +274,10 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
-        // Routes — Thương Thành (v0.9.34 — Giai đoạn 39: Thương Thành MVP)
+        // Routes — Thương Thành (v0.9.35 — Giai đoạn 40: App + PvP, Game removed)
         // CRUD vật phẩm · Giỏ hàng · Giao dịch K
         .route("/thuong-thanh", get(handlers::thuong_thanh::thuong_thanh_index))
         .route("/thuong-thanh/cua-hang-app", get(handlers::thuong_thanh::store_app))
-        .route("/thuong-thanh/cua-hang-game", get(handlers::thuong_thanh::store_game))
         .route("/thuong-thanh/pvp", get(handlers::thuong_thanh::store_pvp))
         .route("/thuong-thanh/vat-pham/tao", get(handlers::thuong_thanh::create_item_form).post(handlers::thuong_thanh::create_item))
         .route("/thuong-thanh/vat-pham/{id}", get(handlers::thuong_thanh::item_detail))
@@ -594,7 +600,7 @@ const HEALTH_FEATURES: &[&str] = &[
     // v0.9.34 — Giai đoạn 39: Thương Thành MVP (CRUD vật phẩm + Giỏ hàng + Giao dịch K)
     "thuong-thanh-mvp-v0.9.34",
     "thuong-thanh-crud-vat-pham-v0.9.34",
-    "thuong-thanh-3-stores-v0.9.34",
+    "thuong-thanh-2-stores-v0.9.34",
     "thuong-thanh-gio-hang-v0.9.34",
     "thuong-thanh-giao-dich-k-v0.9.34",
     "thuong-thanh-pvp-listing-v0.9.34",
@@ -603,6 +609,13 @@ const HEALTH_FEATURES: &[&str] = &[
     "thuong-thanh-stats-api-v0.9.34",
     "open-graph-meta-tags-v0.9.34",
     "admin-dashboard-centering-fix-v0.9.34",
+    // v0.9.35 — Giai đoạn 40: Nhạc Cộng Đồng (YouTube submissions, admin approval, Game cleanup)
+    "user-music-submissions-v0.9.35",
+    "music-youtube-embed-inline-v0.9.35",
+    "music-admin-approval-v0.9.35",
+    "music-rate-limit-5-per-day-v0.9.35",
+    "music-duplicate-check-v0.9.35",
+    "game-store-removed-v0.9.35",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).

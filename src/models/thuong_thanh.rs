@@ -1,7 +1,7 @@
-//! Models cho Thương Thành — Giai đoạn 39 (v0.9.34).
+//! Models cho Thương Thành — Giai đoạn 40 (v0.9.35).
 //!
 //! Theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục V:
-//!   * 3 cửa hàng: Cửa Hàng Ứng Dụng (app), Cửa Hàng Game (game), PvP
+//!   * 2 cửa hàng: Cửa Hàng Ứng Dụng (app), PvP
 //!   * CRUD vật phẩm — tạo/xem/sửa/xoá
 //!   * Giỏ hàng — thêm/xoá/thanh toán
 //!   * Giao dịch K — mua/bán/chuyển/refund
@@ -19,8 +19,6 @@ use uuid::Uuid;
 pub enum ShopStore {
     /// Cửa Hàng Ứng Dụng — vật phẩm hệ thống (thẻ, phiếu, danh hiệu)
     App,
-    /// Cửa Hàng Game — vật phẩm game (thuốc, tinh thạch, bẫy)
-    Game,
     /// PvP — người dùng tự đăng bán (20% fee, max 7 ngày)
     Pvp,
 }
@@ -29,7 +27,6 @@ impl ShopStore {
     pub fn label(self) -> &'static str {
         match self {
             Self::App => "Cửa Hàng Ứng Dụng",
-            Self::Game => "Cửa Hàng Game",
             Self::Pvp => "Chợ PvP",
         }
     }
@@ -37,7 +34,6 @@ impl ShopStore {
     pub fn icon(self) -> &'static str {
         match self {
             Self::App => "🛒",
-            Self::Game => "🎮",
             Self::Pvp => "⚔️",
         }
     }
@@ -45,7 +41,6 @@ impl ShopStore {
     pub fn color(self) -> &'static str {
         match self {
             Self::App => "#0F766E",
-            Self::Game => "#6A1B9A",
             Self::Pvp => "#C62828",
         }
     }
@@ -53,7 +48,6 @@ impl ShopStore {
     pub fn from_str(s: &str) -> Self {
         match s {
             "app" => Self::App,
-            "game" => Self::Game,
             "pvp" => Self::Pvp,
             _ => Self::App,
         }
@@ -62,7 +56,6 @@ impl ShopStore {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::App => "app",
-            Self::Game => "game",
             Self::Pvp => "pvp",
         }
     }
@@ -238,6 +231,31 @@ impl ShopItemWithSeller {
         format!("{} K", self.price_k)
     }
 
+    pub fn stock_label(&self) -> String {
+        match self.stock {
+            None => "Vô hạn".to_string(),
+            Some(0) => "Hết hàng".to_string(),
+            Some(n) => format!("Còn {n}"),
+        }
+    }
+
+    pub fn relative_time(&self) -> String {
+        let now = Utc::now();
+        let dur = now.signed_duration_since(self.created_at);
+        let mins = dur.num_minutes();
+        if mins < 1 {
+            "vừa xong".to_string()
+        } else if mins < 60 {
+            format!("{mins} phút trước")
+        } else if mins < 60 * 24 {
+            format!("{} giờ trước", mins / 60)
+        } else if mins < 60 * 24 * 7 {
+            format!("{} ngày trước", mins / (60 * 24))
+        } else {
+            self.created_at.format("%d/%m/%Y").to_string()
+        }
+    }
+
     pub fn category_label(&self) -> String {
         ShopItem {
             category: self.category.clone(),
@@ -367,6 +385,29 @@ pub struct TransactionWithUsers {
     pub item_icon: Option<String>,
 }
 
+impl TransactionWithUsers {
+    pub fn tx_type_enum(&self) -> TxType {
+        TxType::from_str(&self.tx_type)
+    }
+
+    pub fn relative_time(&self) -> String {
+        let now = Utc::now();
+        let dur = now.signed_duration_since(self.created_at);
+        let mins = dur.num_minutes();
+        if mins < 1 {
+            "vừa xong".to_string()
+        } else if mins < 60 {
+            format!("{mins} phút trước")
+        } else if mins < 60 * 24 {
+            format!("{} giờ trước", mins / 60)
+        } else if mins < 60 * 24 * 7 {
+            format!("{} ngày trước", mins / (60 * 24))
+        } else {
+            self.created_at.format("%d/%m/%Y").to_string()
+        }
+    }
+}
+
 // ─── Form Structs ─────────────────────────────────────────────────────
 
 /// Form tạo vật phẩm (PvP listing).
@@ -422,7 +463,6 @@ pub struct CheckoutForm {
 pub struct ThuongThanhStats {
     pub total_items: i64,
     pub app_items: i64,
-    pub game_items: i64,
     pub pvp_items: i64,
     pub total_transactions: i64,
     pub total_k_volume: i64,

@@ -34,7 +34,7 @@
           {% if tx.tx_type == "purchase" %}
           Bạn mua từ {% if let Some(name) = tx.seller_name.as_deref() %}{{ name }}{% else %}Hệ thống{% endif %}
           {% else if tx.tx_type == "sale" %}
-          {% if let Some(name) = tx.buyer_name.as_deref() %}{{ name }}{% else %}Người mua{% endif %} mua từ bạn
+          {{ tx.buyer_name }} mua từ bạn
           {% else %}
           Chuyển K
           {% endif %}

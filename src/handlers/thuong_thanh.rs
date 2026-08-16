@@ -1,12 +1,11 @@
-//! Handlers cho trang Thương Thành — Giai đoạn 39 (v0.9.34).
+//! Handlers cho trang Thương Thành — Giai đoạn 40 (v0.9.35).
 //!
 //! Thương Thành là chợ/marketplace của Ứng Dụng Từ Bi — nơi đạo hữu
 //! có thể mua bán, trao đổi vật phẩm Phật giáo và dịch vụ.
 //!
 //! Routes:
-//!   - GET /thuong-thanh — Trang chính Thương Thành (3 cửa hàng)
+//!   - GET /thuong-thanh — Trang chính Thương Thành (2 cửa hàng)
 //!   - GET /thuong-thanh/cua-hang-app — Cửa Hàng Ứng Dụng
-//!   - GET /thuong-thanh/cua-hang-game — Cửa Hàng Game
 //!   - GET /thuong-thanh/pvp — Chợ PvP
 //!   - GET /thuong-thanh/vat-pham/{id} — Chi tiết vật phẩm
 //!   - POST /thuong-thanh/vat-pham/tao — Tạo vật phẩm (PvP)
@@ -17,7 +16,7 @@
 //!   - POST /thuong-thanh/gio-hang/thanh-toan — Thanh toán (giao dịch K)
 //!   - GET /api/thuong-thanh/stats — Thống kê
 //!
-//! v0.9.34: Full MVP — CRUD vật phẩm + Giỏ hàng + Giao dịch K.
+//! v0.9.35: Remove Game store — only App + PvP.
 
 use axum::{
     extract::{Path, State},
@@ -30,11 +29,11 @@ use serde_json::json;
 use sqlx::PgPool;
 
 use crate::AppState;
-use crate::handlers::{get_user_from_session, html_escape};
+use crate::handlers::get_user_from_session;
 use crate::models::user::User;
 use crate::models::thuong_thanh::{
     CartAddForm, CheckoutForm, ItemCreateForm, ShopItem, ShopItemWithSeller,
-    ThuongThanhStats, Transaction, ShopStore,
+    ThuongThanhStats,
 };
 
 // ─── Column list for shop_items ──────────────────────────────────────
@@ -52,7 +51,6 @@ pub struct ThuongThanhTemplate {
     pub user: Option<User>,
     pub active_page: String,
     pub app_items: Vec<ShopItem>,
-    pub game_items: Vec<ShopItem>,
     pub pvp_items: Vec<ShopItemWithSeller>,
     pub stats: ThuongThanhStats,
 }
@@ -97,8 +95,8 @@ pub struct CartTemplate {
     pub user: Option<User>,
     pub active_page: String,
     pub cart_items: Vec<crate::models::thuong_thanh::CartItemWithItem>,
-    pub total_k: i32,
-    pub total_items: i32,
+    pub total_k: i64,
+    pub total_items: i64,
 }
 
 /// Template cho /thuong-thanh/vat-pham/tao.
@@ -126,8 +124,6 @@ async fn get_stats(pool: &PgPool) -> ThuongThanhStats {
         .fetch_one(pool).await.unwrap_or(0);
     let app_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shop_items WHERE store = 'app' AND is_active = true")
         .fetch_one(pool).await.unwrap_or(0);
-    let game_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shop_items WHERE store = 'game' AND is_active = true")
-        .fetch_one(pool).await.unwrap_or(0);
     let pvp_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shop_items WHERE store = 'pvp' AND is_active = true")
         .fetch_one(pool).await.unwrap_or(0);
     let total_transactions: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM transactions")
@@ -141,7 +137,7 @@ async fn get_stats(pool: &PgPool) -> ThuongThanhStats {
     ).fetch_one(pool).await.unwrap_or(0);
 
     ThuongThanhStats {
-        total_items, app_items, game_items, pvp_items,
+        total_items, app_items, pvp_items,
         total_transactions, total_k_volume, total_fees, active_pvp_listings,
     }
 }
@@ -161,11 +157,6 @@ pub async fn thuong_thanh_index(
     )
     .fetch_all(&state.pool).await.unwrap_or_default();
 
-    let game_items = sqlx::query_as::<_, ShopItem>(
-        &format!("SELECT {ITEM_COLUMNS} FROM shop_items WHERE store = 'game' AND is_active = true ORDER BY sort_order, id LIMIT 8")
-    )
-    .fetch_all(&state.pool).await.unwrap_or_default();
-
     let pvp_items = sqlx::query_as::<_, ShopItemWithSeller>(
         &format!("SELECT si.{ITEM_COLUMNS}, u.display_name AS seller_name, u.avatar_url AS seller_avatar \
          FROM shop_items si LEFT JOIN users u ON si.seller_id = u.id \
@@ -179,7 +170,7 @@ pub async fn thuong_thanh_index(
     let html = ThuongThanhTemplate {
         user,
         active_page: "thuong_thanh".into(),
-        app_items, game_items, pvp_items, stats,
+        app_items, pvp_items, stats,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -216,38 +207,6 @@ pub async fn store_app(
     .render()
     .unwrap_or_else(|e| {
         log::error!("Template render error (store-app): {e}");
-        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
-    });
-
-    Html(html).into_response()
-}
-
-/// GET /thuong-thanh/cua-hang-game — Cửa Hàng Game.
-pub async fn store_game(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> Response {
-    let user = get_user_from_session(&state.pool, &jar).await;
-
-    let items = sqlx::query_as::<_, ShopItem>(
-        &format!("SELECT {ITEM_COLUMNS} FROM shop_items WHERE store = 'game' AND is_active = true ORDER BY sort_order, id")
-    )
-    .fetch_all(&state.pool).await.unwrap_or_default();
-
-    let stats = get_stats(&state.pool).await;
-
-    let html = StoreTemplate {
-        user,
-        active_page: "thuong_thanh".into(),
-        store_type: "game".into(),
-        store_label: "Cửa Hàng Game".into(),
-        store_icon: "🎮".into(),
-        store_color: "#6A1B9A".into(),
-        items, stats,
-    }
-    .render()
-    .unwrap_or_else(|e| {
-        log::error!("Template render error (store-game): {e}");
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 
@@ -439,8 +398,8 @@ pub async fn cart_view(
     .bind(u.id)
     .fetch_all(&state.pool).await.unwrap_or_default();
 
-    let total_k: i32 = cart_items.iter().map(|c| c.total_k()).sum();
-    let total_items: i32 = cart_items.iter().map(|c| c.quantity).sum();
+    let total_k: i64 = cart_items.iter().map(|c| c.total_k() as i64).sum();
+    let total_items: i64 = cart_items.iter().map(|c| c.quantity as i64).sum();
 
     let html = CartTemplate {
         user,
@@ -535,10 +494,10 @@ pub async fn cart_checkout(
         return Redirect::to("/thuong-thanh/gio-hang").into_response();
     }
 
-    let total_k: i32 = cart_items.iter().map(|c| c.total_k()).sum();
+    let total_k: i64 = cart_items.iter().map(|c| c.total_k() as i64).sum();
 
     // Kiểm tra số dư K
-    let k_balance: i32 = sqlx::query_scalar("SELECT k_balance FROM users WHERE id = $1")
+    let k_balance: i64 = sqlx::query_scalar("SELECT k_balance FROM users WHERE id = $1")
         .bind(u.id)
         .fetch_one(&state.pool).await.unwrap_or(0);
 

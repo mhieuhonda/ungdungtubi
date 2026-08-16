@@ -1,10 +1,11 @@
-//! Handlers cho Nhà Nhạc — Giai đoạn 38 (v0.9.33).
+//! Handlers cho Nhà Nhạc — Giai đoạn 40 (v0.9.35).
 //!
 //! Nhà Nhạc (Music House) — phòng KG-03 trong Không Gian.
 //! Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx":
 //!   - 5 thư mục nhạc: Niem · Thien · Dao · KhongLoi · CaNhan
 //!   - 5 chế độ phát: SingleRepeat · Shuffle · RepeatAll · Loop · SleepTimer
 //!   - Khi mở nhạc, thành viên trong Không Gian có thể nghe cùng
+//!   - Nhạc Cộng Đồng: user submit YouTube links, admin approve/reject
 //!
 //! Routes:
 //!   - GET  /khong-gian/nha-nhac                         — Trang Nhà Nhạc (player UI)
@@ -17,6 +18,12 @@
 //!   - POST /api/nha-nhac/ca-nhan/xoa/{track_id}         — Remove track khỏi Cá Nhân
 //!   - POST /api/nha-nhac/track/{track_id}/play          — Tăng play_count (analytics)
 //!   - GET  /api/nha-nhac/stats                          — JSON stats cho dashboard
+//!   - POST /api/nha-nhac/dang-nhac                      — User submit music (YouTube link)
+//!   - GET  /admin/nha-nhac/dang-cho-duyet               — Admin view pending submissions
+//!   - POST /admin/nha-nhac/dang-cho-duyet/{id}          — Admin approve/reject
+//!   - GET  /api/nha-nhac/submissions                    — User's own submissions
+//!   - GET  /api/nha-nhac/submissions/approved           — All approved community music
+//!   - POST /api/nha-nhac/submission/{id}/play           — Increment play count
 
 use axum::{
     extract::{Path, State},
@@ -32,6 +39,7 @@ use crate::handlers::get_user_from_session;
 use crate::models::nha_nhac::{
     AddPersonalTrackForm, CategoryTab, MusicCategory, MusicPrefsForm, MusicTrack, NhaNhacStats,
     PlaybackMode, UserMusicPrefs,
+    SubmitMusicForm, ReviewSubmissionForm, UserMusicSubmission, SubmissionWithUser,
 };
 use crate::models::user::User;
 
@@ -554,4 +562,252 @@ async fn fetch_stats(pool: &PgPool, user_id: Option<uuid::Uuid>) -> NhaNhacStats
         personal_tracks,
         total_plays,
     }
+}
+
+// ─── User Music Submission Handlers ───────────────────────────────────
+
+/// Template cho /admin/nha-nhac/dang-cho-duyet.
+#[derive(Template)]
+#[template(path = "admin/nha-nhac-pending.html")]
+pub struct AdminMusicPendingTemplate {
+    pub user: Option<User>,
+    pub active_page: String,
+    pub submissions: Vec<SubmissionWithUser>,
+}
+
+/// POST /api/nha-nhac/dang-nhac — User submits music (YouTube link).
+pub async fn nha_nhac_submit_music(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<SubmitMusicForm>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap?next=/khong-gian/nha-nhac").into_response();
+    };
+
+    let (title, artist, cat, youtube_id, description) = match form.validate() {
+        Ok(v) => v,
+        Err(e) => {
+            return Html(format!(
+                r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">⚠️ {e}</div>"#
+            )).into_response();
+        }
+    };
+
+    // Rate limit: max 5 submissions per user per day
+    let today_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_music_submissions WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 day'"
+    )
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+
+    if today_count >= 5 {
+        return Html(
+            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Bạn đã đăng 5 bài hôm nay. Vui lòng đợi ngày mai.
+            </div>"#
+        ).into_response();
+    }
+
+    // Check duplicate YouTube ID by same user
+    let dup: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM user_music_submissions WHERE user_id = $1 AND youtube_id = $2)"
+    )
+    .bind(user.id)
+    .bind(&youtube_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+
+    if dup {
+        return Html(
+            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                ℹ️ Bạn đã đăng link này rồi.
+            </div>"#
+        ).into_response();
+    }
+
+    // Insert submission
+    let result = sqlx::query(
+        "INSERT INTO user_music_submissions (user_id, title, artist, category, youtube_url, youtube_id, description, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')"
+    )
+    .bind(user.id)
+    .bind(&title)
+    .bind(&artist)
+    .bind(cat.db_value())
+    .bind(form.youtube_url.trim())
+    .bind(&youtube_id)
+    .bind(&description)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(_) => Html(
+            r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
+                ✅ Đã gửi bài hát! Vui lòng chờ admin duyệt.
+            </div>"#
+        ).into_response(),
+        Err(e) => {
+            log::error!("❌ nha_nhac_submit_music: {e}");
+            Html(
+                r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                    ⚠️ Lỗi gửi bài — vui lòng thử lại.
+                </div>"#
+            ).into_response()
+        }
+    }
+}
+
+/// GET /admin/nha-nhac/dang-cho-duyet — Admin view pending submissions.
+pub async fn admin_music_pending(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return Redirect::to("/").into_response();
+    }
+
+    let submissions = sqlx::query_as::<_, SubmissionWithUser>(
+        "SELECT ms.*, u.display_name AS submitter_name, u.avatar_url AS submitter_avatar
+         FROM user_music_submissions ms
+         JOIN users u ON ms.user_id = u.id
+         WHERE ms.status = 'pending'
+         ORDER BY ms.created_at ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let html = AdminMusicPendingTemplate {
+        user: Some(user),
+        active_page: "admin".into(),
+        submissions,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin-music-pending): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// POST /admin/nha-nhac/dang-cho-duyet/{id} — Admin approve/reject.
+pub async fn admin_music_review(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(sub_id): Path<i64>,
+    Form(form): Form<ReviewSubmissionForm>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return Redirect::to("/").into_response();
+    }
+
+    let (new_status, note) = match form.action.as_str() {
+        "approve" => ("approved", form.note.unwrap_or_default()),
+        "reject" => ("rejected", form.note.unwrap_or_default()),
+        _ => return Redirect::to("/admin/nha-nhac/dang-cho-duyet").into_response(),
+    };
+
+    // Update submission status
+    let result = sqlx::query(
+        "UPDATE user_music_submissions SET status = $1, reviewed_by = $2, review_note = $3, reviewed_at = NOW(), updated_at = NOW()
+         WHERE id = $4 AND status = 'pending'"
+    )
+    .bind(new_status)
+    .bind(user.id)
+    .bind(if note.is_empty() { None } else { Some(&note) })
+    .bind(sub_id)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(r) if r.rows_affected() > 0 => {
+            // If approved, also add to music_tracks table so it appears in the main music library
+            if new_status == "approved" {
+                let _ = sqlx::query(
+                    "INSERT INTO music_tracks (title, category, description, artist, audio_url, duration_seconds, is_public, upload_user_id, sort_order, is_active)
+                     SELECT title, category, description, artist, youtube_url, 0, true, user_id,
+                            COALESCE((SELECT MAX(sort_order) + 1 FROM music_tracks WHERE category = ms.category), 0),
+                            true
+                     FROM user_music_submissions ms WHERE ms.id = $1"
+                )
+                .bind(sub_id)
+                .execute(&state.pool)
+                .await;
+            }
+            log::info!("✅ Music submission #{sub_id} {new_status} by {}", user.display_name);
+        }
+        Ok(_) => log::warn!("⚠️ Music submission #{sub_id} not pending or not found"),
+        Err(e) => log::error!("❌ Error reviewing music submission #{sub_id}: {e}"),
+    }
+
+    Redirect::to("/admin/nha-nhac/dang-cho-duyet").into_response()
+}
+
+/// GET /api/nha-nhac/submissions — User's own submissions.
+pub async fn nha_nhac_my_submissions_api(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Json(serde_json::json!({"error": "unauthorized"})).into_response();
+    };
+
+    let submissions: Vec<UserMusicSubmission> = sqlx::query_as(
+        "SELECT * FROM user_music_submissions WHERE user_id = $1 ORDER BY created_at DESC"
+    )
+    .bind(user.id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    Json(submissions).into_response()
+}
+
+/// GET /api/nha-nhac/submissions/approved — All approved community music (for browsing).
+pub async fn nha_nhac_community_music_api(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Response {
+    let Some(_user) = get_user_from_session(&state.pool, &jar).await else {
+        return Json(serde_json::json!({"error": "unauthorized"})).into_response();
+    };
+
+    let submissions: Vec<UserMusicSubmission> = sqlx::query_as(
+        "SELECT * FROM user_music_submissions WHERE status = 'approved' ORDER BY play_count DESC, created_at DESC LIMIT 50"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    Json(submissions).into_response()
+}
+
+/// POST /api/nha-nhac/submission/{id}/play — Increment play count.
+pub async fn nha_nhac_submission_play(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(sub_id): Path<i64>,
+) -> Response {
+    let Some(_user) = get_user_from_session(&state.pool, &jar).await else {
+        return Json(serde_json::json!({"error": "unauthorized"})).into_response();
+    };
+
+    let _ = sqlx::query(
+        "UPDATE user_music_submissions SET play_count = play_count + 1, updated_at = NOW() WHERE id = $1 AND status = 'approved'"
+    )
+    .bind(sub_id)
+    .execute(&state.pool)
+    .await;
+
+    Json(serde_json::json!({"ok": true, "id": sub_id})).into_response()
 }

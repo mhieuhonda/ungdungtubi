@@ -1,4 +1,4 @@
-//! Models cho Nhà Nhạc — Giai đoạn 38 (v0.9.33).
+//! Models cho Nhà Nhạc — Giai đoạn 40 (v0.9.35).
 //!
 //! Nhà Nhạc (Music House) là 1 trong 8 phòng của Không Gian (KG-03).
 //! Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx":
@@ -6,6 +6,7 @@
 //!   - 5 chế độ phát: SingleRepeat · Shuffle · RepeatAll · Loop · SleepTimer
 //!   - Khi mở nhạc, thành viên trong Không Gian có thể nghe cùng
 //!   - Cá Nhân = danh sách nhạc do user tải lên hoặc thêm từ kho hệ thống
+//!   - Nhạc Cộng Đồng = user submit YouTube links, admin approve/reject
 //!
 //! Models:
 //!   - `MusicCategory` — enum 4 category hệ thống (niem/thien/dao/khong_loi) + "ca_nhan"
@@ -13,6 +14,10 @@
 //!   - `PlaybackMode` — chế độ phát nhạc
 //!   - `UserMusicPrefs` — preferences phát nhạc per-user
 //!   - `PersonalPlaylistItem` — entry trong playlist Cá Nhân của user
+//!   - `UserMusicSubmission` — user-submitted YouTube music (pending/approved/rejected)
+//!   - `SubmitMusicForm` — form cho POST /api/nha-nhac/dang-nhac
+//!   - `ReviewSubmissionForm` — form cho admin review
+//!   - `SubmissionWithUser` — submission kèm tên người đăng (cho admin view)
 #![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
@@ -384,4 +389,215 @@ impl CategoryTab {
             }))
             .collect()
     }
+}
+
+// ─── User Music Submission ────────────────────────────────────────────
+
+/// Trạng thái submission.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum SubmissionStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+impl SubmissionStatus {
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "pending" => Some(Self::Pending),
+            "approved" => Some(Self::Approved),
+            "rejected" => Some(Self::Rejected),
+            _ => None,
+        }
+    }
+    pub fn db_value(&self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Approved => "approved",
+            Self::Rejected => "rejected",
+        }
+    }
+    pub fn display(&self) -> &'static str {
+        match self {
+            Self::Pending => "Chờ duyệt",
+            Self::Approved => "Đã duyệt",
+            Self::Rejected => "Từ chối",
+        }
+    }
+    pub fn color(&self) -> &'static str {
+        match self {
+            Self::Pending => "#F59E0B",   // amber
+            Self::Approved => "#16A34A",   // green
+            Self::Rejected => "#DC2626",   // red
+        }
+    }
+}
+
+/// Một submission nhạc từ user.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserMusicSubmission {
+    pub id: i64,
+    pub user_id: Uuid,
+    pub title: String,
+    pub artist: String,
+    pub category: String,
+    pub youtube_url: String,
+    pub youtube_id: String,
+    pub description: String,
+    pub status: String,
+    pub reviewed_by: Option<Uuid>,
+    pub review_note: Option<String>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub play_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl UserMusicSubmission {
+    pub fn status_enum(&self) -> SubmissionStatus {
+        SubmissionStatus::from_str(&self.status).unwrap_or(SubmissionStatus::Pending)
+    }
+    pub fn category_display(&self) -> &str {
+        match self.category.as_str() {
+            "niem" => "Nhạc Niệm",
+            "thien" => "Nhạc Thiền",
+            "dao" => "Nhạc Đạo",
+            "khong_loi" => "Không Lời",
+            _ => "Khác",
+        }
+    }
+    /// Generate YouTube embed URL for inline playback.
+    pub fn youtube_embed_url(&self) -> String {
+        format!("https://www.youtube.com/embed/{}?rel=0&modestbranding=1", self.youtube_id)
+    }
+    pub fn relative_time(&self) -> String {
+        let now = Utc::now();
+        let dur = now.signed_duration_since(self.created_at);
+        let mins = dur.num_minutes();
+        if mins < 1 { "vừa xong".to_string() }
+        else if mins < 60 { format!("{mins} phút trước") }
+        else if mins < 60 * 24 { format!("{} giờ trước", mins / 60) }
+        else if mins < 60 * 24 * 7 { format!("{} ngày trước", mins / (60 * 24)) }
+        else { self.created_at.format("%d/%m/%Y").to_string() }
+    }
+}
+
+/// Form cho POST /api/nha-nhac/dang-nhac — user submit music.
+#[derive(Debug, Deserialize)]
+pub struct SubmitMusicForm {
+    pub title: String,
+    pub artist: String,
+    pub category: String,
+    pub youtube_url: String,
+    pub description: Option<String>,
+}
+
+impl SubmitMusicForm {
+    /// Validate form. Returns (sanitized_title, sanitized_artist, category, youtube_id, description) or error message.
+    pub fn validate(&self) -> Result<(String, String, MusicCategory, String, String), String> {
+        // Title
+        let title = self.title.trim().to_string();
+        if title.is_empty() {
+            return Err("Tiêu đề không được để trống.".into());
+        }
+        if title.chars().count() > 200 {
+            return Err("Tiêu đề tối đa 200 ký tự.".into());
+        }
+        // Artist
+        let artist = self.artist.trim().to_string();
+        if artist.is_empty() {
+            return Err("Nghệ sĩ không được để trống.".into());
+        }
+        if artist.chars().count() > 100 {
+            return Err("Nghệ sĩ tối đa 100 ký tự.".into());
+        }
+        // Category
+        let cat = MusicCategory::from_str(&self.category)
+            .ok_or_else(|| "Thư mục nhạc không hợp lệ. Chọn: niem, thien, dao, khong_loi.".to_string())?;
+        if matches!(cat, MusicCategory::CaNhan) {
+            return Err("Không thể đăng vào thư mục Cá Nhân.".into());
+        }
+        // YouTube URL — extract video ID
+        let youtube_id = extract_youtube_id(&self.youtube_url)
+            .ok_or_else(|| "Link YouTube không hợp lệ. Ví dụ: https://www.youtube.com/watch?v=XXXXXXXXXXX".to_string())?;
+        // Description
+        let desc = self.description.as_deref().unwrap_or("").trim().to_string();
+        if desc.chars().count() > 500 {
+            return Err("Mô tả tối đa 500 ký tự.".into());
+        }
+        Ok((title, artist, cat, youtube_id, desc))
+    }
+}
+
+/// Extract YouTube video ID from various URL formats.
+/// Supports:
+///   - https://www.youtube.com/watch?v=VIDEO_ID
+///   - https://youtu.be/VIDEO_ID
+///   - https://youtube.com/embed/VIDEO_ID
+///   - https://m.youtube.com/watch?v=VIDEO_ID
+///   - https://youtube.com/shorts/VIDEO_ID
+///   - VIDEO_ID (11 chars directly)
+pub fn extract_youtube_id(input: &str) -> Option<String> {
+    let s = input.trim();
+    if s.is_empty() { return None; }
+    // Direct 11-char ID
+    if s.len() == 11 && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Some(s.to_string());
+    }
+    // youtu.be/VIDEO_ID
+    if let Some(pos) = s.find("youtu.be/") {
+        let start = pos + 9;
+        if start >= s.len() { return None; }
+        let rest = &s[start..];
+        let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(11).collect();
+        if id.len() == 11 { return Some(id); }
+    }
+    // ?v=VIDEO_ID
+    if let Some(pos) = s.find("v=") {
+        let start = pos + 2;
+        if start >= s.len() { return None; }
+        let rest = &s[start..];
+        let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(11).collect();
+        if id.len() == 11 { return Some(id); }
+    }
+    // /embed/VIDEO_ID or /shorts/VIDEO_ID
+    for prefix in &["/embed/", "/shorts/", "/v/"] {
+        if let Some(pos) = s.find(prefix) {
+            let start = pos + prefix.len();
+            if start >= s.len() { continue; }
+            let rest = &s[start..];
+            let id: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(11).collect();
+            if id.len() == 11 { return Some(id); }
+        }
+    }
+    None
+}
+
+/// Form cho admin review.
+#[derive(Debug, Deserialize)]
+pub struct ReviewSubmissionForm {
+    pub action: String,  // "approve" or "reject"
+    pub note: Option<String>,
+}
+
+/// Submission kèm tên người đăng (cho admin view).
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct SubmissionWithUser {
+    pub id: i64,
+    pub user_id: Uuid,
+    pub title: String,
+    pub artist: String,
+    pub category: String,
+    pub youtube_url: String,
+    pub youtube_id: String,
+    pub description: String,
+    pub status: String,
+    pub reviewed_by: Option<Uuid>,
+    pub review_note: Option<String>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub play_count: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub submitter_name: String,
+    pub submitter_avatar: Option<String>,
 }
