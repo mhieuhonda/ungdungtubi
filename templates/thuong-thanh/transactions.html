@@ -1,0 +1,62 @@
+{% extends "layout.html" %}
+{% block title %}Giao Dịch — Thương Thành — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-6 flex items-center gap-2">
+    📋 Lịch Sử Giao Dịch
+  </h1>
+
+  {% if transactions.is_empty() %}
+  <div class="text-center py-16">
+    <div class="text-6xl mb-4">📋</div>
+    <p class="text-gray-500 dark:text-slate-400 mb-4">Chưa có giao dịch nào</p>
+    <a href="/thuong-thanh" class="inline-block px-6 py-3 rounded-xl text-white font-semibold transition hover:scale-105" style="background:#0F766E">
+      Khám phá Thương Thành
+    </a>
+  </div>
+  {% else %}
+
+  <div class="space-y-3">
+    {% for tx in transactions %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 flex items-center gap-4">
+      <div class="text-2xl flex-shrink-0">{{ tx.tx_type_enum().icon() }}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="font-bold text-sm text-gray-900 dark:text-slate-100">{{ tx.tx_type_enum().label() }}</span>
+          {% if let Some(name) = tx.item_name.as_deref() %}
+          <span class="text-sm text-gray-600 dark:text-slate-300 truncate">{{ name }}</span>
+          {% endif %}
+          <span class="text-xs text-gray-400 dark:text-slate-500">× {{ tx.quantity }}</span>
+        </div>
+        <div class="text-xs text-gray-500 dark:text-slate-400">
+          {% if tx.tx_type == "purchase" %}
+          Bạn mua từ {% if let Some(name) = tx.seller_name.as_deref() %}{{ name }}{% else %}Hệ thống{% endif %}
+          {% else if tx.tx_type == "sale" %}
+          {% if let Some(name) = tx.buyer_name.as_deref() %}{{ name }}{% else %}Người mua{% endif %} mua từ bạn
+          {% else %}
+          Chuyển K
+          {% endif %}
+          · {{ tx.relative_time() }}
+        </div>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <div class="font-bold text-sm {% if tx.tx_type == "sale" %}text-green-600 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}">
+          {% if tx.tx_type == "sale" %}+{% else %}-{% endif %}{{ tx.amount_k }} K
+        </div>
+        {% if tx.fee_k > 0 %}
+        <div class="text-[10px] text-gray-400 dark:text-slate-500">Phí: {{ tx.fee_k }} K</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% endif %}
+
+  <div class="mt-6">
+    <a href="/thuong-thanh" class="text-sm text-gray-500 hover:text-tubi-700 dark:text-slate-400">← Thương Thành</a>
+  </div>
+</section>
+{% endblock %}

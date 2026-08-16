@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.33</title>
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.34</title>
     <!-- v0.9.32: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -100,7 +100,7 @@
 
             <!-- Right: version + user + exit -->
             <div class="flex items-center gap-2 md:gap-4">
-                <span class="hidden sm:inline-flex chip">v0.9.33</span>
+                <span class="hidden sm:inline-flex chip">v0.9.34</span>
                 <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
                 {% if let Some(u) = user %}
                 <div class="hidden sm:flex items-center gap-2">
@@ -184,8 +184,9 @@
              @click="sidebarOpen = false"
              class="md:hidden fixed inset-0 top-14 bg-black/50 z-30"></div>
 
-        <!-- ═══ Main Content ═══ -->
-        <main class="flex-1 min-w-0 p-3 md:p-6 space-y-8">
+        <!-- ═══ Main Content — v0.9.34: added max-w-6xl mx-auto for centering ═══ -->
+        <main class="flex-1 min-w-0 overflow-y-auto">
+            <div class="max-w-6xl mx-auto p-3 md:p-6 space-y-8">
 
             <!-- ─── Tổng quan: Stats grid 2x2 + 2x4 theo ảnh ─── -->
             <section id="tong-quan" class="space-y-4">
@@ -583,13 +584,14 @@
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.33 · Admin Kỹ Thuật ·
+                        <span>Ứng Dụng Từ Bi v0.9.34 · Admin Kỹ Thuật ·
                             {% if let Some(u) = user %}{{ u.permission_count() }}/{{ u.system_permission_count() }} quyền{% else %}0/0 quyền{% endif %}
                         </span>
                     </div>
                     <div class="mono">Rust 1.97.1 · Axum 0.8 · PostgreSQL 17</div>
                 </div>
             </footer>
+            </div>{# end max-w-6xl mx-auto centering wrapper #}
         </main>
     </div>
 

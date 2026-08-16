@@ -1,0 +1,78 @@
+{% extends "layout.html" %}
+{% block title %}{{ store_label }} — Thương Thành — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Hero -->
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,{{ store_color }},#115E59)">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-3xl md:text-4xl font-bold mb-2">{{ store_icon }} {{ store_label }}</h1>
+        <p class="opacity-90 max-w-2xl">
+          {% if store_type == "app" %}
+          Thẻ tu học, thẻ đổi tên, vật phẩm hỗ trợ, danh hiệu — tất cả bằng K.
+          {% else %}
+          Thuốc, tinh thạch, bẫy, đá nâng cấp — vật phẩm cho Siêu Độ.
+          {% endif %}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <a href="/thuong-thanh" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-3 rounded-xl transition-all hover:scale-105 text-sm">
+          ← Thương Thành
+        </a>
+        <a href="/thuong-thanh/gio-hang" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-3 rounded-xl transition-all hover:scale-105 text-sm">
+          🛒 Giỏ hàng
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thống kê -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 text-center">
+      <div class="text-2xl font-bold" style="color:{{ store_color }}">{{ items.len() }}</div>
+      <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">Vật phẩm</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 text-center">
+      <div class="text-2xl font-bold" style="color:{{ store_color }}">{{ stats.total_k_volume }}</div>
+      <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">K khối lượng</div>
+    </div>
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 text-center">
+      <div class="text-2xl font-bold" style="color:{{ store_color }}">{{ stats.total_transactions }}</div>
+      <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">Giao dịch</div>
+    </div>
+  </div>
+
+  <!-- Danh sách vật phẩm -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+    {% for item in items %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 hover:shadow-md transition">
+      <a href="/thuong-thanh/vat-pham/{{ item.id }}" class="block">
+        <div class="text-3xl mb-2">{{ item.icon }}</div>
+        <h3 class="font-bold text-sm mb-1 truncate" style="color:{{ item.color }}">{{ item.name }}</h3>
+        <p class="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-2 mb-2">{{ item.description.as_deref().unwrap_or("") }}</p>
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-sm" style="color:{{ store_color }}">{{ item.price_k }} K</span>
+          <span class="text-[10px] text-gray-400 dark:text-slate-500">{{ item.sold_count }} đã bán</span>
+        </div>
+      </a>
+      <form method="POST" action="/thuong-thanh/gio-hang/them" class="mt-2">
+        <input type="hidden" name="item_id" value="{{ item.id }}">
+        <button type="submit" class="w-full text-xs font-semibold py-1.5 rounded-lg text-white transition hover:opacity-90" style="background:{{ store_color }}">
+          🛒 Thêm vào giỏ
+        </button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if items.is_empty() %}
+  <p class="text-sm text-gray-500 dark:text-slate-400 italic mt-4">Chưa có vật phẩm trong cửa hàng này.</p>
+  {% endif %}
+
+  <div class="mt-8">
+    <a href="/thuong-thanh" class="text-sm text-gray-500 hover:text-tubi-700 dark:text-slate-400">← Thương Thành</a>
+  </div>
+</section>
+{% endblock %}

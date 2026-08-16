@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.33 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.34 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.33 — Giai đoạn 38: Nhà Nhạc + Logo Emoji Sharpened 🪷");
+    log::info!("📦 Phiên bản: v0.9.34 — Giai đoạn 39: Thương Thành MVP 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -267,7 +267,21 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
+        // Routes — Thương Thành (v0.9.34 — Giai đoạn 39: Thương Thành MVP)
+        // CRUD vật phẩm · Giỏ hàng · Giao dịch K
         .route("/thuong-thanh", get(handlers::thuong_thanh::thuong_thanh_index))
+        .route("/thuong-thanh/cua-hang-app", get(handlers::thuong_thanh::store_app))
+        .route("/thuong-thanh/cua-hang-game", get(handlers::thuong_thanh::store_game))
+        .route("/thuong-thanh/pvp", get(handlers::thuong_thanh::store_pvp))
+        .route("/thuong-thanh/vat-pham/tao", get(handlers::thuong_thanh::create_item_form).post(handlers::thuong_thanh::create_item))
+        .route("/thuong-thanh/vat-pham/{id}", get(handlers::thuong_thanh::item_detail))
+        .route("/thuong-thanh/vat-pham/{id}/xoa", post(handlers::thuong_thanh::delete_item))
+        .route("/thuong-thanh/gio-hang", get(handlers::thuong_thanh::cart_view))
+        .route("/thuong-thanh/gio-hang/them", post(handlers::thuong_thanh::cart_add))
+        .route("/thuong-thanh/gio-hang/xoa/{cart_id}", post(handlers::thuong_thanh::cart_remove))
+        .route("/thuong-thanh/gio-hang/thanh-toan", post(handlers::thuong_thanh::cart_checkout))
+        .route("/thuong-thanh/giao-dich", get(handlers::thuong_thanh::transactions_view))
+        .route("/api/thuong-thanh/stats", get(handlers::thuong_thanh::thuong_thanh_stats_api))
         .route("/doi-ngu-quan-li", get(handlers::doi_ngu::doi_ngu_quan_li))
         .route("/bang-xep-hang", get(handlers::bang_xep_hang::bang_xep_hang_index))
         // Routes — Tổng Quan (User Hub) [v0.9.14 — Giai đoạn 18]
@@ -577,6 +591,18 @@ const HEALTH_FEATURES: &[&str] = &[
     "logo-emoji-sharpened-geometric-precision-v0.9.33",
     "favicon-svg-256-viewbox-v0.9.33",
     "emoji-font-family-fallback-v0.9.33",
+    // v0.9.34 — Giai đoạn 39: Thương Thành MVP (CRUD vật phẩm + Giỏ hàng + Giao dịch K)
+    "thuong-thanh-mvp-v0.9.34",
+    "thuong-thanh-crud-vat-pham-v0.9.34",
+    "thuong-thanh-3-stores-v0.9.34",
+    "thuong-thanh-gio-hang-v0.9.34",
+    "thuong-thanh-giao-dich-k-v0.9.34",
+    "thuong-thanh-pvp-listing-v0.9.34",
+    "thuong-thanh-20-percent-fee-v0.9.34",
+    "thuong-thanh-transactions-history-v0.9.34",
+    "thuong-thanh-stats-api-v0.9.34",
+    "open-graph-meta-tags-v0.9.34",
+    "admin-dashboard-centering-fix-v0.9.34",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
