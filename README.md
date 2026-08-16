@@ -4,9 +4,35 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.31 — Giai đoạn 36
+## 📦 Phiên bản hiện tại: v0.9.32 — Giai đoạn 37
 
-**Giai đoạn 36: Chat UX Overhaul + Role Badge Cleanup + Bug Fix Sweep + Logo Redesign 🪷**
+**Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync**
+
+Tạo dashboard riêng cho Admin Phát Triển (`/admin/phat-trien`) — indigo/vision/roadmap theme. Đổi hoàn toàn logo sang emoji hoa sen 🪷. Đồng bộ version v0.9.32 trên tất cả file.
+
+### 🧭 Admin Phát Triển Dashboard — /admin/phat-trien
+
+- **[DASH-1]** `templates/admin/phat-trien/index.html` — Dashboard riêng (indigo, vision, roadmap, CI/CD)
+- **[DASH-2]** `src/handlers/admin.rs` — Handler `admin_phat_trien_dashboard` + template struct
+- **[DASH-3]** `src/main.rs` — Route `GET /admin/phat-trien`
+- **[DASH-4]** `src/models/user.rs` — `admin_dashboard_path()` → `/admin/phat-trien` (không còn dùng `/admin/ky-thuat` tạm)
+
+### 🪷 Logo Emoji Hoa Sen
+
+- **[LOGO-1]** Favicon — Đổi từ SVG sang inline emoji SVG data URI 🪷
+- **[LOGO-2]** Header logo — Đổi từ `<img>` SVG sang `<span>🪷</span>`
+- **[LOGO-3]** Home hero — Đổi từ `<img>` SVG sang `<span>🪷</span>`
+- **[LOGO-4]** SVG files — `favicon.svg`, `logo.svg`, `logo-inline.svg` → emoji-based SVG
+
+### 📦 Version Sync v0.9.32
+
+- Fix version drift: v0.9.19/v0.9.29/v0.9.30 → v0.9.32 (31 replacements across 9 files)
+- Health check: version 0.9.32, phase 37
+- 6 new features in HEALTH_FEATURES
+
+---
+
+## 📦 Phiên bản trước: v0.9.31 — Giai đoạn 36
 
 Chat UX overhauled — xóa role badge trong chat theo yêu cầu user, redesign logo thành hoa sen cách điệu, fix admin_phat_trien 403 Forbidden, thêm REST fallback cho global chat, tối ưu WebSocket reconnect timing.
 

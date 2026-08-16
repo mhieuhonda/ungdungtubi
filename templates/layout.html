@@ -60,9 +60,9 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="apple-touch-icon" href="/static/favicon.svg">
+    <!-- Favicon — v0.9.32: Emoji 🪷 hoa sen thay SVG -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪷</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪷</text></svg>">
 
     <!-- Custom CSS — v0.9.20: tách thành 2 files cho gọn gàng -->
     <link rel="stylesheet" href="/static/css/app.css">
@@ -92,11 +92,11 @@
     <header class="bg-white/95 dark:bg-slate-800 backdrop-blur border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 transition-colors">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-14">
-                <!-- Logo — v0.9.24: SVG hoa sen thay emoji 🪷 -->
+                <!-- Logo — v0.9.32: Emoji 🪷 hoa sen -->
                 <a href="/" class="flex items-center gap-2 group">
                     <div class="w-9 h-9 bg-gradient-to-br from-tubi-600 to-tubi-800 rounded-xl flex items-center justify-center
-                                group-hover:scale-105 transition-transform shadow-sm overflow-hidden">
-                        <img src="/static/logo-inline.svg" alt="🪷 Từ Bi" class="w-7 h-7" loading="eager" decoding="async">
+                                group-hover:scale-105 transition-transform shadow-sm">
+                        <span class="text-2xl leading-none">🪷</span>
                     </div>
                     <div class="leading-tight">
                         <div class="text-sm font-bold tracking-tight text-ink">TỪ BI</div>
@@ -448,7 +448,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.30 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.32 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
@@ -464,7 +464,7 @@
     <div x-data="globalChat()" x-init="init()"
          @toggle-global-chat.window="toggleChat()"
          @keydown.escape.window="if (isOpen) toggleChat()">
-      <!-- v0.9.29: Đã XÓA backdrop overlay che mờ (theo yêu cầu user) — chat popup mở trong suốt, không che nền. -->
+      <!-- v0.9.32: Đã XÓA backdrop overlay che mờ (theo yêu cầu user) — chat popup mở trong suốt, không che nền. -->
       <!-- v0.9.27: chat bubble — style="display:none" fallback chống FOUC -->
       <div x-data="chatBubble()" x-init="init()"
            x-show="!isOpen"
@@ -485,7 +485,7 @@
       </div>
 
       <!-- v0.9.27: Chat popup — style="display:none" fallback chống FOUC.
-           v0.9.29: Tăng height tối đa (85dvh desktop / 75dvh mobile) để chat "dài hơn".
+           v0.9.32: Tăng height tối đa (85dvh desktop / 75dvh mobile) để chat "dài hơn".
            Alpine x-show="isOpen" sẽ override display khi init xong.
            Nếu Alpine fail (JS error, CDN down) → popup vẫn ẩn → không che màn hình. -->
       <div x-show="isOpen" x-cloak

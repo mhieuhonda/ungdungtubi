@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.31 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.32 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.30 — Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep");
+    log::info!("📦 Phiên bản: v0.9.32 — Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -283,6 +283,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/ky-thuat/users", get(handlers::admin::admin_ky_thuat_users_redirect))
         .route("/admin/cong-dong", get(handlers::admin::admin_cong_dong_dashboard))
         .route("/admin/quan-li", get(handlers::admin::admin_quan_li_dashboard))
+        // v0.9.32: Dashboard riêng cho Admin Phát Triển (indigo, vision, roadmap, CI/CD)
+        .route("/admin/phat-trien", get(handlers::admin::admin_phat_trien_dashboard))
         .route("/admin/thanh-vien", get(handlers::admin::admin_users_list))
         .route("/admin/thanh-vien/{user_id}/role", post(handlers::admin::admin_change_role))
         .route("/admin/thanh-vien/{user_id}/ban", post(handlers::admin::admin_ban_user))
@@ -545,6 +547,13 @@ const HEALTH_FEATURES: &[&str] = &[
     "chat-history-retry-with-backoff-v0.9.27",
     "mobile-menu-drawer-fouc-fix-v0.9.27",
     "mobile-menu-never-auto-open-v0.9.27",
+    // v0.9.32 — Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync
+    "admin-phat-trien-dashboard-v0.9.32",
+    "admin-phat-trien-indigo-vision-theme-v0.9.32",
+    "admin-4-dashboards-separate-v0.9.32",
+    "logo-emoji-lotus-v0.9.32",
+    "favicon-emoji-lotus-v0.9.32",
+    "version-sync-v0.9.32",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -563,7 +572,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.30",
+            "version": "0.9.32",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -593,11 +602,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.30",
+        "version": "0.9.32",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 35,
-        "phase_name": "Giai đoạn 35 — Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep",
+        "phase": 37,
+        "phase_name": "Giai đoạn 37 — Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -610,8 +619,9 @@ async fn health_check_inner(state: &AppState) -> Response {
             "admin_ky_thuat_dashboard": "/admin/ky-thuat",
             "admin_cong_dong_dashboard": "/admin/cong-dong",
             "admin_quan_li_dashboard": "/admin/quan-li",
-            "admin_phat_trien_dashboard": "/admin/ky-thuat",
+            "admin_phat_trien_dashboard": "/admin/phat-trien",
             "mod_dashboard": "/admin/thanh-vien",
+            "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",
             "v0_9_24_note": "Tất cả admin NGANG HÀNH (level 3) — mỗi admin có scope quyền riêng theo phần phụ trách"
         },

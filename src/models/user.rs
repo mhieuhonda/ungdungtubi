@@ -515,14 +515,14 @@ impl User {
     /// Tên trang admin dashboard tương ứng với role.
     /// v0.9.24: Mỗi admin có dashboard riêng theo scope phụ trách.
     /// v0.9.19: Mod redirect về /admin/thanh-vien (mod không có dashboard riêng).
+    /// v0.9.32: admin_phat_trien giờ có dashboard riêng /admin/phat-trien.
     pub fn admin_dashboard_path(&self) -> &str {
         match self.role.as_str() {
             "admin_ky_thuat" => "/admin/ky-thuat",
             "admin_cong_dong" => "/admin/cong-dong",
             "admin_quan_li" => "/admin/quan-li",
-            // v0.9.30: admin_phat_trien dùng dashboard /admin/ky-thuat vì scope giao thoa
-            // (system, security, analytics, navigation). Dashboard riêng sẽ thêm ở giai đoạn sau.
-            "admin_phat_trien" => "/admin/ky-thuat",
+            // v0.9.32: admin_phat_trien có dashboard riêng (indigo, vision, roadmap, CI/CD).
+            "admin_phat_trien" => "/admin/phat-trien",
             "mod" => "/admin/thanh-vien",
             _ => "/admin",
         }

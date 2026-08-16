@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧭 Admin Phát Triển — Ứng Dụng Từ Bi</title>
+    <!-- Product Development / Vision dashboard — indigo, creative, forward-looking -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'dev': { 50:'#EEF2FF', 100:'#E0E7FF', 200:'#C7D2FE', 300:'#A5B4FC', 400:'#818CF8', 500:'#6366F1', 600:'#4F46E5', 700:'#4338CA', 800:'#3730A3', 900:'#312E81' },
+                        'vision': { bg:'#0f0e2e', panel:'#1a1847', accent:'#818CF8', text:'#e0e7ff', border:'#2d2b69' },
+                        'tubi': { 800:'#2E7D32', 900:'#1B5E20' }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪷</text></svg>">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        .indigo-gradient { background: linear-gradient(135deg, #312E81 0%, #4338CA 40%, #6366F1 100%); }
+        .stat-card { transition: all 0.3s ease; }
+        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(79,70,229,0.15); }
+        .phase-badge { animation: pulse-glow 2s ease-in-out infinite; }
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); }
+            50% { box-shadow: 0 0 12px 4px rgba(99,102,241,0.2); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+    <!-- Top Bar — Product Development / Vision style -->
+    <header class="indigo-gradient text-white shadow-xl sticky top-0 z-50">
+        <div class="flex items-center justify-between h-14 sm:h-16 px-3 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div class="w-9 h-9 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center text-lg sm:text-xl backdrop-blur-sm shrink-0">🧭</div>
+                <div class="min-w-0">
+                    <h1 class="text-sm sm:text-lg font-bold tracking-wide truncate">ADMIN PHÁT TRIỂN</h1>
+                    <p class="text-[10px] sm:text-[11px] text-white/80 truncate">Định hướng · CI/CD · Roadmap · Analytics — 39/150 quyền</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 sm:gap-4 shrink-0">
+                {% if let Some(u) = user %}
+                <div class="hidden sm:flex items-center gap-2">
+                    <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-sm font-bold">{{ u.display_name.chars().next().unwrap_or('🧭') }}</div>
+                    <div class="hidden lg:block">
+                        <div class="text-sm font-semibold truncate max-w-[120px]">{{ u.display_name }}</div>
+                        <div class="text-[10px] text-white/70">{{ u.role_display() }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                <a href="/" class="text-white/80 hover:text-white text-xs sm:text-sm transition whitespace-nowrap">← <span class="hidden sm:inline">Về trang chủ</span><span class="sm:hidden">Home</span></a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <div class="bg-white border-b border-gray-200 shadow-sm sticky top-14 sm:top-16 z-40">
+        <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+            <nav class="flex gap-1 overflow-x-auto scrollbar-thin -mb-px">
+                <a href="/admin/phat-trien" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-semibold border-b-2 border-dev-800 text-dev-900 whitespace-nowrap">
+                    🧭 Tổng quan
+                </a>
+                <a href="/admin/ky-thuat/nhat-ky" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-dev-900 hover:border-dev-300 transition whitespace-nowrap">
+                    📋 Nhật ký
+                </a>
+                <a href="/admin/thanh-vien" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-dev-900 hover:border-dev-300 transition whitespace-nowrap">
+                    👥 Thành viên
+                </a>
+                <a href="/admin/kinh-sach" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-dev-900 hover:border-dev-300 transition whitespace-nowrap">
+                    📚 Kinh Sách
+                </a>
+                <a href="/admin/quy-tu-bi" class="px-3 sm:px-5 py-3 sm:py-3.5 text-xs sm:text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-dev-900 hover:border-dev-300 transition whitespace-nowrap">
+                    📈 Quỹ
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <!-- Phase Banner -->
+        <div class="mb-6 sm:mb-8 bg-dev-900 text-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="phase-badge px-2 py-1 bg-dev-400 text-dev-900 text-[10px] sm:text-xs font-bold rounded-full">GIAI ĐOẠN 37</span>
+                        <span class="text-[10px] sm:text-xs text-dev-300">v0.9.32</span>
+                    </div>
+                    <h2 class="text-lg sm:text-xl font-bold">🧭 Admin Phát Triển Dashboard</h2>
+                    <p class="text-xs sm:text-sm text-dev-200 mt-1">Định hướng phát triển sản phẩm · CI/CD · Roadmap · Kỹ thuật xây dựng</p>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <a href="/api/health" class="px-3 py-2 bg-dev-700 hover:bg-dev-600 text-white text-xs rounded-lg transition">API Health</a>
+                    <a href="/tong-quan" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition">Tổng Quan</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-xl sm:text-2xl">👥</div>
+                    <span class="text-[10px] sm:text-xs text-green-600 font-semibold bg-green-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.active_users }} active</span>
+                </div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_users }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Thành viên</div>
+            </div>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-xl sm:text-2xl">🏛️</div>
+                    <span class="text-[10px] sm:text-xs text-dev-600 font-semibold bg-dev-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.total_topics }} chủ đề</span>
+                </div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_groups }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Nhóm cộng đồng</div>
+            </div>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-xl sm:text-2xl">📚</div>
+                    <span class="text-[10px] sm:text-xs text-amber-600 font-semibold bg-amber-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.pending_reviews }} duyệt</span>
+                </div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_books }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Sách trong thư viện</div>
+            </div>
+            <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center justify-between mb-2 sm:mb-3">
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-xl sm:text-2xl">💬</div>
+                    <span class="text-[10px] sm:text-xs text-blue-600 font-semibold bg-blue-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">{{ stats.total_mails }} thư</span>
+                </div>
+                <div class="text-2xl sm:text-3xl font-bold text-gray-900">{{ stats.total_comments }}</div>
+                <div class="text-xs sm:text-sm text-gray-500 mt-1">Bình luận</div>
+            </div>
+        </div>
+
+        <!-- Roadmap & CI/CD Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <!-- Product Roadmap -->
+            <div class="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
+                <h3 class="font-bold text-dev-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                    <span class="text-lg sm:text-xl">🗺️</span> Roadmap Phát Triển
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex items-start gap-3 p-3 bg-dev-50 rounded-lg border border-dev-100">
+                        <div class="w-6 h-6 bg-dev-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">37</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-dev-900">Admin Phát Triển Dashboard</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Dashboard riêng · Logo emoji · Version sync v0.9.32</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-dev-600 text-white text-[10px] rounded-full font-semibold">Đang triển khai</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="w-6 h-6 bg-gray-400 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">38</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-gray-700">Nhà Nhạc Thiền</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Phát nhạc thiền · 5 thư mục nhạc · Kho nhạc Phật giáo</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-gray-400 text-white text-[10px] rounded-full font-semibold">Kế hoạch</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="w-6 h-6 bg-gray-400 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">39</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-gray-700">Thương Thành MVP</div>
+                            <div class="text-xs text-gray-500 mt-0.5">CRUD vật phẩm · Giỏ hàng · Giao dịch K</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-gray-400 text-white text-[10px] rounded-full font-semibold">Kế hoạch</span>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                        <div class="w-6 h-6 bg-gray-400 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">40</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-semibold text-gray-700">Game Siêu Độ (Web)</div>
+                            <div class="text-xs text-gray-500 mt-0.5">Cổng Du Hí · Bản đồ · Siêu độ · Tu cũng niệm Phật</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-gray-400 text-white text-[10px] rounded-full font-semibold">Tương lai</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CI/CD & Deploy -->
+            <div class="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
+                <h3 class="font-bold text-dev-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                    <span class="text-lg sm:text-xl">🚀</span> CI/CD &amp; Triển khai
+                </h3>
+                <div class="space-y-3">
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-green-800">GitHub Actions</span>
+                            <span class="flex items-center gap-1 text-xs text-green-600">
+                                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Active
+                            </span>
+                        </div>
+                        <div class="text-xs text-green-600 mt-1">Build → Push GHCR → Trigger Coolify deploy</div>
+                    </div>
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-green-800">Coolify Deploy</span>
+                            <span class="flex items-center gap-1 text-xs text-green-600">
+                                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Running
+                            </span>
+                        </div>
+                        <div class="text-xs text-green-600 mt-1">Auto-pull :latest · SSL Let's Encrypt · Health check</div>
+                    </div>
+                    <div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-blue-800">Docker Image</span>
+                            <span class="text-xs text-blue-600">~30 MB</span>
+                        </div>
+                        <div class="text-xs text-blue-600 mt-1">ghcr.io/mhieuhonda/tubi-app — Rust 1.97.1 · Multi-stage</div>
+                    </div>
+                    <div class="p-3 bg-dev-50 rounded-lg border border-dev-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-dev-800">Domain</span>
+                            <a href="https://tubi.louis.vangioitutien.com" class="text-xs text-dev-600 hover:underline truncate">tubi.louis.vangioitutien.com</a>
+                        </div>
+                        <div class="text-xs text-dev-600 mt-1">Traefik reverse proxy · PostgreSQL 17 · Sub VPS</div>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-purple-800">Migrations</span>
+                            <span class="text-xs text-purple-600">22 files</span>
+                        </div>
+                        <div class="text-xs text-purple-600 mt-1">Auto-migrate on startup · Idempotent · Safety schema check</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+            <a href="/admin/ky-thuat/nhat-ky" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-dev-100 transition shrink-0">📋</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-dev-900 transition truncate">Nhật ký Hệ thống</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">Audit log · Hoạt động · Bảo mật</p>
+                </div>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-dev-500 transition shrink-0">→</span>
+            </a>
+            <a href="/admin/thanh-vien" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-dev-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-dev-100 transition shrink-0">👥</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-dev-900 transition truncate">Thành viên</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">{{ stats.total_users }} users · {{ stats.admin_count }} admin</p>
+                </div>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-dev-500 transition shrink-0">→</span>
+            </a>
+            <a href="/admin/kinh-sach" class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 stat-card group flex items-center gap-3 sm:gap-4">
+                <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center text-2xl sm:text-3xl group-hover:bg-amber-100 transition shrink-0">📚</div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm sm:text-lg font-bold text-gray-800 group-hover:text-dev-900 transition truncate">Kinh Sách</h3>
+                    <p class="text-xs text-gray-500 truncate hidden sm:block">{{ stats.pending_reviews }} cảm ngộ chờ duyệt</p>
+                </div>
+                <span class="text-xl sm:text-2xl text-gray-300 group-hover:text-dev-500 transition shrink-0">→</span>
+            </a>
+        </div>
+
+        <!-- Permission Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
+            <div class="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
+                <h3 class="font-bold text-dev-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                    <span class="text-lg">🔐</span> Quyền — 39/150 (admin ngang hàng)
+                </h3>
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between p-3 bg-dev-50 rounded-lg">
+                        <span class="text-sm font-medium text-dev-800">⚙️ System (10)</span>
+                        <span class="text-xs text-dev-600">Config, deploy, migrate, cache, log</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+                        <span class="text-sm font-medium text-red-800">🔒 Security (5)</span>
+                        <span class="text-xs text-red-600">Rate limit, CSRF, audit, ban, firewall</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                        <span class="text-sm font-medium text-purple-800">📊 Analytics (6)</span>
+                        <span class="text-xs text-purple-600">Reports, stats, export, tracking</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                        <span class="text-sm font-medium text-blue-800">🧭 Navigation (5)</span>
+                        <span class="text-xs text-blue-600">Menu, settings, theme, layout, footer</span>
+                    </div>
+                    <div class="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
+                        <span class="text-sm font-medium text-gray-700">🖼️ Media (5) · 🔗 API (1)</span>
+                        <span class="text-xs text-gray-500">Upload, CDN, optimize + API access</span>
+                    </div>
+                </div>
+                <div class="mt-4 p-3 bg-dev-50 rounded-lg text-xs text-dev-700">
+                    💡 <strong>Không có quyền:</strong> users (7) · content (10) · community (10) · kinh_sach (10) · fund (10) — đây là quyền của các Admin khác
+                </div>
+            </div>
+
+            <!-- Product Direction -->
+            <div class="bg-white rounded-xl sm:rounded-2xl p-5 sm:p-6 shadow-sm border border-gray-100">
+                <h3 class="font-bold text-dev-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                    <span class="text-lg">🎯</span> Định hướng Phát triển
+                </h3>
+                <div class="space-y-4 text-sm text-gray-700">
+                    <div class="p-3 bg-green-50 rounded-lg border border-green-100">
+                        <div class="font-semibold text-green-800 mb-1">🪷 Nguyên tắc cốt lõi</div>
+                        <div class="text-xs text-green-700">Phát triển cộng đồng trước, công nghệ sau. Công nghệ cấp thiết cho cộng đồng phát triển trước.</div>
+                    </div>
+                    <div class="p-3 bg-dev-50 rounded-lg border border-dev-100">
+                        <div class="font-semibold text-dev-800 mb-1">📊 Hiện tại (Giai đoạn I)</div>
+                        <div class="text-xs text-dev-700">Nền móng hạ tầng · 4 chuyên mục · Hệ thống A/I/K · Admin · Cộng đồng · Kinh sách · Bạn bè</div>
+                    </div>
+                    <div class="p-3 bg-amber-50 rounded-lg border border-amber-100">
+                        <div class="font-semibold text-amber-800 mb-1">🔮 Giai đoạn II (100 ngày)</div>
+                        <div class="text-xs text-amber-700">Hệ sinh thái · 10K users · 50K cộng đồng · Game Siêu Độ · AI Từ Bi</div>
+                    </div>
+                    <div class="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div class="font-semibold text-purple-800 mb-1">🌍 Giai đoạn III (1000 ngày)</div>
+                        <div class="text-xs text-purple-700">Toàn cầu hóa · Đông Nam Á · Nhật · Hàn · Học viện Từ Bi</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-100 border-t border-gray-200 mt-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-gray-500">
+            🪷 Ứng Dụng Từ Bi v0.9.32 · Admin Phát Triển · 39/150 quyền (admin ngang hàng — phụ trách system/security/analytics/navigation/api) · Nguyện công đức vô lượng
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -6,6 +6,78 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.32] — 2026-08-16 — Giai đoạn 37: Admin Phát Triển Dashboard + Logo Emoji 🪷 + Version Sync
+
+### 🎯 Mục tiêu giai đoạn
+
+Tạo **dashboard riêng** cho Admin Phát Triển (`/admin/phat-trien`) — thay thế việc tạm dùng `/admin/ky-thuat`. Đổi hoàn toàn logo sang **emoji hoa sen 🪷** (thay SVG lotus phức tạp). Đồng bộ version v0.9.32 trên tất cả file — fix version drift từ v0.9.19/v0.9.29/v0.9.30.
+
+### 🧭 Admin Phát Triển Dashboard (MAJOR)
+
+- **[DASH-1] `templates/admin/phat-trien/index.html`** — Tạo dashboard riêng cho admin_phat_trien:
+  - Phong cách: **indigo/vision/roadmap** — màu chủ đạo `#312E81` (indigo-900)
+  - 4 stats card: Thành viên · Nhóm · Sách · Bình luận
+  - **Roadmap Phát Triển**: Giai đoạn 37 (đang triển khai) · 38 (Nhà Nhạc) · 39 (Thương Thành) · 40 (Game Siêu Độ)
+  - **CI/CD & Triển khai**: GitHub Actions · Coolify · Docker Image · Domain · Migrations
+  - 3 Quick actions: Nhật ký · Thành viên · Kinh Sách
+  - Permission summary: 39/150 quyền (system/security/analytics/navigation/api + media)
+  - **Định hướng Phát triển**: Nguyên tắc cốt lõi · 3 giai đoạn (I/II/III)
+  - Tab navigation: Tổng quan · Nhật ký · Thành viên · Kinh Sách · Quỹ
+  - Phase banner: Giai đoạn 37 · v0.9.32
+
+- **[DASH-2] `src/handlers/admin.rs`** — Thêm handler `admin_phat_trien_dashboard`:
+  - Permission check: chỉ `admin_phat_trien` vào được
+  - Template struct `AdminPhatTrienTemplate` với Askama
+  - Cập nhật module doc: "4 giao diện admin riêng biệt" (thêm /admin/phat-trien)
+
+- **[DASH-3] `src/main.rs`** — Thêm route `GET /admin/phat-trien`
+
+- **[DASH-4] `src/models/user.rs`** — Cập nhật `admin_dashboard_path()`:
+  - `admin_phat_trien` giờ trả `/admin/phat-trien` (trước đây trả `/admin/ky-thuat`)
+  - Xóa TODO comment "Dashboard riêng sẽ thêm ở giai đoạn sau"
+
+- **[DASH-5] `src/main.rs` health check** — `admin_phat_trien_dashboard` giờ là `/admin/phat-trien`
+
+### 🪷 Logo Emoji Hoa Sen (MAJOR)
+
+- **[LOGO-1] `templates/layout.html`** — Favicon đổi từ SVG sang inline emoji SVG data URI:
+  - `<link rel="icon" href="data:image/svg+xml,...🪷...">`
+  - Header logo đổi từ `<img src="/static/logo-inline.svg">` sang `<span>🪷</span>`
+  - Footer version cập nhật v0.9.32
+
+- **[LOGO-2] `templates/home.html`** — Hero logo đổi từ `<img src="/static/logo.svg">` sang `<span>🪷</span>`
+
+- **[LOGO-3] `src/static/favicon.svg`** — Thay bằng emoji-based SVG: `<text>🪷</text>`
+
+- **[LOGO-4] `src/static/logo.svg`** — Thay bằng emoji-based SVG: `<text>🪷</text>`
+
+- **[LOGO-5] `src/static/logo-inline.svg`** — Thay bằng emoji-based SVG: `<text>🪷</text>`
+
+- **[LOGO-6] Tất cả admin templates** — Favicon đồng nhất sang emoji 🪷 (6 file: cong-dong/index, cong-dong/cam-ngo, quan-li/index, placeholder, phat-trien/index, ky-thuat/index)
+
+### 📦 Version Sync v0.9.32
+
+- **[VER-1] `Cargo.toml`** — `version = "0.9.32"`
+- **[VER-2] `src/main.rs`** — Startup log v0.9.32 + phase 37 + health check version/phase
+- **[VER-3] `templates/layout.html`** — Footer: v0.9.32
+- **[VER-4] `Dockerfile.coolify`** — Comment: v0.9.32 — Giai đoạn 37
+- **[VER-5] Tất cả admin templates** — Fix version drift: v0.9.19/v0.9.29/v0.9.30 → v0.9.32 (31 replacements across 9 files)
+- **[VER-6] `templates/khong-gian/index.html`** — Footer: v0.9.32
+
+### 📋 Health Check Updates
+
+- `HEALTH_FEATURES` thêm 6 features mới:
+  - `admin-phat-trien-dashboard-v0.9.32`
+  - `admin-phat-trien-indigo-vision-theme-v0.9.32`
+  - `admin-4-dashboards-separate-v0.9.32`
+  - `logo-emoji-lotus-v0.9.32`
+  - `favicon-emoji-lotus-v0.9.32`
+  - `version-sync-v0.9.32`
+- `roles.admin_phat_trien_dashboard` → `/admin/phat-trien`
+- `v0_9_32_note` — Mô tả thay đổi giai đoạn 37
+
+---
+
 ## [0.9.30] — 2026-08-16 — Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep
 
 ### 🎯 Mục tiêu giai đoạn

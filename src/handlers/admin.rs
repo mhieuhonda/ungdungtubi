@@ -12,11 +12,11 @@
 //!                       nhưng mỗi người phụ trách một mảng khác nhau.
 //!                       Không ai cao hơn ai — quyền hạn theo lĩnh vực."
 //!
-//! 3 giao diện admin riêng biệt (phong cách khác nhau, ngang hàng về quyền):
+//! 4 giao diện admin riêng biệt (phong cách khác nhau, ngang hàng về quyền):
 //!   - /admin/ky-thuat    — Phong cách coder/terminal (tối, ngầu, Matrix)
 //!   - /admin/cong-dong   — Phong cách community mod (xanh, social)
 //!   - /admin/quan-li     — Phong cách executive (vàng, premium)
-//!   (admin_phat_trien dùng dashboard /admin/ky-thuat vì scope giao thoa)
+//!   - /admin/phat-trien  — Phong cách product dev (indigo, vision, roadmap) — v0.9.32
 //!
 //! Routes:
 //!   - GET  /admin                       — Redirect đến dashboard tương ứng role
@@ -220,6 +220,14 @@ pub struct AdminQuanLiTemplate {
     pub stats: AdminStats,
 }
 
+/// Admin Phát Triển dashboard — product dev/vision style — v0.9.32 (Giai đoạn 37)
+#[derive(Template)]
+#[template(path = "admin/phat-trien/index.html")]
+pub struct AdminPhatTrienTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+}
+
 /// Shared users list template (extends layout.html — phong cách web chính)
 #[derive(Template)]
 #[template(path = "admin/users.html")]
@@ -348,6 +356,37 @@ pub async fn admin_quan_li_dashboard(State(state): State<AppState>, jar: CookieJ
     .render()
     .unwrap_or_else(|e| {
         log::error!("Template render error (admin quan-li): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// GET /admin/phat-trien — Dashboard Admin Phát Triển (product dev/vision style).
+///
+/// v0.9.32 (Giai đoạn 37): Dashboard riêng cho admin_phat_trien.
+/// Trước đây admin_phat_trien dùng /admin/ky-thuat vì scope giao thoa.
+/// Giờ có dashboard riêng với phong cách: indigo, vision, roadmap, CI/CD.
+/// Chỉ admin_phat_trien mới vào được trang này.
+pub async fn admin_phat_trien_dashboard(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+
+    // Permission check — chỉ admin_phat_trien
+    if !user.is_admin_phat_trien() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+
+    let html = AdminPhatTrienTemplate {
+        user: Some(user),
+        stats,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin phat-trien): {e}");
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
 

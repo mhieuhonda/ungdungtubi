@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.19</title>
-    <!-- v0.9.19: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.32</title>
+    <!-- v0.9.32: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -38,7 +38,7 @@
         }
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪷</text></svg>">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
     <style>
@@ -100,7 +100,7 @@
 
             <!-- Right: version + user + exit -->
             <div class="flex items-center gap-2 md:gap-4">
-                <span class="hidden sm:inline-flex chip">v0.9.19</span>
+                <span class="hidden sm:inline-flex chip">v0.9.32</span>
                 <span class="hidden md:inline-flex chip">Rust 1.97.1</span>
                 {% if let Some(u) = user %}
                 <div class="hidden sm:flex items-center gap-2">
@@ -258,7 +258,7 @@
                     </div>
                     <div class="bg-code-panel/60 border border-code-border rounded-lg p-3">
                         <div class="text-code-muted mb-1">Phiên bản</div>
-                        <div class="text-base font-semibold text-code-text mono">v0.9.19</div>
+                        <div class="text-base font-semibold text-code-text mono">v0.9.32</div>
                     </div>
                 </div>
             </section>
@@ -300,7 +300,7 @@
                         </div>
                     </a>
 
-                    <!-- Quản lý nhóm — v0.9.19: fix nav → /admin/cong-dong/nhom (admin placeholder) -->
+                    <!-- Quản lý nhóm — v0.9.32: fix nav → /admin/cong-dong/nhom (admin placeholder) -->
                     <a href="/admin/cong-dong/nhom" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-cyan/15 flex items-center justify-center text-lg shrink-0 transition">🏛️</div>
                         <div class="min-w-0">
@@ -309,7 +309,7 @@
                         </div>
                     </a>
 
-                    <!-- Quản lý sách — v0.9.19: fix nav → /admin/kinh-sach (admin placeholder) -->
+                    <!-- Quản lý sách — v0.9.32: fix nav → /admin/kinh-sach (admin placeholder) -->
                     <a href="/admin/kinh-sach" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">📚</div>
                         <div class="min-w-0">
@@ -327,7 +327,7 @@
                         </div>
                     </a>
 
-                    <!-- Bình luận — v0.9.19: fix nav → /admin/binh-luan (admin placeholder) -->
+                    <!-- Bình luận — v0.9.32: fix nav → /admin/binh-luan (admin placeholder) -->
                     <a href="/admin/binh-luan" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-amber/15 flex items-center justify-center text-lg shrink-0 transition">💬</div>
                         <div class="min-w-0">
@@ -372,7 +372,7 @@
                         </div>
                     </a>
 
-                    <!-- Quỹ Từ Bi — v0.9.19: fix nav → /admin/quy-tu-bi (admin placeholder) -->
+                    <!-- Quỹ Từ Bi — v0.9.32: fix nav → /admin/quy-tu-bi (admin placeholder) -->
                     <a href="/admin/quy-tu-bi" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-accent/15 flex items-center justify-center text-lg shrink-0 transition">🪷</div>
                         <div class="min-w-0">
@@ -434,7 +434,7 @@
                 <p class="text-xs text-code-soft bg-code-panel/60 border border-code-border rounded-lg p-3 leading-relaxed">
                     Hệ thống có <strong class="text-code-accent">150 quyền chi tiết</strong> chia 10 nhóm × 10 quyền:
                     <span class="text-code-muted">system · users · content · community · kinh_sach · fund · achievements · security · media · analytics</span>.
-                    v0.9.30: 4 admin NGANG HÀNH (cấp 3) — Kỹ Thuật 41 quyền (system/security/media/analytics) · Quản Lí 40 quyền (users/content/community/fund) · Cộng Đồng 45 quyền (content/community/friends/mail/events/achievements/media) · Phát Triển 39 quyền (system/security/analytics/navigation/api).
+                    v0.9.32: 4 admin NGANG HÀNH (cấp 3) — Kỹ Thuật 41 quyền (system/security/media/analytics) · Quản Lí 40 quyền (users/content/community/fund) · Cộng Đồng 45 quyền (content/community/friends/mail/events/achievements/media) · Phát Triển 39 quyền (system/security/analytics/navigation/api).
                 </p>
 
                 <!-- Permission summary — 10 nhóm, mỗi nhóm 1 card -->
@@ -583,7 +583,7 @@
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.19 · Admin Kỹ Thuật ·
+                        <span>Ứng Dụng Từ Bi v0.9.32 · Admin Kỹ Thuật ·
                             {% if let Some(u) = user %}{{ u.permission_count() }}/{{ u.system_permission_count() }} quyền{% else %}0/0 quyền{% endif %}
                         </span>
                     </div>
