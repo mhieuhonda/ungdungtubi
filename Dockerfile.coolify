@@ -33,4 +33,4 @@
 # Trước v0.9.26: developer phải push 2 commit (code commit + Dockerfile.coolify update commit)
 # → dễ quên bước 2 → Coolify deploy old code → "deploy thành công nhưng production không đổi".
 # Giờ v0.9.26: chỉ cần push 1 commit code, workflow tự lo phần còn lại.
-FROM ghcr.io/mhieuhonda/tubi-app:sha-7994992
+FROM ghcr.io/mhieuhonda/tubi-app:sha-a704498
