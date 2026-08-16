@@ -45,7 +45,7 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.30 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.31 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
@@ -247,6 +247,11 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route(
             "/api/chat-chung/history",
             get(handlers::chat::global_chat_history),
+        )
+        // v0.9.31: REST fallback cho global chat — gửi tin nhắn qua HTTP khi WS không khả dụng
+        .route(
+            "/api/chat-chung/gui",
+            post(handlers::chat::global_chat_send_rest),
         )
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))

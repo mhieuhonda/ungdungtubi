@@ -133,6 +133,90 @@ pub struct GlobalChatHistoryQuery {
     pub limit: Option<i64>,
 }
 
+/// v0.9.31 — Giai đoạn 36: REST fallback cho global chat.
+/// POST /api/chat-chung/gui — Gửi tin nhắn chat chung qua HTTP (khi WS không khả dụng).
+#[derive(Debug, serde::Deserialize)]
+pub struct GlobalChatSendRequest {
+    pub body: String,
+}
+
+pub async fn global_chat_send_rest(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Json(req): Json<GlobalChatSendRequest>,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
+        Some(u) => u,
+        None => return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập.").into_response(),
+    };
+
+    let body = req.body.trim().to_string();
+    if body.is_empty() || body.chars().count() > MAX_CHAT_BODY_CHARS {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            "Tin nhắn không hợp lệ.",
+        )
+            .into_response();
+    }
+
+    use crate::models::community::{GlobalChatMessage, GlobalChatMessageWithAuthor};
+
+    let saved: Result<GlobalChatMessageWithAuthor, _> = sqlx::query_as::<_, GlobalChatMessage>(
+        "INSERT INTO global_chat_messages (author_id, body)
+         VALUES ($1, $2)
+         RETURNING id, author_id, body, is_active, created_at",
+    )
+    .bind(user.id)
+    .bind(&body)
+    .fetch_one(&state.pool)
+    .await
+    .map(|m| GlobalChatMessageWithAuthor {
+        id: m.id,
+        author_id: m.author_id,
+        body: m.body,
+        is_active: m.is_active,
+        created_at: m.created_at,
+        author_display_name: user.display_name.clone(),
+        author_avatar_url: user.avatar_url.clone(),
+        author_rank: user.rank.clone(),
+        author_role: Some(user.role.clone()),
+    });
+
+    match saved {
+        Ok(msg) => {
+            // Broadcast qua WebSocket để user khác online nhận realtime
+            let payload = serde_json::to_string(&msg).unwrap_or_else(|_| "{}".into());
+            let hub = state.global_chat_hub.clone();
+            let pool = state.pool.clone();
+            tokio::spawn(async move {
+                hub.broadcast(payload).await;
+                // Auto-prune
+                let _ = sqlx::query(
+                    "DELETE FROM global_chat_messages
+                     WHERE id IN (
+                         SELECT id FROM global_chat_messages
+                         WHERE is_active = true
+                         ORDER BY created_at DESC
+                         OFFSET $1
+                     )",
+                )
+                .bind(GLOBAL_CHAT_MAX_MESSAGES)
+                .execute(&pool)
+                .await;
+            });
+            Json(msg).into_response()
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi lưu global chat message (REST): {e}");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "Không lưu được tin nhắn.",
+            )
+                .into_response()
+        }
+    }
+}
+
 /// GET /api/chat-chung/history — Public endpoint
 pub async fn global_chat_history(
     State(state): State<AppState>,

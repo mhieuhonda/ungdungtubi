@@ -271,8 +271,9 @@ pub async fn admin_ky_thuat_dashboard(State(state): State<AppState>, jar: Cookie
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    // Permission check — chỉ admin_ky_thuat
-    if !user.is_admin_ky_thuat() {
+    // v0.9.31: Permission check — admin_ky_thuat HOẶC admin_phat_trien
+    // (admin_phat_trien có cùng scope system + security + analytics)
+    if !user.is_admin_ky_thuat() && !user.is_admin_phat_trien() {
         return render_forbidden(&user);
     }
 
@@ -362,7 +363,8 @@ pub async fn admin_ky_thuat_users_redirect(State(state): State<AppState>, jar: C
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
     };
-    if !user.is_admin_ky_thuat() {
+    // v0.9.31: Cho phép admin_phat_trien truy cập
+    if !user.is_admin_ky_thuat() && !user.is_admin_phat_trien() {
         return render_forbidden(&user);
     }
     Redirect::to("/admin/thanh-vien").into_response()
@@ -737,7 +739,8 @@ pub async fn admin_audit_log_page(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    if !user.is_admin_ky_thuat() {
+    // v0.9.31: Cho phép admin_phat_trien xem audit log
+    if !user.is_admin_ky_thuat() && !user.is_admin_phat_trien() {
         return render_forbidden(&user);
     }
 

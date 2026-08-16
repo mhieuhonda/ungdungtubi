@@ -4,38 +4,45 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.30 — Giai đoạn 35
+## 📦 Phiên bản hiện tại: v0.9.31 — Giai đoạn 36
+
+**Giai đoạn 36: Chat UX Overhaul + Role Badge Cleanup + Bug Fix Sweep + Logo Redesign 🪷**
+
+Chat UX overhauled — xóa role badge trong chat theo yêu cầu user, redesign logo thành hoa sen cách điệu, fix admin_phat_trien 403 Forbidden, thêm REST fallback cho global chat, tối ưu WebSocket reconnect timing.
+
+### 🪷 Logo Redesign — Hoa Sen trên bàn phím
+
+- **[LOGO-1]** `logo.svg` — Redesign hoàn toàn thành hoa sen cách điệu (5 cánh ngoài + 3 cánh trong + nhụy vàng), gradient xanh lá + vàng
+- **[LOGO-2]** `logo-inline.svg` — Inline variant (48x48) cùng phong cách
+- **[LOGO-3]** `favicon.svg` — Favicon (64x64) cùng phong cách hoa sen
+
+### 🗑️ Xóa Role Badge trong Chat
+
+- **[BADGE-1]** `chat.js` — `roleBadgeHtml()` trả về rỗng (xóa ⚙️ SYS, 👑 ADMIN, 🛡️ ADMIN, 🧭 DEV, 📜 MOD)
+- **[BADGE-2]** `app.css` — `.chat-role-badge` ẩn hoàn toàn (`display: none !important`)
+- Theo yêu cầu user: "Xóa biểu tượng bên cạnh tên như SYS hay ADMIN khi admin/mod nhắn tin vì như thế sẽ bị khó chịu"
+
+### 🐛 Bug Fix Sweep
+
+- **[FIX-1]** `admin.rs` — Fix admin_phat_trien 403 Forbidden trên /admin/ky-thuat dashboard. Thay `is_admin_ky_thuat()` bằng `is_admin_ky_thuat() || is_admin_phat_trien()` cho 3 handler: dashboard, users redirect, audit log.
+- **[FIX-2]** `app.css` — Thêm CSS cho `.chat-msg-admin-phat-trien`, `.chat-msg-admin-phat-trien-name`, `.chat-avatar-admin-phat-trien`, `.chat-role-badge-admin-phat-trien` (trước đây thiếu hoàn toàn).
+- **[FIX-3]** `conversation.html` — DM template dùng `authorLabel()`, `msgBubbleClass()`, `msgNameClass()`, `roleBadgeHtml()` — đồng nhất với global chat.
+- **[FIX-4]** `chat.rs` + `main.rs` — Thêm REST fallback endpoint `POST /api/chat-chung/gui` cho global chat. Fix mất tin nhắn khi WS không kết nối được.
+- **[FIX-5]** `chat.js` — REST fallback `_sendViaRest()` cho globalChat (giống dmChat v0.9.30).
+
+### ⚡ Tối ưu WebSocket Chat
+
+- **[PERF-1]** `chat.js` — Đồng bộ client ping interval từ 30s → 25s (match server).
+- **[PERF-2]** `chat.js` — Giảm reconnect delay: max 3s (từ 8s), attempt 1 = 200ms (từ 500ms).
+- **[PERF-3]** `chat.js` — Giảm health check timeout từ 60s → 40s.
+
+---
+
+## 📦 Phiên bản trước: v0.9.30 — Giai đoạn 35
 
 **Giai đoạn 35: Admin Phát Triển Role + DM REST Fallback + Bug Fix Sweep**
 
-Thêm chính thức chức vụ "Admin Phát Triển" (`admin_phat_trien`) vào hệ thống — vai trò mà v0.9.29 đã phải tạm đổi sang "Admin Cộng Đồng" vì role chưa tồn tại. Cập nhật thông tin Võ Đăng Trọng Nghĩa (đổi sang Admin Phát Triển, không tôn giáo). Fix triệt để lỗi "không thể gửi tin nhắn cho bạn bè" bằng REST fallback endpoint đảm bảo tin nhắn LUÔN gửi được.
-
-### 🧭 Thêm role `admin_phat_trien` — Admin Phát Triển
-
-- **[ROLE-1] Migration 022** — Thêm role `admin_phat_trien` vào hệ thống (6 giá trị trong CHECK constraint: member, mod, admin_ky_thuat, admin_cong_dong, admin_quan_li, **admin_phat_trien**). Seed 39 quyền: system + users + security + media + analytics + navigation + api. Scope: định hướng phát triển sản phẩm, CI/CD, roadmap.
-
-- **[ROLE-2] `src/models/user.rs` — Full support** — `role_display()` → "Admin Phát Triển", `role_icon()` → 🧭, `role_color()` → indigo-900, `role_level()` → 3 (ngang hàng), `is_admin()` → include, `has_permission_code()` → 39 quyền, `permission_count()` → 39, `admin_dashboard_path()` → `/admin/ky-thuat`.
-
-- **[ROLE-3] `src/handlers/admin.rs`** — Validate role trong `admin_change_role`, badge 🧭, color indigo. `templates/admin/users.html` — thêm option trong dropdown.
-
-### 👥 Cập nhật trang Đội Ngũ Quản Lí — Võ Đăng Trọng Nghĩa
-
-- **Võ Đăng Trọng Nghĩa**: đổi vai trò từ "Admin Cộng Đồng" → **"Admin Phát Triển"** (role `admin_phat_trien` giờ đã tồn tại trong code). Đổi tôn giáo từ "Phật giáo" → **"Không"** (cập nhật thông tin). Đổi icon 🛡️ → 🧭, màu blue → indigo. Đổi `role_detail` → "Định hướng phát triển sản phẩm, roadmap và kỹ thuật xây dựng".
-- Section "Hệ Thống Vai Trò Quản Lí": grid 4 cột hiển thị **4 admin ngang hàng** (Kỹ Thuật · Quản Lí · Cộng Đồng · Phát Triển) + Mod + Thành Viên.
-
-### 🔧 Fix lỗi không thể gửi tin nhắn cho bạn bè (CRITICAL — DM REST Fallback)
-
-- **[DM-1] REST fallback endpoint** `POST /api/ban-be/tin-nhan/{conversation_id}/gui` — v0.9.29 đã fix nút Gửi bị disable, nhưng nếu WS fail vĩnh viễn (exhausted 10 reconnect attempts), tin nhắn vẫn kẹt trong queue. v0.9.30 thêm endpoint REST dự phòng: frontend thử WS trước, nếu không OPEN thì fallback HTTP POST → server lưu DB + broadcast hub → tin nhắn LUÔN gửi được.
-
-- **[DM-2] `chat.js` — `dmChat.send()` cập nhật** — WS OPEN → gửi WS (fast path); WS không OPEN → `_sendViaRest()` (reliable path). Optimistic clear draft, error handling đầy đủ (401/403/400/network), reset reconnectAttempts khi network error.
-
-- **[DM-3] Thêm role `admin_phat_trien` vào chat helpers** — `msgBubbleClass`, `roleBadgeHtml` (🧭 DEV badge) cho admin_phat_trien.
-
-### 📦 Version Sync
-
-- Bump version `0.9.29` → `0.9.30` ở: `Cargo.toml`, `src/main.rs` (log + health check + phase 34 → 35), `templates/layout.html` (footer), `src/handlers/mod.rs` (placeholder footer — fix version drift v0.9.28 → v0.9.30).
-- Thêm 10 feature flags v0.9.30 vào `HEALTH_FEATURES` array.
-- Cập nhật `roles` object trong health check: hierarchy + permission_counts + admin_panel_access thêm `admin_phat_trien`.
+Xem chi tiết trong CHANGELOG.md.
 
 ---
 

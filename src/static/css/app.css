@@ -439,11 +439,13 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
  *   - Đồng nhất UX: mọi tin nhắn đều hiển thị như nhau, chỉ khác badge role
  * ───────────────────────────────────────────────────────────────────────── */
 
-/* v0.9.29: Vô hiệu hóa hoàn toàn hiệu ứng admin/mod message — giữ class nhưng
-   không có style đặc biệt (chỉ là bubble thường). */
+/* v0.9.31: Vô hiệu hóa hoàn toàn hiệu ứng admin/mod message — giữ class nhưng
+   không có style đặc biệt (chỉ là bubble thường).
+   Thêm admin-phat-trien vào danh sách. */
 .chat-msg-admin-ky-thuat,
 .chat-msg-admin-quan-li,
 .chat-msg-admin-cong-dong,
+.chat-msg-admin-phat-trien,
 .chat-msg-mod {
     /* Không style đặc biệt — render như .chat-msg-bubble thường */
     background: white !important;
@@ -458,19 +460,21 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
     overflow: visible !important;
 }
 
-/* v0.9.29: Xóa ::before pseudo-element (đã từng là 👑/🛡️/📜 icon) */
+/* v0.9.31: Xóa ::before pseudo-element (đã từng là 👑/🛡️/📜/🧭 icon) */
 .chat-msg-admin-ky-thuat::before,
 .chat-msg-admin-quan-li::before,
 .chat-msg-admin-cong-dong::before,
+.chat-msg-admin-phat-trien::before,
 .chat-msg-mod::before {
     content: none !important;
     display: none !important;
 }
 
-/* v0.9.29: Tên author admin/mod — không màu đặc biệt, không glow */
+/* v0.9.31: Tên author admin/mod — không màu đặc biệt, không glow */
 .chat-msg-admin-ky-thuat-name,
 .chat-msg-admin-quan-li-name,
 .chat-msg-admin-cong-dong-name,
+.chat-msg-admin-phat-trien-name,
 .chat-msg-mod-name {
     color: #374151 !important;
     font-family: inherit !important;
@@ -478,20 +482,22 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
     text-shadow: none !important;
 }
 
-/* v0.9.29: Avatar admin/mod — không viền glow, không pulse */
+/* v0.9.31: Avatar admin/mod — không viền glow, không pulse */
 .chat-avatar-admin-ky-thuat,
 .chat-avatar-admin-quan-li,
 .chat-avatar-admin-cong-dong,
+.chat-avatar-admin-phat-trien,
 .chat-avatar-mod {
     border: 1px solid #e5e7eb !important;
     box-shadow: none !important;
     animation: none !important;
 }
 
-/* v0.9.29: Dark mode — cũng giữ style đồng nhất, không gradient phức tạp */
+/* v0.9.31: Dark mode — cũng giữ style đồng nhất, không gradient phức tạp */
 .dark .chat-msg-admin-ky-thuat,
 .dark .chat-msg-admin-quan-li,
 .dark .chat-msg-admin-cong-dong,
+.dark .chat-msg-admin-phat-trien,
 .dark .chat-msg-mod {
     background: #0f172a !important;
     color: #e2e8f0 !important;
@@ -501,42 +507,25 @@ body, header, footer, nav, main, section, article, aside, div, button, a, input,
 .dark .chat-msg-admin-ky-thuat-name,
 .dark .chat-msg-admin-quan-li-name,
 .dark .chat-msg-admin-cong-dong-name,
+.dark .chat-msg-admin-phat-trien-name,
 .dark .chat-msg-mod-name {
     color: #cbd5e1 !important;
 }
 
-/* ─── Role badge mini trong chat (cạnh tên) ─── */
+/* v0.9.31: XÓA HOÀN TOÀN role badge mini trong chat (cạnh tên).
+   Theo yêu cầu user: "Xóa biểu tượng bên cạnh tên như SYS, ADMIN, DEV, MOD
+   khi admin hay mod nhắn tin vì như thế sẽ bị khó chịu."
+   Giữ class CSS để tránh break selector nhưng ẩn hoàn toàn. */
 .chat-role-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 9px;
-    font-weight: 700;
-    margin-left: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    display: none !important;
 }
 
-.chat-role-badge-admin-ky-thuat {
-    background: #00ff41;
-    color: #0a0e0a;
-}
-
-.chat-role-badge-admin-quan-li {
-    background: #FF6F00;
-    color: white;
-}
-
-.chat-role-badge-admin-cong-dong {
-    background: #1565C0;
-    color: white;
-}
-
+.chat-role-badge-admin-ky-thuat,
+.chat-role-badge-admin-quan-li,
+.chat-role-badge-admin-cong-dong,
+.chat-role-badge-admin-phat-trien,
 .chat-role-badge-mod {
-    background: #0F766E;
-    color: white;
+    display: none !important;
 }
 
 /* ====================================================================

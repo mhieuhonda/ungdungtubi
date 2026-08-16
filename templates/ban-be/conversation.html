@@ -80,11 +80,14 @@
           </template>
           <div class="flex-1 min-w-0 max-w-[80%]">
             <div class="flex items-baseline gap-2" :class="msg.author_id === otherUserId ? '' : 'justify-end'">
-              <span class="text-xs font-semibold text-gray-700" x-text="msg.author_display_name"></span>
+              <!-- v0.9.31: Dùng authorLabel() thay vì raw name — đồng nhất với global chat -->
+              <span class="text-xs font-semibold" :class="msgNameClass(msg.author_role)" x-text="authorLabel(msg)"></span>
+              <span x-html="roleBadgeHtml(msg.author_role)"></span>
               <span class="text-[10px] text-gray-400" x-text="formatTime(msg.created_at)"></span>
             </div>
+            <!-- v0.9.31: Dùng msgBubbleClass() cho message bubble style -->
             <div class="dm-msg-bubble text-sm mt-0.5 px-3 py-1.5 rounded-lg"
-                 :class="msg.author_id === otherUserId ? 'bg-white border border-gray-100 text-gray-800' : 'text-white'"
+                 :class="(msg.author_id === otherUserId ? msgBubbleClass(msg.author_role) + ' bg-white border border-gray-100 text-gray-800' : msgBubbleClass(msg.author_role) + ' text-white')"
                  :style="msg.author_id === otherUserId ? '' : 'background-color:#388E3C'"
                  x-text="msg.body"></div>
           </div>

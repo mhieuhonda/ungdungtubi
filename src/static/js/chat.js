@@ -45,16 +45,11 @@ function avatarClass(role) {
     return '';
 }
 
-function roleBadgeHtml(role) {
-    if (!role) return '';
-    const map = {
-        'admin_ky_thuat': '<span class="chat-role-badge chat-role-badge-admin-ky-thuat">⚙️ SYS</span>',
-        'admin_quan_li': '<span class="chat-role-badge chat-role-badge-admin-quan-li">👑 ADMIN</span>',
-        'admin_cong_dong': '<span class="chat-role-badge chat-role-badge-admin-cong-dong">🛡️ ADMIN</span>',
-        'admin_phat_trien': '<span class="chat-role-badge chat-role-badge-admin-phat-trien">🧭 DEV</span>',
-        'mod': '<span class="chat-role-badge chat-role-badge-mod">📜 MOD</span>',
-    };
-    return map[role] || '';
+// v0.9.31: XÓA HOÀN TOÀN role badge bên cạnh tên trong chat.
+// Theo yêu cầu user: "Xóa biểu tượng bên cạnh tên như SYS, ADMIN, DEV, MOD
+// khi admin hay mod nhắn tin vì như thế sẽ bị khó chịu."
+function roleBadgeHtml(_role) {
+    return '';
 }
 
 function authorLabel(msg) {
@@ -154,13 +149,14 @@ function chatSocketMixin(getUrl) {
 
         _startPing() {
             this._stopPing();
+            // v0.9.31: Đồng bộ ping interval với server (25s) để tránh mismatch.
             this._pingTimer = setInterval(() => {
                 if (this.socket && this.socket.readyState === WebSocket.OPEN) {
                     try {
                         this.socket.send('{"type":"ping"}');
                     } catch (_) {}
                 }
-            }, 30000);
+            }, 25000);
         },
 
         _stopPing() {
@@ -175,7 +171,8 @@ function chatSocketMixin(getUrl) {
             this._healthTimer = setInterval(() => {
                 if (this._lastReceivedAt === 0) return;
                 const elapsed = Date.now() - this._lastReceivedAt;
-                if (elapsed > 60000) {
+                // v0.9.31: Giảm health check timeout từ 60s → 40s để phát hiện dead connection nhanh hơn.
+                if (elapsed > 40000) {
                     try { this.socket.close(4000, 'health check timeout'); } catch (_) {}
                     this.socket = null;
                     this.connected = false;
@@ -197,9 +194,9 @@ function chatSocketMixin(getUrl) {
                 return;
             }
             this.reconnectAttempts += 1;
-            // v0.9.29: Giảm delay reconnect để nhắn tin nhanh phục hồi.
-            // v0.9.28: max 30s → v0.9.29: max 8s, attempt 1 = 500ms (liền lập tức).
-            const delay = Math.min(500 * Math.pow(1.8, this.reconnectAttempts - 1), 8000);
+            // v0.9.31: Tối ưu reconnect — giảm delay để chat phục hồi nhanh hơn.
+            // max 3s, attempt 1 = 200ms (gần như lập tức).
+            const delay = Math.min(200 * Math.pow(1.5, this.reconnectAttempts - 1), 3000);
             // v0.9.21: Không hiển thị thông báo reconnect — tránh gây rối
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = setTimeout(() => this.connect(), delay);
@@ -339,28 +336,58 @@ function globalChat() {
                 return;
             }
 
-            // v0.9.29: Luôn cho phép gửi — nếu WS chưa open, queue và tự reconnect.
-            if (!this.connected || !this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                this._queue.push(body);
-                this.draft = '';
-                if (!this.connected) {
-                    this.scheduleReconnect();
-                } else if (this.socket && this.socket.readyState !== WebSocket.OPEN) {
-                    try { this.socket.close(1000, 'reconnect-for-send'); } catch (_) {}
-                    this.socket = null;
-                    this.connected = false;
-                    this.scheduleReconnect();
+            // v0.9.31: Nếu WS đang OPEN → gửi qua WS (fast path).
+            if (this.connected && this.socket && this.socket.readyState === WebSocket.OPEN) {
+                const sent = this._sendRaw(body);
+                if (sent) {
+                    this.draft = '';
+                    this.error = '';
+                    return;
                 }
-                return;
+                // _sendRaw fail → fallback sang REST
             }
 
-            const sent = this._sendRaw(body);
-            if (sent) {
-                this.draft = '';
-                this.error = '';
-            } else {
-                this._queue.push(body);
-                this.scheduleReconnect();
+            // v0.9.31: REST fallback cho global chat — đảm bảo tin nhắn LUÔN gửi được.
+            this._sendViaRest(body);
+        },
+
+        // v0.9.31: Gửi tin nhắn global chat qua REST API (fallback khi WS không khả dụng).
+        async _sendViaRest(body) {
+            const draftBackup = this.draft;
+            this.draft = '';
+            this.error = '';
+            try {
+                const resp = await fetch('/api/chat-chung/gui', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ body: body }),
+                });
+                if (resp.ok) {
+                    const msg = await resp.json();
+                    if (msg && msg.id && !this.messages.some((m) => m.id === msg.id)) {
+                        this.messages.push(msg);
+                        this._trimMessages();
+                        if (!this.isOpen) {
+                            this.unreadCount++;
+                        }
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                    return;
+                }
+                this.draft = draftBackup;
+                if (resp.status === 401) {
+                    this.error = 'Phiên đăng nhập hết hạn. Vui lòng tải lại trang.';
+                } else {
+                    this.error = 'Không gửi được tin nhắn. Vui lòng thử lại.';
+                }
+            } catch (err) {
+                this.draft = draftBackup;
+                this.error = 'Lỗi mạng. Vui lòng kiểm tra kết nối và thử lại.';
+                if (!this.connected) {
+                    this.reconnectAttempts = 0;
+                    this.scheduleReconnect();
+                }
             }
         },
 
