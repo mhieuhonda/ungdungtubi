@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.38 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.39 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.38 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷");
+    log::info!("📦 Phiên bản: v0.9.39 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Fix + Mobile Menu Accordion 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -689,6 +689,23 @@ const HEALTH_FEATURES: &[&str] = &[
     "group-logo-error-redirect-with-err-v0.9.38",
     "music-submit-error-message-improved-v0.9.38",
     "about-page-team-update-cuong-hieu-v0.9.38",
+    // ─── v0.9.39 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Fix + Mobile Menu Accordion
+    "active-user-sync-heartbeat-update-last_seen_at-v0.9.39",
+    "active-users-count-real-online-v0.9.39",
+    "user-list-last_seen_at-instead-of-session-created-v0.9.39",
+    "user-settings-table-safety-schema-v0.9.39",
+    "user-settings-relation-does-not-exist-fix-v0.9.39",
+    "timezone-streak-fix-tz-asia-ho_chi_minh-v0.9.39",
+    "timezone-today-niem-fix-local-tz-v0.9.39",
+    "mobile-menu-accordion-compact-v0.9.39",
+    "mobile-menu-alpine-collapse-plugin-v0.9.39",
+    "mobile-menu-section-toggle-state-v0.9.39",
+    "mobile-menu-quick-access-grid-v0.9.39",
+    "heartbeat-update-last_seen_at-v0.9.39",
+    "dockerfile-tz-asia-ho_chi_minh-v0.9.39",
+    "dockerfile-tzdata-package-v0.9.39",
+    "migration-027-user-last_seen_at-v0.9.39",
+    "migration-027-seed-last_seen_at-from-sessions-v0.9.39",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -707,7 +724,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.38",
+            "version": "0.9.39",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -737,11 +754,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.38",
+        "version": "0.9.39",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 42,
-        "phase_name": "Giai đoạn 42 — Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷",
+        "phase": 43,
+        "phase_name": "Giai đoạn 43 — Active User Sync + Settings Fix + Stats Fix + Mobile Menu Accordion 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -759,6 +776,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "v0_9_36_note": "Giai đoạn 41 — Community group logo upload + audio file uploads (MP3/M4A/OGG/WAV/FLAC) for music submissions",
             "v0_9_37_note": "Giai đoạn 41 (phần 2) — Trang /gioi-thieu + fix orphan links (mobile drawer + admin music pending tile) + fix lỗi gửi bài (silent reject + empty group_name + stale counter) + nút đánh dấu đã đọc (per-item + mark-all) + fix 429 (tăng limit, sửa classify, HTML page, fetch wrapper)",
             "v0_9_38_note": "Giai đoạn 42 — Replace all web logos (favicon/header/footer/bottom-nav/home/login) với tubi.png (PNG thật, không còn emoji 🪷); fix bug 'Lỗi cập nhật logo nhóm' (safety schema cho groups.logo_upload_id); fix bug 'lỗi gửi bài' khi đăng nhạc (safety schema cho audio_files + user_music_submissions.source_type/audio_file_upload_id/audio_duration_seconds); cập nhật /gioi-thieu team info (Đỗ Văn Cường rút về hỗ trợ, Nguyễn Đình Minh Hiếu chuyển sang Admin Kỹ Thuật).",
+            "v0_9_39_note": "Giai đoạn 43 — Fix 5 bug sync/stats/UI: (1) Active user sync — heartbeat handler giờ update users.last_seen_at mỗi 10 phút, admin stats active_users đếm WHERE last_seen_at > NOW()-5min (trước đây đếm is_active = 'không bị ban' → 5 active nhưng vào quản lý không thấy ai). (2) user_settings table safety schema — fix 'relation user_settings does not exist' khi lưu cài đặt. (3) Timezone streak/today_niem — set TZ=Asia/Ho_Chi_Minh trong Dockerfile, dùng chrono::Local thay Utc (trước đây user niệm phật 01:00 Saigon Aug 17 = 18:00 UTC Aug 16 → log_date = Aug 16 sai). (4) Mobile menu accordion — chia 27 items thành 6 section collapse/expand (trước đây tràn màn hình). (5) Migration 027 — users.last_seen_at column + seed từ MAX(sessions.created_at).",
             "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",
@@ -799,32 +817,47 @@ async fn health_check_inner(state: &AppState) -> Response {
 
 /// Helper: fetch admin stats summary for /api/health.
 /// Bất kỳ lỗi nào → trả về zeros (không fail health check).
+///
+/// v0.9.39 — Giai đoạn 43 FIX (active user sync):
+///   active_users đếm user có `last_seen_at > NOW() - INTERVAL '5 min'`
+///   (đang online thật) thay vì `is_active` (không bị ban).
+///   Fallback: nếu last_seen_at không tồn tại, dùng is_active.
 async fn fetch_admin_stats_summary(pool: &sqlx::PgPool) -> serde_json::Value {
     let row: Result<(i64, i64, i64), _> = sqlx::query_as(
         "SELECT
             COUNT(*)::BIGINT,
-            COUNT(*) FILTER (WHERE is_active)::BIGINT,
+            COUNT(*) FILTER (WHERE last_seen_at IS NOT NULL AND last_seen_at > NOW() - INTERVAL '5 minutes')::BIGINT,
             COUNT(*) FILTER (WHERE role != 'member')::BIGINT
          FROM users",
     )
     .fetch_one(pool)
     .await;
 
-    match row {
-        Ok((total, active, admins)) => serde_json::json!({
-            "total_users": total,
-            "active_users": active,
-            "admins": admins,
-            "status": "ok"
-        }),
+    let (total, active, admins) = match row {
+        Ok((t, a, m)) => (t, a, m),
         Err(e) => {
-            log::warn!("⚠️ Health check: admin stats query failed: {e}");
-            serde_json::json!({
-                "status": "error",
-                "error": e.to_string()
-            })
+            // Fallback: nếu last_seen_at không tồn tại, dùng is_active (cũ).
+            log::warn!("⚠️ fetch_admin_stats_summary: last_seen_at query fail, fallback to is_active: {e}");
+            sqlx::query_as(
+                "SELECT
+                    COUNT(*)::BIGINT,
+                    COUNT(*) FILTER (WHERE is_active)::BIGINT,
+                    COUNT(*) FILTER (WHERE role != 'member')::BIGINT
+                 FROM users",
+            )
+            .fetch_one(pool)
+            .await
+            .map(|(t, a, m)| (t, a, m))
+            .unwrap_or((0, 0, 0))
         }
-    }
+    };
+
+    serde_json::json!({
+        "total_users": total,
+        "active_users": active,
+        "admins": admins,
+        "status": "ok"
+    })
 }
 
 /// Graceful shutdown signal handler — listens for Ctrl+C / SIGTERM.

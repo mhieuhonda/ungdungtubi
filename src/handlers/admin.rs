@@ -111,6 +111,12 @@ impl AdminUserRow {
     /// Text trạng thái "online/hoạt động gần đây" cho footer của card.
     /// Trả về (css_class, dot_color, text).
     /// v0.9.9: nhận `&DateTime<Utc>` vì Askama truyền field bằng reference.
+    /// v0.9.39 — Giai đoạn 43 FIX: giờ dùng `last_seen_at` (update qua heartbeat
+    ///   mỗi 10 phút) thay vì `MAX(sessions.created_at)` (lúc login). Do đó:
+    ///     - User đang online thật (active < 5 phút) → "Đang hoạt động" (xanh).
+    ///     - User active 5-60 phút trước → "X phút trước" (xám).
+    ///     - User active > 60 phút → "X giờ/ngày trước" (xám).
+    ///   Fix bug "tôi đang hoạt động nhưng nó báo 1 ngày trước".
     pub fn last_seen_text(&self, now: &DateTime<Utc>) -> (String, String, String) {
         if !self.is_active {
             return (
@@ -561,16 +567,50 @@ async fn fetch_admin_stats_or_default(pool: &sqlx::PgPool) -> AdminStats {
 }
 
 /// Lấy các thống kê cho dashboard admin.
+///
+/// v0.9.39 — Giai đoạn 43 FIX (active user sync):
+///   Trước v0.9.39: `active_users` đếm `WHERE is_active` (tức là "tài khoản
+///   KHÔNG bị ban") — không phải "đang online". → Admin thấy "5 users đang
+///   hoạt động" nhưng vào /admin/thanh-vien không thấy ai online. Vì `is_active`
+///   = true cho mọi user không bị ban, kể cả user đã inactive lâu.
+///
+///   v0.9.39: `active_users` đếm user có `last_seen_at > NOW() - INTERVAL '5 min'`
+///   (tức là user đã heartbeat trong 5 phút gần nhất = đang online thật).
+///   Heartbeat handler giờ update `last_seen_at = NOW()` mỗi 10 phút cho user
+///   đã login. Nhờ vậy:
+///     - Admin stats hiển thị số user đang online thật (sync với user list).
+///     - User list hiển thị dot xanh "Đang hoạt động" cho user online thật.
+///     - Fix bug "tôi đang hoạt động nhưng nó báo 1 ngày trước".
 async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Error> {
-    let row: (i64, i64, i64) = sqlx::query_as(
-        "SELECT
+    // v0.9.39: active_users = user có last_seen_at trong 5 phút gần nhất.
+    // Fallback: nếu cột last_seen_at không tồn tại (safety schema chưa chạy),
+    // query sẽ fail → trả về 0 (không crash server).
+    let active_users_query = "
+        SELECT
             COUNT(*)::BIGINT AS total_users,
-            COUNT(*) FILTER (WHERE is_active)::BIGINT AS active_users,
+            COUNT(*) FILTER (WHERE last_seen_at IS NOT NULL AND last_seen_at > NOW() - INTERVAL '5 minutes')::BIGINT AS active_users,
             COUNT(*) FILTER (WHERE role != 'member')::BIGINT AS admin_count
-         FROM users",
-    )
-    .fetch_one(pool)
-    .await?;
+         FROM users";
+
+    let row: (i64, i64, i64) = match sqlx::query_as(active_users_query)
+        .fetch_one(pool)
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            // Fallback: nếu last_seen_at không tồn tại, dùng is_active (cũ).
+            log::warn!("⚠️ fetch_admin_stats: last_seen_at query fail, fallback to is_active: {e}");
+            sqlx::query_as(
+                "SELECT
+                    COUNT(*)::BIGINT AS total_users,
+                    COUNT(*) FILTER (WHERE is_active)::BIGINT AS active_users,
+                    COUNT(*) FILTER (WHERE role != 'member')::BIGINT AS admin_count
+                 FROM users",
+            )
+            .fetch_one(pool)
+            .await?
+        }
+    };
 
     let total_groups: i64 = sqlx::query_scalar("SELECT COUNT(*)::BIGINT FROM groups")
         .fetch_one(pool)
@@ -621,12 +661,20 @@ async fn fetch_admin_stats(pool: &sqlx::PgPool) -> Result<AdminStats, sqlx::Erro
 /// v0.9.9: LEFT JOIN sessions để lấy `last_session_at` (MAX(created_at)) — dùng
 /// cho hiển thị "hoạt động gần nhất" trên card.
 /// v0.9.24: Bỏ hierarchy ORDER BY — admin ngang hàng, sắp xếp theo role name.
+/// v0.9.39 — Giai đoạn 43 FIX: dùng `users.last_seen_at` (update qua heartbeat)
+///   thay vì `MAX(sessions.created_at)` (lúc login). Lý do: `sessions.created_at`
+///   chỉ cập nhật khi user login lại → "tôi đang hoạt động nhưng nó báo 1 ngày
+///   trước" vì session được tạo lúc login (1 ngày trước) và chưa được tạo lại.
+///   `last_seen_at` được update mỗi 10 phút qua /api/heartbeat → luôn phản ánh
+///   thời điểm user active gần nhất.
+///   Fallback: nếu `last_seen_at` NULL (user chưa bao giờ heartbeat từ v0.9.39),
+///   dùng `MAX(sessions.created_at)` làm baseline.
 async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
     sqlx::query_as::<_, AdminUserRow>(
         "SELECT u.id, u.email, u.display_name, u.role, u.rank, u.is_active,
                 u.email_verified, u.created_at, u.k_balance, u.a_balance,
                 COALESCE(u.i_balance, 0) AS i_balance,
-                (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id) AS last_session_at
+                COALESCE(u.last_seen_at, (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id)) AS last_session_at
          FROM users u
          ORDER BY
             CASE u.role

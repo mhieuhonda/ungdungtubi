@@ -58,6 +58,8 @@ FROM debian:bookworm-slim AS runtime
 #   - ca-certificates: để reqwest gọi Google OAuth qua HTTPS
 #   - curl + wget: cho healthcheck (Coolify có thể dùng cái nào có sẵn)
 #   - tini: PID 1 signal handler
+#   - tzdata: v0.9.39 — cần cho TZ=Asia/Ho_Chi_Minh (CURRENT_DATE lệch 7 giờ
+#     so với user Saigon nếu không có tzdata → streak/today_niem tính sai)
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libssl3 \
         libpq5 \
@@ -65,6 +67,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         wget \
         tini \
+        tzdata \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system --gid 1001 tubi \
     && useradd  --system --uid 1001 --gid tubi --home-dir /app --shell /sbin/nologin tubi
@@ -83,7 +86,17 @@ RUN mkdir -p /app/static/uploads && \
     chown -R tubi:tubi /app
 
 # Cấu hình env mặc định (có thể override bằng Coolify env vars)
+# v0.9.39 — Giai đoạn 43 FIX (streak / total niệm timezone):
+#   Set TZ=Asia/Ho_Chi_Minh để CURRENT_DATE trong PostgreSQL trả về ngày theo
+#   giờ Việt Nam (UTC+7) thay vì UTC. Trước v0.9.39, Docker container không set
+#   TZ → mặc định UTC → `CURRENT_DATE` lệch 7 giờ so với user ở Saigon:
+#     - User niệm phật lúc 23:00 Saigon Aug 16 (= 16:00 UTC Aug 16) → log_date = Aug 16
+#     - User niệm phật lúc 08:00 Saigon Aug 17 (= 01:00 UTC Aug 17) → log_date = Aug 17
+#     - Nhưng nếu user niệm phật lúc 01:00 Saigon Aug 17 (= 18:00 UTC Aug 16) → log_date = Aug 16
+#       (sai! user nghĩ là Aug 17, nhưng DB ghi Aug 16) → "today_niem" lệch, "streak" lệch.
+#   Set TZ=Asia/Ho_Chi_Minh → `CURRENT_DATE` = ngày Saigon → đồng bộ với user.
 ENV APP_ENV=production \
+    TZ=Asia/Ho_Chi_Minh \
     HOST=0.0.0.0 \
     PORT=8080 \
     STATIC_DIR=/app/static \

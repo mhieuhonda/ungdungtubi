@@ -4,7 +4,27 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.38 — Giai đoạn 42
+## 📦 Phiên bản hiện tại: v0.9.39 — Giai đoạn 43
+
+**Giai đoạn 43: Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion 🪷**
+
+Bản phát hành này giải quyết **5 vấn đề user báo cáo nhiều nhất** về đồng bộ, sai số thống kê và UI tràn màn hình:
+
+1. **Bug "5 user đang hoạt động nhưng vào quản lý thành viên không thấy ai online"** — admin dashboard hiển thị "5 active users" nhưng khi vào `/admin/thanh-vien` không thấy user nào có dấu chấm xanh "Đang hoạt động". Bản thân user đang login cũng bị hiển thị "hoạt động 1 ngày trước" dù vừa mở app. **Nguyên nhân gốc:** admin stats `active_users` đếm `WHERE is_active` (tức là "tài khoản KHÔNG bị ban") chứ không phải "đang online". Heartbeat handler `/api/heartbeat` không làm gì cả. **Fix:** Thêm cột `users.last_seen_at` (migration 027), heartbeat handler giờ update `last_seen_at = NOW()` mỗi 10 phút, admin stats `active_users` đếm `WHERE last_seen_at > NOW() - INTERVAL '5 min'` = đang online thật. User list hiển thị `last_seen_at` thay vì `MAX(sessions.created_at)` (lúc login).
+
+2. **Bug "Lỗi database: error returned from database: relation 'user_settings' does not exist"** — khi user lưu cài đặt trên trang `/cai-dat`, server trả lỗi 500 vì bảng `user_settings` (migration 017) chưa được apply trên production. **Fix:** Thêm `CREATE TABLE IF NOT EXISTS user_settings` vào `ensure_schema_safety()` — chạy idempotent DDL trước sqlx migrations. Cùng cơ chế đã fix v0.9.25 (users.i_balance) và v0.9.38 (groups.logo_upload_id).
+
+3. **Bug "Tính sai tổng lời niệm" + "Tính sai số ngày tu liên tiếp"** — user niệm phật nhưng "Tổng niệm" và "Ngày tu liên tiếp" hiển thị sai. **Nguyên nhân gốc:** Docker container TZ=UTC mặc định, user ở Asia/Saigon (UTC+7) → lệch 7 giờ. User niệm phật lúc 01:00 Saigon Aug 17 (= 18:00 UTC Aug 16) bị ghi `log_date = Aug 16` (sai). **Fix:** Set `TZ=Asia/Ho_Chi_Minh` trong Dockerfile + cài `tzdata` package. Đổi `today_utc_naive()` → `today_local_naive()` (dùng `chrono::Local` đọc TZ env var). Streak và today_niem giờ tính theo giờ Saigon, đồng bộ với `CURRENT_DATE` trong PostgreSQL.
+
+4. **Bug "Nút ba gạch tràn màn hình"** — mobile drawer 27+ items liệt kê dọc quá dài, tràn màn hình. **Fix:** Refactor thành 6 section accordion (Không Gian + Cộng Đồng + Bạn Bè + Kinh Sách + Khám Phá + Tài Khoản). Thêm Alpine.js Collapse plugin cho smooth height animation. Mỗi section có chevron icon rotate 180° khi mở. Top of drawer có 4 nút quick access grid 4 cột (Trang Chủ + 3 chuyên mục chính).
+
+5. **Nhiều lỗi đồng bộ khác** — admin dashboard vs user list không khớp số user active, user tự thấy mình "hoạt động 1 ngày trước", last_seen không phản ánh đúng lúc user online. Tất cả được fix thông qua [SYNC-1] đến [SYNC-7] (xem CHANGELOG.md).
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0939--2026-08-17--giai-doạn-43-active-user-sync-settings-fix-stats-timezone-fix-mobile-menu-accordion-).
+
+---
+
+## 📦 Phiên bản trước: v0.9.38 — Giai đoạn 42
 
 **Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷**
 
@@ -14,9 +34,9 @@ Bản phát hành này giải quyết **4 vấn đề user báo cáo** và **1 y
 
 2. **Bug "lỗi gửi bài" khi đăng nhạc trong Nhà Nhạc** — khi user submit file âm thanh (MP3/M4A/OGG/WAV/FLAC) hoặc YouTube link, INSERT vào `user_music_submissions` fail vì các cột `source_type`, `audio_file_upload_id`, `audio_duration_seconds` (migration 026) chưa tồn tại. **Fix:** Safety schema check cho `audio_files` table + 3 cột mới trên `user_music_submissions`. Cải thiện error message từ "⚠️ Lỗi gửi bài — vui lòng thử lại." → "⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật."
 
-3. **Thay toàn bộ logo web sang PNG thật** — trước v0.9.38, logo toàn web dùng emoji 🪷 (SVG data URI cho favicon, `<span>🪷</span>` cho header/footer/bottom-nav/home/login). Emoji render khác nhau trên mỗi platform → thương hiệu không nhất quán. **Fix:** Thay 14 logo positions bằng `<img src="/static/tubi.png">` (PNG 1254×1254 thật): favicon (5 sizes cho tab/taskbar/PWA/apple-touch-icon/splash), header, footer, bottom nav center button, home hero, login page top logo, /gioi-thieu hero, /tong-quan tile, error pages, 429 page, og-image + twitter:image meta. Giữ emoji 🪷 trong text decorations (menu items, button text, copyright text).
+3. **Thay toàn bộ logo web sang PNG thật** — trước v0.9.38, logo toàn web dùng emoji 🪷. **Fix:** Thay 14 logo positions bằng `<img src="/static/tubi.png">` (PNG 1254×1254 thật): favicon (5 sizes), header, footer, bottom nav center button, home hero, login page top logo, /gioi-thieu hero, /tong-quan tile, error pages, 429 page, og-image + twitter:image meta. Giữ emoji 🪷 trong text decorations.
 
-4. **Cập nhật /gioi-thieu team info** — Đỗ Văn Cường rút lui về làm hỗ trợ, Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật. Đổi card "Admin Kỹ Thuật (Cường)" → "Admin Kỹ Thuật (Hiếu)" + thêm amber banner thông báo chuyển đổi đội ngũ. Trang `/doi-ngu-quan-li` đã có sẵn thông tin đúng từ v0.9.30.
+4. **Cập nhật /gioi-thieu team info** — Đỗ Văn Cường rút lui về làm hỗ trợ, Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật.
 
 Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0938--2026-08-17--giai-doạn-42-logo-png-group-logo-bug-fix-music-submit-bug-fix-about-page-team-update-).
 

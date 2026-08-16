@@ -1,5 +1,21 @@
 //! Handlers cho Không Gian Cá Nhân — Giai đoạn 13 (v0.9.9).
 //! v0.9.15: Fix bug niệm phật (số lệch, streak không đếm, stats không cập nhật).
+//! v0.9.39 — Giai đoạn 43 FIX (timezone streak/today_niem):
+//!   - Trước v0.9.39: `today_utc_naive()` dùng `Utc::now().date_naive()` → trả
+//!     về ngày UTC. Docker container TZ=UTC mặc định → `CURRENT_DATE` trong DB
+//!     cũng = ngày UTC. Nhưng user ở Saigon (UTC+7) → lệch 7 giờ:
+//!       - User niệm phật lúc 01:00 Saigon Aug 17 (= 18:00 UTC Aug 16) → DB ghi
+//!         log_date = Aug 16 (sai! user nghĩ là Aug 17).
+//!       - `today_niem` hiển thị 0 dù user đã niệm phật "hôm nay" (theo giờ Saigon).
+//!       - `streak` tính sai vì `today_utc_naive()` trả Aug 16 nhưng `rows[0].log_date`
+//!         có thể là Aug 17 (do timezone lệch).
+//!   - v0.9.39 fix:
+//!       - Dockerfile set `TZ=Asia/Ho_Chi_Minh` → container dùng giờ Saigon.
+//!       - `today_local_naive()` dùng `chrono::Local::now().date_naive()` → đọc
+//!         TZ env var → trả về ngày Saigon (UTC+7).
+//!       - `CURRENT_DATE` trong PostgreSQL cũng trả về ngày Saigon (Postgres đọc
+//!         TZ env var của process).
+//!       - Nhờ vậy `today` (Rust) và `log_date` (DB) đồng bộ → streak chính xác.
 //!
 //! Routes:
 //!   - GET  /khong-gian                  — Trang Không Gian cá nhân (Niệm Phật + Tượng Phật + Nhật ký)
@@ -27,10 +43,14 @@ use crate::models::khong_gian::{
 };
 use crate::models::user::User;
 
-/// Ngày hiện tại (UTC, naive) — đồng bộ với `CURRENT_DATE` của PostgreSQL
-/// trong Docker container (mặc định TZ=UTC). Tránh mismatch TZ gây bug streak.
-fn today_utc_naive() -> chrono::NaiveDate {
-    Utc::now().date_naive()
+/// Ngày hiện tại (local, naive) — v0.9.39: dùng `chrono::Local` (đọc TZ env var)
+/// thay vì `Utc::now()` (luôn UTC). Dockerfile set `TZ=Asia/Ho_Chi_Minh` →
+/// `Local::now()` trả về giờ Saigon → đồng bộ với `CURRENT_DATE` trong PostgreSQL
+/// (Postgres cũng đọc TZ env var).
+///
+/// Trước v0.9.39: dùng `Utc::now().date_naive()` → lệch 7 giờ so với user Saigon.
+fn today_local_naive() -> chrono::NaiveDate {
+    chrono::Local::now().date_naive()
 }
 
 /// Template cho trang /khong-gian.
@@ -456,11 +476,16 @@ async fn fetch_khong_gian_stats(pool: &PgPool, user_id: uuid::Uuid) -> KhongGian
 }
 
 /// Tính số ngày liên tiếp tu học (streak).
-/// Bắt đầu từ today (UTC, đồng bộ với `CURRENT_DATE` của PostgreSQL trong Docker),
+/// Bắt đầu từ today (local, đồng bộ với `CURRENT_DATE` của PostgreSQL),
 /// lùi lại cho đến khi gặp ngày không có niệm.
 ///
 /// v0.9.15: FIX bug dùng `chrono::Local::now()` gây mismatch TZ với DB `CURRENT_DATE`
 /// (Docker container TZ=UTC mặc định) → streak luôn = 0 dù user có niệm.
+/// v0.9.39: FIX bug timezone — set `TZ=Asia/Ho_Chi_Minh` trong Dockerfile,
+/// dùng `today_local_naive()` (chrono::Local) thay vì `today_utc_naive()` (Utc).
+/// Trước v0.9.39: nếu user niệm phật lúc 01:00 Saigon Aug 17 (= 18:00 UTC Aug 16),
+/// DB ghi log_date = Aug 16 (UTC), nhưng `today_utc_naive()` trả Aug 16 →
+/// streak tính từ Aug 16, ko tính Aug 17 → sai số ngày tu liên tiếp.
 async fn compute_streak(pool: &PgPool, user_id: uuid::Uuid) -> i32 {
     // Lấy 60 ngày gần nhất có practice_log (đủ rộng để bắt bridge ngày thiếu).
     let rows: Vec<DailyNiem> = match sqlx::query_as::<_, DailyNiem>(
@@ -483,8 +508,10 @@ async fn compute_streak(pool: &PgPool, user_id: uuid::Uuid) -> i32 {
         return 0;
     }
 
-    // v0.9.15: dùng UTC (đồng bộ với DB CURRENT_DATE trong Docker TZ=UTC).
-    let today = today_utc_naive();
+    // v0.9.39: dùng Local (đọc TZ env var) thay vì UTC.
+    // Dockerfile set TZ=Asia/Ho_Chi_Minh → Local::now() = giờ Saigon →
+    // đồng bộ với CURRENT_DATE trong PostgreSQL (cũng đọc TZ env var).
+    let today = today_local_naive();
     let mut streak = 0i32;
     let mut cursor = rows[0].log_date;
 

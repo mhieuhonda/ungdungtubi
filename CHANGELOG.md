@@ -6,6 +6,194 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.39] — 2026-08-17 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Bản phát hành này giải quyết **5 vấn đề user báo cáo nhiều nhất** về đồng bộ,
+sai số thống kê và UI tràn màn hình:
+
+1. **Bug "5 user đang hoạt động nhưng vào quản lý thành viên không thấy ai online"** —
+   admin dashboard hiển thị "5 active users" nhưng khi vào `/admin/thanh-vien`
+   không thấy user nào có dấu chấm xanh "Đang hoạt động". Bản thân user đang
+   login cũng bị hiển thị "hoạt động 1 ngày trước" dù vừa mở app. **Nguyên nhân
+   gốc:** admin stats `active_users` đếm `WHERE is_active` (tức là "tài khoản
+   KHÔNG bị ban") chứ không phải "đang online". User list hiển thị
+   `MAX(sessions.created_at)` (lúc LOGIN, không phải lúc ACTIVE). Heartbeat
+   handler `/api/heartbeat` không làm gì cả, chỉ trả về `{"status":"ok"}`.
+2. **Bug "Lỗi database: error returned from database: relation 'user_settings'
+   does not exist"** — khi user lưu cài đặt trên trang `/cai-dat`, server trả
+   lỗi 500 vì bảng `user_settings` (migration 017) chưa được apply trên production
+   (checksum mismatch, partial deploy, manual rollback). Tương tự bug v0.9.25
+   (users.i_balance) và v0.9.38 (groups.logo_upload_id).
+3. **Bug "Tính sai tổng lời niệm" + "Tính sai số ngày tu liên tiếp"** — user niệm
+   phật nhưng "Tổng niệm" và "Ngày tu liên tiếp" hiển thị sai. **Nguyên nhân
+   gốc:** Docker container TZ=UTC mặc định, trong khi user ở Asia/Saigon (UTC+7).
+   `CURRENT_DATE` trong PostgreSQL trả về ngày UTC, nhưng `today_utc_naive()`
+   trong Rust cũng trả về UTC → user niệm phật lúc 01:00 Saigon Aug 17 (= 18:00
+   UTC Aug 16) bị ghi `log_date = Aug 16` (sai! user nghĩ là Aug 17). Streak bị
+   lệch, today_niem bị 0 dù user đã niệm "hôm nay".
+4. **Bug "Nút ba gạch tràn màn hình"** — mobile drawer 27+ items liệt kê dọc
+   từ trên xuống dưới, quá dài, gây tràn màn hình và khó tìm. User muốn rút gọn
+   hoặc xếp gọn lại.
+5. **Nhiều lỗi đồng bộ khác** — admin dashboard vs user list không khớp số
+   user active, user tự thấy mình "hoạt động 1 ngày trước", last_seen không
+   phản ánh đúng lúc user online.
+
+### 🔧 Fix Root Cause — Active User Sync (Heartbeat + last_seen_at)
+
+Trước v0.9.39, `/api/heartbeat` handler KHÔNG làm gì cả — chỉ trả về
+`{"status":"ok"}`. Client app.js gọi heartbeat mỗi 10 phút nhưng server
+không track thời điểm user active.
+
+- **[SYNC-1]** `migrations/027_user_last_seen_at.sql` — Thêm cột
+  `last_seen_at TIMESTAMPTZ` vào users. Index `idx_users_last_seen_at` cho
+  query "active trong 5 phút" nhanh. Seed `last_seen_at` cho user hiện có
+  từ `MAX(sessions.created_at)` (lấy session gần nhất làm baseline).
+- **[SYNC-2]** `src/db/mod.rs::ensure_schema_safety()` — `ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ` + index (idempotent,
+  chạy trước sqlx migrations → đảm bảo cột tồn tại ngay cả khi migration 027
+  chưa được apply).
+- **[SYNC-3]** `src/handlers/mod.rs::heartbeat()` — Handler giờ update
+  `users.last_seen_at = NOW()` cho user đã login. Best-effort (không block
+  response nếu DB error).
+- **[SYNC-4]** `src/handlers/admin.rs::fetch_admin_stats()` — `active_users`
+  giờ đếm `WHERE last_seen_at IS NOT NULL AND last_seen_at > NOW() - INTERVAL
+  '5 minutes'` (tức là user đã heartbeat trong 5 phút gần nhất = đang online
+  thật). Fallback: nếu cột last_seen_at không tồn tại, dùng `is_active` (cũ)
+  để không crash server.
+- **[SYNC-5]** `src/main.rs::fetch_admin_stats_summary()` — Tương tự SYNC-4
+  cho health check JSON response.
+- **[SYNC-6]** `src/handlers/admin.rs::fetch_users_list()` — SELECT dùng
+  `COALESCE(u.last_seen_at, (SELECT MAX(s.created_at) FROM sessions s WHERE
+  s.user_id = u.id)) AS last_session_at`. Ưu tiên `last_seen_at` (update qua
+  heartbeat), fallback về `MAX(sessions.created_at)` nếu user chưa heartbeat
+  từ v0.9.39.
+- **[SYNC-7]** `src/handlers/admin.rs::AdminUserRow::last_seen_text()` — Giữ
+  nguyên logic "Đang hoạt động" (< 5 phút), "X phút trước" (5-60 phút), "X
+  giờ trước" (1-24 giờ), "X ngày trước" (> 24 giờ). Nhưng giờ dùng `last_seen_at`
+  thay vì `MAX(sessions.created_at)` → phản ánh đúng thời điểm user active gần
+  nhất, không phải lúc login. Fix bug "tôi đang hoạt động nhưng nó báo 1 ngày
+  trước".
+
+### 🗄️ Fix Root Cause — user_settings Table Safety Schema
+
+Tương tự bug v0.9.25 (users.i_balance) và v0.9.38 (groups.logo_upload_id),
+migration 017 (user_settings) có thể không được apply trên production do
+checksum mismatch, partial deploy, hoặc manual rollback. Khi đó, INSERT/SELECT
+trên `user_settings` fail với "relation user_settings does not exist".
+
+- **[DB-1]** `src/db/mod.rs::ensure_schema_safety()` — `CREATE TABLE IF NOT
+  EXISTS user_settings (... 17 cột ...)` (idempotent). Đồng bộ với migration
+  017. Index `idx_user_settings_theme` + `idx_user_settings_visibility`.
+- **[DB-2]** `src/db/mod.rs::ensure_schema_safety()` — Seed default settings
+  cho user hiện có (chưa có row trong `user_settings`): `INSERT INTO user_settings
+  (user_id) SELECT id FROM users WHERE NOT EXISTS (...)`. Idempotent.
+- **[DB-3]** `src/handlers/cai_dat.rs` — Không cần sửa code vì `fetch_user_settings`
+  đã có fallback `INSERT INTO user_settings (user_id) VALUES ($1) ON CONFLICT
+  DO NOTHING` nếu user chưa có row. Nhưng trước v0.9.39, fallback này fail nếu
+  bảng không tồn tại → giờ bảng luôn tồn tại nhờ safety schema.
+
+### 🕐 Fix Root Cause — Timezone Streak + Today Niem
+
+Trước v0.9.39, Docker container không set TZ → mặc định UTC. PostgreSQL
+`CURRENT_DATE` trả về ngày UTC. User ở Asia/Saigon (UTC+7) → lệch 7 giờ:
+- User niệm phật lúc 23:00 Saigon Aug 16 (= 16:00 UTC Aug 16) → log_date = Aug 16 ✓
+- User niệm phật lúc 08:00 Saigon Aug 17 (= 01:00 UTC Aug 17) → log_date = Aug 17 ✓
+- User niệm phật lúc 01:00 Saigon Aug 17 (= 18:00 UTC Aug 16) → log_date = Aug 16 ✗ (sai!)
+
+- **[TZ-1]** `Dockerfile` — `ENV TZ=Asia/Ho_Chi_Minh` cho runtime stage.
+  Cài `tzdata` package để hỗ trợ timezone conversion.
+- **[TZ-2]** `src/handlers/khong_gian.rs` — `today_utc_naive()` →
+  `today_local_naive()`. Dùng `chrono::Local::now().date_naive()` thay vì
+  `Utc::now().date_naive()`. Local::now() đọc TZ env var → trả về giờ Saigon.
+- **[TZ-3]** `src/handlers/khong_gian.rs::compute_streak()` — Dùng
+  `today_local_naive()` thay vì `today_utc_naive()`. Streak giờ tính theo ngày
+  Saigon, đồng bộ với `CURRENT_DATE` trong PostgreSQL (cũng đọc TZ env var).
+- **[TZ-4]** `docker-compose.yml` — Không cần sửa (dev environment, có thể
+  override TZ qua env var nếu muốn).
+
+Nhờ fix này:
+- User niệm phật lúc 01:00 Saigon Aug 17 → DB ghi log_date = Aug 17 (đúng).
+- `today_niem` hiển thị đúng số lần niệm hôm nay (theo giờ Saigon).
+- `streak_days` tính đúng số ngày liên tiếp (theo giờ Saigon).
+- `total_niem` (SUM của mọi niem_count) không bị ảnh hưởng bởi timezone —
+  vẫn đúng.
+
+### 🎨 Fix UI — Mobile Menu Accordion (Rút Gọn)
+
+Trước v0.9.39, mobile drawer 27+ items liệt kê dọc từ trên xuống dưới → quá
+dài, tràn màn hình, khó tìm. v0.9.39 refactor thành 6 section accordion:
+
+- **[UI-1]** `templates/layout.html` — Thêm Alpine.js Collapse plugin
+  (`@alpinejs/collapse@3.14.9`). Plugin này cho phép `x-collapse` directive
+  smooth height transition.
+- **[UI-2]** `templates/layout.html` — Body `x-data` thêm `mobileMenuSection: 'main'`
+  state để track section nào đang mở. Default: không section nào mở.
+- **[UI-3]** `templates/layout.html` — Top of mobile drawer: 4 nút chính
+  grid 4 cột (Trang Chủ + Không Gian + Cộng Đồng + Kinh Sách) — quick access,
+  không cần mở section.
+- **[UI-4]** `templates/layout.html` — 6 section accordion (mỗi section có
+  header + chevron icon rotate 180° khi mở):
+  1. 🌍 Không Gian (Niệm Phật, Nhà Nhạc)
+  2. 👥 Cộng Đồng (Tất Cả Nhóm, Tạo Nhóm Mới)
+  3. 👤 Bạn Bè (Danh Sách, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn)
+  4. 📚 Kinh Sách (Thư Viện, Phật Gia, Đạo Gia, Tìm Sách)
+  5. 🧭 Khám Phá (Giới Thiệu, Tổng Quan, Quỹ Từ Bi, BXH, Thành Tích,
+     Thương Thành, Đội Ngũ, Tìm Kiếm)
+  6. ⚙️ Tài Khoản (Hồ Sơ, Cài Đặt, Quản Trị, Theme toggle, Thoát) — chỉ
+     khi đã login
+- **[UI-5]** Mỗi section header là `<button>` với `@click="mobileMenuSection =
+  mobileMenuSection === '<id>' ? '' : '<id>'"`. Click lại section đang mở sẽ
+  đóng (toggle behavior). Mở section mới KHÔNG tự đóng section cũ (cho phép
+  nhiều section mở cùng lúc — user có thể so sánh).
+- **[UI-6]** Mỗi section content dùng `x-show="mobileMenuSection === '<id>'"`
+  + `x-collapse` (smooth height animation) + `x-cloak` (chống FOUC).
+- **[UI-7]** Chưa login: ẩn section Tài Khoản, hiển thị Theme toggle + Đăng
+  Nhập Google ở cuối drawer.
+
+### 📦 Version Sync v0.9.39
+
+- Bump version `0.9.38` → `0.9.39` ở: `Cargo.toml`, `src/main.rs` (startup
+  log + health check public + health check inner + phase 42 → 43),
+  `templates/layout.html` (footer), `templates/khong-gian/index.html`
+  (footer), `templates/admin/cong-dong/index.html` (footer),
+  `templates/admin/quan-li/index.html` (footer), `templates/admin/ky-thuat/index.html`
+  (title + footer), `templates/admin/placeholder.html` (title + footer),
+  `templates/admin/phat-trien/index.html` (phase badge + roadmap + footer),
+  `src/middleware/rate_limit.rs` (429 page footer), `Dockerfile.coolify` (comment).
+- Update phase 42 → 43 trong health check + main log + admin phat-trien dashboard.
+- Thêm 16 feature flags v0.9.39 vào `HEALTH_FEATURES` array (active-user-sync
+  + user-settings-safety-schema + timezone-streak-fix + mobile-menu-accordion
+  + heartbeat-update-last_seen_at + dockerfile-tz-asia-ho_chi_minh + migration-027
+  × 16 flags).
+- Thêm `v0_9_39_note` vào health check `notes` object.
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 42 (Logo PNG + Group Logo Fix
+  + Music Submit Fix + Team Update) → "Hoàn thành" (green). Giai đoạn 43
+  (Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion)
+  → "Đang triển khai" (indigo, badge 43).
+
+### 📋 Ghi chú vận hành
+
+- **Database**: Safety schema check chạy idempotent DDL trước sqlx migrations →
+  đảm bảo `user_settings` table + `users.last_seen_at` column luôn tồn tại ngay
+  cả khi migration 017 / 027 chưa được apply. KHÔNG xóa dữ liệu user, chỉ CREATE
+  TABLE IF NOT EXISTS / ADD COLUMN IF NOT EXISTS.
+- **Timezone**: Dockerfile set `TZ=Asia/Ho_Chi_Minh`. Cần cài `tzdata` package
+  trong Docker runtime stage (debian:bookworm-slim) để timezone conversion hoạt
+  động. Postgres đọc TZ env var của process → `CURRENT_DATE` trả về ngày Saigon.
+- **Heartbeat**: Client app.js gọi `/api/heartbeat` mỗi 10 phút. Server update
+  `users.last_seen_at = NOW()`. Admin stats `active_users` đếm user có
+  `last_seen_at > NOW() - 5 min` = đang online thật.
+- **Streak**: Trước v0.9.39, user niệm phật lúc 01:00 Saigon Aug 17 bị ghi
+  log_date = Aug 16 (UTC). Sau v0.9.39, log_date = Aug 17 (Saigon). Streak tính
+  đúng số ngày liên tiếp theo giờ Saigon.
+- **Rollback**: Nếu TZ fix gây vấn đề (vd. Postgres cluster có timezone config
+  riêng), có thể revert Dockerfile TZ env var. Streak sẽ tiếp tục dùng UTC nhưng
+  vẫn nhất quán (đã hoạt động từ v0.9.15).
+
+---
+
 ## [0.9.38] — 2026-08-17 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷
 
 ### 🎯 Mục tiêu giai đoạn

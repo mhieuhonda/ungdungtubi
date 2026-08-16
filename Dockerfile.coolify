@@ -27,7 +27,7 @@
 #   - [v0.9.11] Tránh Docker cache stale digest bằng tag semver unique
 # ────────────────────────────────────────────────────────────────────────────
 
-# v0.9.38 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update
+# v0.9.39 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion
 # v0.9.26 FIX (CRITICAL — Deploy pipeline): Workflow GitHub Actions sẽ TỰ ĐỘNG cập nhật
 # SHA tag dưới đây ngay sau khi build image xong, trước khi trigger Coolify deploy.
 # Trước v0.9.26: developer phải push 2 commit (code commit + Dockerfile.coolify update commit)

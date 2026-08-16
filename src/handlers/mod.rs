@@ -474,8 +474,29 @@ pub async fn bang_xep_hang(State(state): State<AppState>, jar: CookieJar) -> Res
     bang_xep_hang::bang_xep_hang_index(State(state), jar, Query(query)).await
 }
 
-/// API: Heartbeat — keeps session alive (called every 5 min by client JS).
-pub async fn heartbeat() -> Response {
+/// API: Heartbeat — keeps session alive (called every 10 min by client JS).
+///
+/// v0.9.39 — Giai đoạn 43 FIX (active user sync bug):
+///   Trước v0.9.39: handler này KHÔNG làm gì cả, chỉ trả về `{"status":"ok"}`.
+///   → admin stats `active_users` đếm `WHERE is_active` (tức là "không bị ban")
+///   chứ không phải "đang online" → admin thấy "5 user đang hoạt động" nhưng
+///   vào /admin/thanh-vien không thấy ai online (vì `last_session_at` lấy từ
+///   `MAX(sessions.created_at)` = lúc LOGIN, không phải lúc ACTIVE).
+///
+///   v0.9.39 fix: heartbeat update `users.last_seen_at = NOW()` cho user đã
+///   login. Admin stats `active_users` giờ đếm `WHERE last_seen_at > NOW() -
+///   INTERVAL '5 min'` (tức là user active trong 5 phút gần nhất). Admin user
+///   list hiển thị `last_seen_at` thay vì `MAX(sessions.created_at)`.
+pub async fn heartbeat(State(state): State<AppState>, jar: CookieJar) -> Response {
+    // Update last_seen_at cho user đã login (best-effort — không block response).
+    if let Some(user) = get_user_from_session(&state.pool, &jar).await {
+        let _ = sqlx::query(
+            "UPDATE users SET last_seen_at = NOW() WHERE id = $1"
+        )
+        .bind(user.id)
+        .execute(&state.pool)
+        .await;
+    }
     axum::Json(serde_json::json!({ "status": "ok" })).into_response()
 }
 
