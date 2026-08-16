@@ -1513,6 +1513,61 @@ pub async fn mark_notification_read(
     axum::Json(serde_json::json!({ "status": "ok" })).into_response()
 }
 
+/// POST /api/ban-be/thong-bao/da-doc-tat-ca — Đánh dấu TẤT CẢ thông báo chưa đọc là đã đọc.
+///
+/// v0.9.37 — Giai đoạn 41 (phần 2):
+/// Trước đây user chỉ có thể "mark as read" bằng cách mở trang /ban-be/thong-bao
+/// (server-side auto-mark first PAGE_SIZE). Nếu user có >50 thông báo chưa đọc,
+/// các thông báo ở page 2+ không được đánh dấu.
+///
+/// Endpoint này cho phép user click 1 nút "Đánh dấu tất cả đã đọc" để bulk update.
+/// Không có giới hạn số lượng — UPDATE toàn bộ WHERE user_id AND is_read = false.
+pub async fn mark_all_notifications_read(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Response {
+    let user = match get_user_from_session(&state.pool, &jar).await {
+        Some(u) => u,
+        None => {
+            return (axum::http::StatusCode::UNAUTHORIZED, "Cần đăng nhập.").into_response();
+        }
+    };
+
+    let result = sqlx::query(
+        "UPDATE notifications SET is_read = true, read_at = COALESCE(read_at, NOW())
+         WHERE user_id = $1 AND is_read = false",
+    )
+    .bind(user.id)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(r) => {
+            log::info!(
+                "✅ User {} đã đánh dấu {} thông báo là đã đọc",
+                user.id,
+                r.rows_affected()
+            );
+            axum::Json(serde_json::json!({
+                "status": "ok",
+                "marked_count": r.rows_affected()
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi mark_all_notifications_read: {e}");
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(serde_json::json!({
+                    "status": "error",
+                    "error": e.to_string()
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
 // ====================================================================
 // Tìm kiếm user — GET /ban-be/tim-kiem
 // ====================================================================

@@ -6,6 +6,230 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.37] — 2026-08-16 — Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Bản phát hành này là phần **bổ sung và sửa lỗi** cho Giai đoạn 41 (v0.9.36), tập trung
+vào **5 vấn đề user báo cáo nhiều nhất**:
+
+1. **"Trang mồ côi" / thiếu liên kết nội bộ** — nhiều route hợp lệ (như `/cai-dat`,
+   `/khong-gian/nha-nhac`, `/thuong-thanh`, `/admin/nha-nhac/dang-cho-duyet`...) không
+   có nút bấm / menu / link nào dẫn đến trên giao diện, đặc biệt là mobile drawer.
+2. **Thiếu trang giới thiệu chi tiết** — không có trang `/gioi-thieu` tổng hợp sứ mệnh,
+   tầm nhìn, triết lý, tính năng, tuyển thành viên.
+3. **Lỗi "gửi bài" không rõ nguyên nhân** — pending member hoặc khi DB error, user bị
+   redirect về trang nhóm mà KHÔNG có thông báo gì → tưởng form hỏng.
+4. **Không có nút "đánh dấu đã đọc" trong thông báo** — chỉ có auto-mark-on-visit,
+   không có per-item button, không có mark-all-as-read.
+5. **Lỗi 429 Too Many Requests xuất hiện nhiều khi đổi tab** — limit quá thấp (60/phút
+   cho API, 120/phút cho general), classification sai (`/api/ban-be/*` rơi vào `api`
+   thay vì `social`), response trả plain-text không có nút quay lại.
+
+### 📖 Trang Giới Thiệu — `/gioi-thieu` (NEW MAJOR)
+
+- **[ABOUT-1] `src/handlers/mod.rs`** — Thêm `GioiThieuTemplate` struct + `gioi_thieu`
+  handler. Trang tĩnh, công khai (không yêu cầu login), nội dung dài.
+
+- **[ABOUT-2] `templates/gioi-thieu.html`** — Trang `/gioi-thieu` với **9 section**:
+  1. Hero — "ỨNG DỤNG TỪ BI · CỘNG TU · KẾT NỐI · PHỤNG SỰ" + quote "Trong cuộc sống
+     hiện đại, con người có thể kết nối..."
+  2. Mục lục (TOC) — quick-jump tới 9 section.
+  3. Ứng Dụng Từ Bi là gì? — định vị, đối tượng, vấn đề giải quyết.
+  4. Tầm nhìn tối thượng — "Hãy mở Ứng Dụng Từ Bi."
+  5. Triết lý & khẩu hiệu — 4 triết lý (cốt lõi / khẩu hiệu / phát triển / game /
+     cuối cùng).
+  6. Câu chuyện khởi sáng — founder story (Admin Định Hướng Ti + Admin Kỹ Thuật Cường).
+  7. Tính năng chính — 4 chuyên mục cards + 10 bullet points + link tới các trang.
+  8. Hệ sinh thái tương lai — Game Siêu Độ, AI Từ Bi, Học Viện, Hỗ Trợ Người Tu,
+     Thiện Nguyện, Toàn Cầu Hoá.
+  9. Thông báo tuyển thành viên — 5 vị trí (Kinh Sách, Nhạc, Website, Fanpage,
+     Tặng Sách) + 8 cách đồng hành + CTA.
+
+- **[ABOUT-3] `src/main.rs`** — Đăng ký route `.route("/gioi-thieu", get(handlers::gioi_thieu))`.
+
+- **[ABOUT-4]** Nội dung trích dẫn trực tiếp từ 6 file `.docx` trong thư mục
+  `HieuLouis/` để giữ tinh thần dự án (xem `HieuLouis/Giới thiệu về ứng dụng từ bi.docx`,
+  `Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx`, `THÔNG BÁO TUYỂN THÀNH VIÊN.docx`).
+
+### 🔗 Orphan-Link Fix — Bổ sung menu/link cho các trang mồ côi (MAJOR)
+
+Phân tích 72 GET routes + 50+ template files phát hiện:
+
+- **1 orphan thực sự:** `/admin/nha-nhac/dang-cho-duyet` — admin dashboard không có
+  tile/link nào dẫn đến trang duyệt nhạc cộng đồng. Admin phải biết URL bằng lòng.
+- **Mobile drawer quá sparse:** Chỉ có 5 link chính (Không Gian, Cộng Đồng, Bạn Bè,
+  Kinh Sách, Hồ Sơ). Các route `/cai-dat`, `/thuong-thanh`, `/quy-tu-bi`, `/bang-xep-hang`,
+  `/thanh-tich`, `/doi-ngu-quan-li`, `/tim-kiem`, `/khong-gian/nha-nhac`, `/ban-be/tin-nhan`,
+  `/ban-be/thu`, `/ban-be/thong-bao`, `/ban-be/tim-kiem`, `/cong-dong/tao-nhom`,
+  `/kinh-sach/thu-vien/*`, `/kinh-sach/tim-kiem`, `/gioi-thieu` đều KHÔNG có link
+  trên mobile drawer → user mobile không thể click đến.
+
+**Fix:**
+
+- **[ORPHAN-1] `templates/layout.html`** — Mở rộng mobile drawer từ 5 items → **27 items**,
+  chia 3 nhóm: "Chuyên Mục" (Không Gian + Nhà Nhạc, Cộng Đồng + Tạo Nhóm, Bạn Bè +
+  Tin Nhắn/Hộp Thư/Thông Báo/Tìm Bạn, Kinh Sách + Phật Gia/Đạo Gia/Tìm Sách),
+  "Khám Phá" (Giới Thiệu MỚI, Tổng Quan, Quỹ Từ Bi, BXH, Thành Tích, Thương Thành,
+  Đội Ngũ, Tìm Kiếm), "Tài Khoản" (Hồ Sơ, Cài Đặt, Quản Trị, Theme toggle, Đăng xuất).
+
+- **[ORPHAN-2] `templates/layout.html`** — Desktop mega-menu Col 1 "Hệ Thống" thêm:
+  `🪷 Giới Thiệu` (đầu tiên), `🎵 Nhà Nhạc` (sau Tổng Quan).
+
+- **[ORPHAN-3] `templates/layout.html`** — Footer "Hệ Thống" column thêm `Giới Thiệu`
+  + `Nhà Nhạc`.
+
+- **[ORPHAN-4] `templates/home.html`** — Thêm `/gioi-thieu` card ở "Khám Phá Thêm"
+  section (badge MỚI) + `/khong-gian/nha-nhac` card. Thêm link "📖 Đọc giới thiệu
+  chi tiết →" ở section "Bốn Chuyên Mục Chính".
+
+- **[ORPHAN-5] `templates/tong-quan/index.html`** — Thêm bannerfeatured `/gioi-thieu`
+  card giữa "4 Chuyên Mục" và "Hệ Thống".
+
+- **[ORPHAN-6] `templates/admin/ky-thuat/index.html`** — Thêm tile `🎵 Duyệt Nhạc
+  Cộng Đồng` dẫn tới `/admin/nha-nhac/dang-cho-duyet` (trước đây là orphan thực sự).
+
+### ✍️ Fix "gửi bài không được" (MAJOR)
+
+Phân tích `src/handlers/community.rs::create_topic` + `create_comment`:
+
+**BUG 1 (P0): Silent rejection của pending/banned member.**
+- Trước đây: `create_topic_form` và `create_topic` check `membership.status != "active"`
+  → `Redirect::to("/cong-dong/nhom/{slug}")` không có query param → user thấy trang
+  nhóm như bình thường, không hiểu vì sao nút "Tạo Chủ Đề" không hoạt động.
+- Fix: redirect với `?err=ban-cho-duyet` / `ban-bi-khoa` / `ban-da-roi-nhom` /
+  `ban-chua-tham-gia-nhom`. `view_group` parse query param và render banner error
+  rõ ràng (vd: "Đơn tham gia nhóm của bạn đang chờ Trưởng Nhóm / Admin duyệt.
+
+**BUG 2 (P1): `group_name` rỗng khi validation error.**
+- Trước đây: khi title empty / quá 200 ký tự, handler re-render `CreateTopicTemplate`
+  với `group_name: String::new()` → breadcrumb "Đăng trong — " blank.
+- Fix: fetch `group_name` từ DB cùng lúc với `group_id`, dùng cho cả success và
+  error path. Validation error path cũng render form với ĐÚNG `group_name`.
+
+**BUG 3 (P1): DB error trả plain-text 500.**
+- Trước đây: `INSERT INTO topics ... RETURNING id` fail → trả
+  `(StatusCode::INTERNAL_SERVER_ERROR, "Lỗi tạo chủ đề")` → user thấy trang trắng,
+  mất toàn bộ nội dung đã gõ.
+- Fix: render lại `CreateTopicTemplate` với error message chi tiết + `group_name`
+  đúng + title đã nhập (để user copy + retry).
+
+**BUG 4 (P1): Stale counter `groups.topic_count` và `topics.comment_count`.**
+- Trước đây: handler INSERT topic/comment nhưng KHÔNG update counter → badge
+  "📝 N chủ đề" trên `group.html` stale cho đến khi có trigger/background job.
+- Fix: thêm `UPDATE groups SET topic_count = topic_count + 1 WHERE id = $1` sau
+  INSERT topic, và `UPDATE topics SET comment_count = comment_count + 1 WHERE id = $1`
+  sau INSERT comment.
+
+**BUG 5 (P1): `create_comment` trả plain-text cho mọi error path.**
+- Trước đây: validation error → `(400, "Bình luận không hợp lệ.")`, locked topic →
+  `(403, "Chủ đề đã bị khoá.")`, DB error → `(500, "Lỗi đăng bình luận.")`. Tất cả
+  đều plain-text, không có nav / nút quay lại.
+- Fix: tất cả error path redirect về `/cong-dong/chu-de/{id}?err=...` để `view_topic`
+  render lại topic page + banner error rõ ràng.
+
+- **[POST-1]** `src/handlers/community.rs::create_topic_form` — redirect với err param.
+- **[POST-2]** `src/handlers/community.rs::create_topic` — fetch `group_name` từ DB,
+  validation path render form với `group_name` đúng, DB error path render form với
+  error message + title đã nhập.
+- **[POST-3]** `src/handlers/community.rs::create_topic` — update `topic_count` sau INSERT.
+- **[POST-4]** `src/handlers/community.rs::create_comment` — redirect với err param
+  thay vì plain-text status code. Update `comment_count` sau INSERT.
+- **[POST-5]** `GroupTemplate` + `TopicTemplate` thêm field `error: Option<String>`.
+- **[POST-6]** `view_group` + `view_topic` thêm `Query<HashMap<String, String>>`
+  extractor, parse `?err=...` thành user-friendly message.
+- **[POST-7]** `templates/community/group.html` + `topic.html` — render error banner
+  (red alert box) khi `error.is_some()`.
+
+### 🔔 Notification Mark-All-As-Read + Per-Item Button (MAJOR)
+
+Trước v0.9.37, `/ban-be/thong-bao` chỉ có **auto-mark-on-visit** (server UPDATE tất
+cả unread khi user mở trang). Endpoint `/api/ban-be/thong-bao/{id}/da-doc` đã tồn
+tại nhưng là **dead code** — không có UI nào gọi.
+
+**Fix:**
+
+- **[NOTIF-1] `src/handlers/friends.rs::mark_all_notifications_read`** — Endpoint mới
+  `POST /api/ban-be/thong-bao/da-doc-tat-ca`. Bulk UPDATE tất cả unread của user,
+  trả JSON `{status: "ok", marked_count: N}`. Không có giới hạn số lượng.
+
+- **[NOTIF-2] `src/main.rs`** — Đăng ký route
+  `.route("/api/ban-be/thong-bao/da-doc-tat-ca", post(handlers::friends::mark_all_notifications_read))`.
+
+- **[NOTIF-3] `templates/ban-be/notifications.html`** — UI overhaul:
+  - Nút "✓ Đánh dấu tất cả đã đọc" ở header (disabled khi đang xử lý).
+  - Per-item button "✓ Đánh dấu đã đọc" trên mỗi notification chưa đọc.
+  - Toast thông báo "✅ Đã đánh dấu N thông báo là đã đọc." sau khi thành công.
+  - Alpine.js `notificationsManager()` component quản lý state `readState[uuid]`.
+  - Cập nhật header badge ngay lập tức qua `window.__tubiSetNotificationBadge(0)`.
+  - Handle 429: toast "⏳ Quá nhiều request. Vui lòng thử lại sau vài giây."
+
+- **[NOTIF-4] `src/static/js/chat.js::notificationBadge()`** — Expose 2 global helpers:
+  - `window.__tubiSetNotificationBadge(count)` — set badge to specific value.
+  - `window.__tubiDecrementNotificationBadge()` — decrement by 1 (per-item mark-as-read).
+  - Lắng nghe custom event `tubi-notifications-changed` để refresh badge ngay lập tức
+    (trước đây phải chờ 60s poll).
+
+### 🚫 Fix 429 Too Many Requests (MAJOR)
+
+Phân tích `src/middleware/rate_limit.rs` + `src/static/js/chat.js` + `app.js`:
+
+**Tăng limit (giảm 429 false positive):**
+- `api` group: 60 → **180** req/phút (stats, history, preferences, music tracks API).
+- `social` group: 60 → **180** req/phút (DM, notifications, friend ops).
+- `general` group: 120 → **300** req/phút (HTML pages, static files).
+- `post` group: 30 → **60** req/phút (create topic, comment, cam-ngo, tang-hoa).
+- Block penalty: 60s → **30s** (cân bằng anti-spam vs UX).
+- `auth` / `upload` / `profile_update` giữ nguyên (security limits, không nới lỏng).
+
+**Fix classification bugs (3 bugs):**
+- **BUG A:** `/api/ban-be/*` trước đây rơi vào `api` (60/min). Sửa → `social` (180/min).
+  Lý do: DM + notification poll + friend search là social features, không nên share
+  budget với stats API.
+- **BUG B:** `/api/nha-nhac/dang-nhac` + `/api/nha-nhac/dang-nhac-file` trước đây rơi
+  vào `api`. Sửa → `upload` (10/min). Lý do: đây là upload operation (YouTube URL
+  submit hoặc audio file upload), nên vào stricter bucket.
+- **BUG C:** `/kinh-sach/{slug}/cam-ngo` + `/kinh-sach/{slug}/tang-hoa` trước đây rơi
+  vào `general` (120/min) — quá dễ spam. Sửa → `post` (60/min).
+
+**429 response overhaul:**
+- Trước đây: trả plain-text `"429 — Quá nhiều request. Vui lòng thử lại sau 60 giây. 🪷"`
+  → user thấy trang trắng, không có nav / nút quay lại.
+- Fix:
+  - **HTML page** cho browser navigation: layout tối giản, countdown timer 30s,
+    hiển thị "📝 Nhóm bị giới hạn", "⚡ Giới hạn: 180 request/phút", "🔗 Đường dẫn:
+    /api/...", nút "← Quay lại" (disabled cho đến khi countdown = 0).
+  - **JSON response** cho `fetch()` calls (Accept: application/json hoặc
+    X-Requested-With: XMLHttpRequest): `{error: "rate_limited", message: "...",
+    retry_after: 30, group: "api"}` → client-side JS có thể handle.
+
+**Client-side 429 hardening:**
+- **[429-1] `src/static/js/app.js`** — `window.tubiFetch(url, opts)` wrapper: tự catch
+  HTTP 429, đọc `Retry-After` header, hiển thị toast, reject với error có `.retryAfter`
+  + `.group` + `.isRateLimited` properties.
+- **[429-2] `src/static/js/app.js`** — `window.tubiToast(message, type)` global toast
+  system (info/success/warning/error). Auto-dismiss 4s.
+- **[429-3] `src/static/js/app.js`** — Pause polling khi `document.hidden = true`
+  (tab không visible). Resume khi tab visible lại — dispatch custom event
+  `tubi-tab-visible` để `notificationBadge()` fetch ngay lập tức.
+- **[429-4] `src/static/js/chat.js::notificationBadge()`** — `scheduledFetch()` check
+  `window.__tubiPollingPaused` trước khi poll. Nếu 429 → pause poll 30s rồi resume.
+  Lắng nghe `tubi-tab-visible` event để fetch ngay khi user quay lại tab.
+
+### 🛠️ Misc
+
+- **Bump version** `0.9.36` → `0.9.37` trong `Cargo.toml`, `src/main.rs` (log lines,
+  health check JSON, phase_name), `templates/layout.html` (footer),
+  `templates/admin/phat-trien/index.html` (badge, footer), `templates/admin/ky-thuat/index.html`,
+  `templates/admin/quan-li/index.html`, `templates/admin/cong-dong/index.html`,
+  `templates/admin/placeholder.html`, `templates/admin/cong-dong/cam-ngo.html`,
+  `templates/khong-gian/index.html`, `templates/khong-gian/nha-nhac.html`.
+- **Rust 1.97.1** — `Cargo.toml` đã specify `rust-version = "1.97.1"`. Verified build
+  pass với `rustc 1.97.1 (8bab26f4f 2026-07-14)`.
+- **Health check** `/api/health` thêm 27 feature flags mới cho v0.9.37 + `v0_9_37_note`.
+
+---
+
 ## [0.9.36] — 2026-08-16 — Giai đoạn 41: Community Group Logo + Audio File Uploads 🪷
 
 ### 🎯 Mục tiêu giai đoạn

@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.36 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.37 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.36 — Giai đoạn 41: Community Logo + Audio File Uploads 🪷");
+    log::info!("📦 Phiên bản: v0.9.37 — Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -175,6 +175,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
     Router::new()
         // Routes — Trang chủ
         .route("/", get(handlers::home))
+        // v0.9.37 — Trang giới thiệu chi tiết Ứng Dụng Từ Bi (công khai, không yêu cầu login)
+        .route("/gioi-thieu", get(handlers::gioi_thieu))
         // Routes — Auth (Google OAuth là phương thức đăng nhập duy nhất)
         .route("/dang-nhap", get(handlers::login_page).post(handlers::auth::google_login))
         // POST-only logout để chống CSRF (bỏ GET /dang-xuat)
@@ -376,6 +378,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/ban-be/thong-bao", get(handlers::friends::notifications_list))
         .route("/api/ban-be/thong-bao/chua-doc", get(handlers::friends::notifications_unread_count))
         .route("/api/ban-be/thong-bao/{notification_id}/da-doc", post(handlers::friends::mark_notification_read))
+        // v0.9.37 — Mark ALL notifications as read (bulk update)
+        .route("/api/ban-be/thong-bao/da-doc-tat-ca", post(handlers::friends::mark_all_notifications_read))
         .route("/ban-be/tim-kiem", get(handlers::friends::search_users))
         // API
         // v0.9.23: /api/health yêu cầu auth + admin role — không công khai cho user thường
@@ -637,6 +641,37 @@ const HEALTH_FEATURES: &[&str] = &[
     "music-audio-sha256-dedup-v0.9.36",
     "music-source-type-youtube-or-audio-v0.9.36",
     "admin-music-pending-shows-source-type-v0.9.36",
+    // v0.9.37 — Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening
+    "about-page-gioi-thieu-v0.9.37",
+    "orphan-link-mobile-drawer-expanded-v0.9.37",
+    "orphan-link-admin-music-pending-tile-v0.9.37",
+    "orphan-link-nha-nhac-mega-menu-v0.9.37",
+    "post-submit-silent-reject-fix-v0.9.37",
+    "post-submit-group-name-empty-fix-v0.9.37",
+    "post-submit-db-error-renders-form-v0.9.37",
+    "post-submit-flash-error-banner-v0.9.37",
+    "post-submit-stale-counter-fix-v0.9.37",
+    "comment-submit-redirect-with-err-v0.9.37",
+    "comment-submit-stale-counter-fix-v0.9.37",
+    "notification-mark-all-as-read-endpoint-v0.9.37",
+    "notification-mark-all-as-read-button-v0.9.37",
+    "notification-per-item-mark-as-read-button-v0.9.37",
+    "notification-badge-realtime-sync-v0.9.37",
+    "rate-limit-api-60-to-180-v0.9.37",
+    "rate-limit-social-60-to-180-v0.9.37",
+    "rate-limit-general-120-to-300-v0.9.37",
+    "rate-limit-post-30-to-60-v0.9.37",
+    "rate-limit-block-60s-to-30s-v0.9.37",
+    "rate-limit-classify-api-ban-be-to-social-v0.9.37",
+    "rate-limit-classify-music-upload-correct-v0.9.37",
+    "rate-limit-classify-kinh-sach-to-post-v0.9.37",
+    "rate-limit-429-html-page-with-countdown-v0.9.37",
+    "rate-limit-429-json-response-for-fetch-v0.9.37",
+    "client-429-aware-fetch-wrapper-v0.9.37",
+    "client-toast-notification-system-v0.9.37",
+    "client-pause-polling-when-tab-hidden-v0.9.37",
+    "client-resume-polling-on-tab-visible-v0.9.37",
+    "client-notification-badge-pause-on-429-v0.9.37",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -655,7 +690,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.36",
+            "version": "0.9.37",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -685,11 +720,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.36",
+        "version": "0.9.37",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
         "phase": 41,
-        "phase_name": "Giai đoạn 41 — Community Group Logo + Audio File Uploads 🪷",
+        "phase_name": "Giai đoạn 41 (phần 2) — About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -705,6 +740,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "admin_phat_trien_dashboard": "/admin/phat-trien",
             "mod_dashboard": "/admin/thanh-vien",
             "v0_9_36_note": "Giai đoạn 41 — Community group logo upload + audio file uploads (MP3/M4A/OGG/WAV/FLAC) for music submissions",
+            "v0_9_37_note": "Giai đoạn 41 (phần 2) — Trang /gioi-thieu + fix orphan links (mobile drawer + admin music pending tile) + fix lỗi gửi bài (silent reject + empty group_name + stale counter) + nút đánh dấu đã đọc (per-item + mark-all) + fix 429 (tăng limit, sửa classify, HTML page, fetch wrapper)",
             "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",

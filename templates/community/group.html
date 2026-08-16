@@ -11,6 +11,14 @@
     <span class="text-gray-700">{{ group.name }}</span>
   </nav>
 
+  {# v0.9.37 — Error banner từ create_topic redirect (?err=...) — fix lỗi "gửi bài không được" #}
+  {% if let Some(err) = error %}
+  <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4 flex items-start gap-2">
+    <span class="text-base shrink-0">⚠️</span>
+    <div class="flex-1">{{ err }}</div>
+  </div>
+  {% endif %}
+
   <!-- Group Header -->
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
     <!-- Cover image -->

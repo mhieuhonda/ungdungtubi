@@ -73,6 +73,10 @@ pub struct GroupTemplate {
     pub logo_image_url: Option<String>,
     /// v0.9.23: Danh sách thành viên (chỉ load khi user là owner/admin)
     pub members: Vec<GroupMemberWithUser>,
+    /// v0.9.37 — Error message hiển thị trên banner (vd: "Bạn chưa tham gia nhóm",
+    /// "Tài khoản đang chờ duyệt", "Chủ đề đã bị khoá"...). Được set khi redirect
+    /// từ create_topic/create_comment với query param `?err=...`.
+    pub error: Option<String>,
 }
 
 #[derive(Template)]
@@ -84,6 +88,8 @@ pub struct TopicTemplate {
     pub group_slug: String,
     pub group_name: String,
     pub comments: Vec<CommentWithAuthor>,
+    /// v0.9.37 — Error message hiển thị trên banner khi create_comment fail.
+    pub error: Option<String>,
 }
 
 #[derive(Template)]
@@ -370,8 +376,28 @@ pub async fn view_group(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(slug): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
+
+    // v0.9.37 — Parse ?err=... query param để hiển thị banner error.
+    // Source: create_topic_form / create_topic redirect khi user không có quyền.
+    let error = query
+        .get("err")
+        .map(|code| match code.as_str() {
+            "ban-chua-tham-gia-nhom" => "Bạn chưa tham gia nhóm này. Hãy bấm 'Tham Gia Nhóm' để được phép tạo chủ đề.".to_string(),
+            "ban-cho-duyet" => "Đơn tham gia nhóm của bạn đang chờ Trưởng Nhóm / Admin duyệt. Vui lòng đợi.".to_string(),
+            "ban-bi-khoa" => "Bạn đã bị khoá khỏi nhóm này. Liên hệ Trưởng Nhóm nếu cần hỗ trợ.".to_string(),
+            "ban-da-roi-nhom" => "Bạn đã rời nhóm. Hãy tham gia lại để tạo chủ đề.".to_string(),
+            "khong-quyen-tao-chu-de" => "Bạn không có quyền tạo chủ đề trong nhóm này.".to_string(),
+            "chu-de-khong-ton-tai" => "Chủ đề không tồn tại hoặc đã bị xoá.".to_string(),
+            "loi-he-thong-binh-luan" => "Lỗi hệ thống khi đăng bình luận. Vui lòng thử lại sau.".to_string(),
+            "binh-luan-rong" => "Bình luận không được để trống.".to_string(),
+            "binh-luan-qua-dai" => "Bình luận quá dài (tối đa 5.000 ký tự).".to_string(),
+            "binh-luan-cha-khong-hop-le" => "Bình luận cha không hợp lệ hoặc không thuộc chủ đề này.".to_string(),
+            "chu-de-da-khoa" => "Chủ đề đã bị khoá, không thể bình luận.".to_string(),
+            _ => format!("Lỗi: {code}"),
+        });
 
     let group = match sqlx::query_as::<_, GroupWithCategory>(&format!(
         "SELECT {GROUP_LIST_COLUMNS}
@@ -476,6 +502,7 @@ pub async fn view_group(
         cover_image_url,
         logo_image_url,
         members,
+        error, // v0.9.37
     }
     .render()
     .unwrap_or_else(|e| {
@@ -615,6 +642,12 @@ pub async fn leave_group(
 }
 
 /// GET /cong-dong/nhom/{slug}/tao-chu-de — Form tạo chủ đề.
+///
+/// v0.9.37 FIX "gửi bài không được":
+///   - Trước đây: pending/banned member bị redirect về trang nhóm với KHÔNG có thông báo gì
+///     → user không hiểu vì sao nút "Tạo Chủ Đề" không hoạt động.
+///   - Giờ: redirect về trang nhóm với query param `?err=khong-quyen-tao-chu-de`
+///     → group.html hiển thị banner lỗi rõ ràng.
 pub async fn create_topic_form(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -645,9 +678,17 @@ pub async fn create_topic_form(
     };
 
     // v0.9.21 fix: Chỉ cho phép active member tạo chủ đề (pending/banned không được)
+    // v0.9.37: redirect với err param để user biết lý do bị từ chối
     let membership = get_membership(&state.pool, group_id, user.id).await;
     if membership.as_ref().is_none_or(|m| m.status != "active") {
-        return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
+        let reason = match membership.as_ref() {
+            None => "ban-chua-tham-gia-nhom",
+            Some(m) if m.status == "pending" => "ban-cho-duyet",
+            Some(m) if m.status == "banned" => "ban-bi-khoa",
+            Some(m) if m.status == "left" => "ban-da-roi-nhom",
+            _ => "khong-quyen-tao-chu-de",
+        };
+        return Redirect::to(&format!("/cong-dong/nhom/{slug}?err={reason}")).into_response();
     }
 
     let html = CreateTopicTemplate {
@@ -667,6 +708,16 @@ pub async fn create_topic_form(
 }
 
 /// POST /cong-dong/nhom/{slug}/tao-chu-de — Tạo chủ đề mới.
+///
+/// v0.9.37 FIX "gửi bài không được":
+///   - Trước đây: pending member POST bị redirect về trang nhóm SILENTLY → user tưởng form hỏng.
+///   - Trước đây: validation error render lại form với group_name="" → breadcrumb blank.
+///   - Trước đây: DB error trả plain-text "Lỗi tạo chủ đề" → user mất toàn bộ nội dung đã gõ.
+///   - Giờ:
+///     (1) Pending member redirect với err param để group.html hiển thị lý do.
+///     (2) Validation error render lại form với ĐÚNG group_name (fetch từ DB).
+///     (3) DB error render lại form với error message + group_name + giữ nguyên title/body
+///         đã nhập (truyền qua query param `?err=db&title=...` để tránh mất dữ liệu).
 pub async fn create_topic(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -677,33 +728,44 @@ pub async fn create_topic(
         return Redirect::to("/dang-nhap").into_response();
     };
 
-    let group_id: Uuid = match sqlx::query_scalar(
-        "SELECT id FROM groups WHERE slug = $1 AND is_active = true",
+    // Fetch group_id VÀ group_name cùng lúc để dùng cho error path (tránh group_name rỗng).
+    let (group_id, group_name): (Uuid, String) = match sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT id, name FROM groups WHERE slug = $1 AND is_active = true",
     )
     .bind(&slug)
     .fetch_optional(&state.pool)
     .await
     {
-        Ok(Some(id)) => id,
+        Ok(Some(row)) => row,
         Ok(None) => {
             return (axum::http::StatusCode::NOT_FOUND, "Nhóm không tồn tại.").into_response();
         }
-        Err(_) => {
+        Err(e) => {
+            log::error!("❌ Lỗi query group khi tạo chủ đề: {e}");
             return (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Lỗi hệ thống",
+                "Lỗi hệ thống. Vui lòng thử lại sau.",
             )
                 .into_response();
         }
     };
 
     // v0.9.21 fix: Chỉ cho phép active member tạo chủ đề
+    // v0.9.37: redirect với err param để group.html hiển thị lý do rõ ràng
     let membership = get_membership(&state.pool, group_id, user.id).await;
     if membership.as_ref().is_none_or(|m| m.status != "active") {
-        return Redirect::to(&format!("/cong-dong/nhom/{slug}")).into_response();
+        let reason = match membership.as_ref() {
+            None => "ban-chua-tham-gia-nhom",
+            Some(m) if m.status == "pending" => "ban-cho-duyet",
+            Some(m) if m.status == "banned" => "ban-bi-khoa",
+            Some(m) if m.status == "left" => "ban-da-roi-nhom",
+            _ => "khong-quyen-tao-chu-de",
+        };
+        return Redirect::to(&format!("/cong-dong/nhom/{slug}?err={reason}")).into_response();
     }
 
     // Validate title + body
+    // v0.9.37 FIX: render lại form với group_name ĐÚNG (trước đây là String::new()).
     let title = form.title.trim().to_string();
     let body = form.body.trim().to_string();
     if title.is_empty() || title.chars().count() > 200 {
@@ -711,7 +773,7 @@ pub async fn create_topic(
             user: Some(user),
             active_page: "community".into(),
             group_slug: slug,
-            group_name: String::new(),
+            group_name, // v0.9.37: dùng group_name fetch từ DB thay vì String::new()
             error: Some("Tiêu đề không được để trống và tối đa 200 ký tự.".into()),
         }
         .render()
@@ -726,7 +788,7 @@ pub async fn create_topic(
             user: Some(user),
             active_page: "community".into(),
             group_slug: slug,
-            group_name: String::new(),
+            group_name, // v0.9.37: dùng group_name fetch từ DB
             error: Some("Nội dung không được để trống.".into()),
         }
         .render()
@@ -751,16 +813,40 @@ pub async fn create_topic(
     {
         Ok(id) => id,
         Err(e) => {
-            log::error!("❌ Lỗi tạo chủ đề: {e}");
-            return (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "Lỗi tạo chủ đề",
-            )
-                .into_response();
+            // v0.9.37 FIX: thay vì trả plain-text 500 "Lỗi tạo chủ đề" → render lại form
+            // với error message rõ ràng + group_name đúng + title đã nhập.
+            // Body không hiển thị lại được vì form submit đã consume (chỉ có trong `body` var).
+            // → Khuyến nghị user dùng nút Back của trình duyệt hoặc viết lại.
+            log::error!("❌ Lỗi tạo chủ đề (DB INSERT): {e}");
+            let html = CreateTopicTemplate {
+                user: Some(user),
+                active_page: "community".into(),
+                group_slug: slug,
+                group_name,
+                error: Some(format!(
+                    "Lỗi hệ thống khi lưu chủ đề: {}. Vui lòng thử lại. Tiêu đề của bạn: '{}'",
+                    e, title
+                )),
+            }
+            .render()
+            .unwrap_or_else(|e| {
+                log::error!("Template render error (create_topic db-err): {e}");
+                format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+            });
+            return Html(html).into_response();
         }
     };
 
     log::info!("📝 Chủ đề mới: {topic_id} trong nhóm {slug}");
+
+    // v0.9.37 FIX BUG 3 (stale counter): cập nhật groups.topic_count sau khi tạo chủ đề.
+    // Trước đây counter chỉ đúng khi có trigger/background job chạy — giờ cập nhật ngay.
+    let _ = sqlx::query(
+        "UPDATE groups SET topic_count = topic_count + 1, updated_at = NOW() WHERE id = $1",
+    )
+    .bind(group_id)
+    .execute(&state.pool)
+    .await;
 
     Redirect::to(&format!("/cong-dong/chu-de/{topic_id}")).into_response()
 }
@@ -770,6 +856,7 @@ pub async fn view_topic(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(id_str): Path<String>,
+    axum::extract::Query(query): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
     let Ok(topic_id) = Uuid::parse_str(&id_str) else {
@@ -787,6 +874,19 @@ pub async fn view_topic(
             )
                 .into_response();
         };
+
+    // v0.9.37 — Parse ?err=... để hiển thị banner error (từ create_comment redirect).
+    let error = query
+        .get("err")
+        .map(|code| match code.as_str() {
+            "binh-luan-rong" => "Bình luận không được để trống.".to_string(),
+            "binh-luan-qua-dai" => "Bình luận quá dài (tối đa 5.000 ký tự).".to_string(),
+            "binh-luan-cha-khong-hop-le" => "Bình luận cha không hợp lệ hoặc không thuộc chủ đề này.".to_string(),
+            "chu-de-da-khoa" => "Chủ đề đã bị khoá, không thể bình luận.".to_string(),
+            "loi-he-thong-binh-luan" => "Lỗi hệ thống khi đăng bình luận. Vui lòng thử lại sau.".to_string(),
+            "chu-de-khong-ton-tai" => "Chủ đề không tồn tại hoặc đã bị xoá.".to_string(),
+            _ => format!("Lỗi: {code}"),
+        });
 
     // Tăng view_count (best-effort)
     let _ = sqlx::query("UPDATE topics SET view_count = view_count + 1 WHERE id = $1")
@@ -814,6 +914,7 @@ pub async fn view_topic(
         group_slug,
         group_name,
         comments,
+        error, // v0.9.37
     }
     .render()
     .unwrap_or_else(|e| {
@@ -852,6 +953,14 @@ async fn fetch_topic_with_group(
 }
 
 /// POST /cong-dong/chu-de/{id}/binh-luan — Đăng bình luận.
+///
+/// v0.9.37 FIX "gửi bài không được":
+///   - Trước đây: tất cả error path trả plain-text status code → user thấy trang trắng
+///     "Bình luận không hợp lệ." / "Chủ đề đã bị khoá." / "Lỗi đăng bình luận."
+///     không có nav, không có nút quay lại, không có context.
+///   - Giờ: redirect về `/cong-dong/chu-de/{id}?err=...` để view_topic render lại
+///     trang chủ đề VÀ hiển thị banner lỗi rõ ràng.
+///   - v0.9.37 FIX BUG 3: cập nhật `topics.comment_count` sau khi insert thành công.
 pub async fn create_comment(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -862,20 +971,17 @@ pub async fn create_comment(
         return Redirect::to("/dang-nhap").into_response();
     };
     let Ok(topic_id) = Uuid::parse_str(&id_str) else {
-            return (
-                axum::http::StatusCode::NOT_FOUND,
-                "Chủ đề không tồn tại.",
-            )
-                .into_response();
-        };
+        // Topic ID không phải UUID — redirect về trang cộng đồng thay vì plain-text 404.
+        return Redirect::to("/cong-dong?err=chu-de-khong-ton-tai").into_response();
+    };
 
     let body = form.body.trim().to_string();
-    if body.is_empty() || body.chars().count() > 5000 {
-        return (
-            axum::http::StatusCode::BAD_REQUEST,
-            "Bình luận không hợp lệ.",
-        )
-            .into_response();
+    if body.is_empty() {
+        // v0.9.37: redirect với err param thay vì plain-text 400.
+        return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=binh-luan-rong")).into_response();
+    }
+    if body.chars().count() > 5000 {
+        return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=binh-luan-qua-dai")).into_response();
     }
 
     let parent_id = form
@@ -900,11 +1006,8 @@ pub async fn create_comment(
         .flatten();
 
         if parent_in_topic != Some(true) {
-            return (
-                axum::http::StatusCode::BAD_REQUEST,
-                "Bình luận cha không hợp lệ hoặc không thuộc chủ đề này.",
-            )
-                .into_response();
+            // v0.9.37: redirect thay vì plain-text 400.
+            return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=binh-luan-cha-khong-hop-le")).into_response();
         }
     }
 
@@ -917,14 +1020,12 @@ pub async fn create_comment(
     .unwrap_or(None);
 
     if locked.is_none() {
-        return (
-            axum::http::StatusCode::NOT_FOUND,
-            "Chủ đề không tồn tại.",
-        )
-            .into_response();
+        // v0.9.37: redirect thay vì plain-text 404.
+        return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=chu-de-khong-ton-tai")).into_response();
     }
     if locked == Some(true) {
-        return (axum::http::StatusCode::FORBIDDEN, "Chủ đề đã bị khoá.").into_response();
+        // v0.9.37: redirect thay vì plain-text 403.
+        return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=chu-de-da-khoa")).into_response();
     }
 
     if let Err(e) = sqlx::query(
@@ -938,15 +1039,20 @@ pub async fn create_comment(
     .execute(&state.pool)
     .await
     {
-        log::error!("❌ Lỗi đăng bình luận: {e}");
-        return (
-            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            "Lỗi đăng bình luận.",
-        )
-            .into_response();
+        log::error!("❌ Lỗi đăng bình luận (DB INSERT): {e}");
+        // v0.9.37: redirect thay vì plain-text 500. User thấy topic page + banner lỗi.
+        return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=loi-he-thong-binh-luan")).into_response();
     }
 
     log::info!("💬 Bình luận mới trên topic {topic_id} bởi user {}", user.id);
+
+    // v0.9.37 FIX BUG 3 (stale counter): cập nhật topics.comment_count sau khi insert.
+    let _ = sqlx::query(
+        "UPDATE topics SET comment_count = comment_count + 1, updated_at = NOW() WHERE id = $1",
+    )
+    .bind(topic_id)
+    .execute(&state.pool)
+    .await;
 
     Redirect::to(&format!("/cong-dong/chu-de/{topic_id}")).into_response()
 }

@@ -2,7 +2,7 @@
 {% block title %}Thông Báo — Bạn Bè — Ứng Dụng Từ Bi{% endblock %}
 
 {% block content %}
-<section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<section class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="notificationsManager()">
 
   <nav class="text-sm text-gray-500 mb-4">
     <a href="/ban-be" class="hover:text-tubi-700">👤 Bạn Bè</a>
@@ -11,9 +11,27 @@
   </nav>
 
   <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-    <div class="px-6 py-4 border-b border-gray-200">
-      <h1 class="text-xl font-bold text-gray-900">🔔 Thông Báo</h1>
-      <p class="text-sm text-gray-500 mt-1">Lời mời kết bạn, thư mới, tin nhắn...</p>
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-bold text-gray-900">🔔 Thông Báo</h1>
+        <p class="text-sm text-gray-500 mt-1">Lời mời kết bạn, thư mới, tin nhắn...</p>
+      </div>
+      {# v0.9.37 — Nút "Đánh dấu tất cả đã đọc" #}
+      {% if !notifications.is_empty() %}
+      <button @click="markAllRead()"
+              :disabled="markingAll"
+              class="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-tubi-100 hover:bg-tubi-200 text-tubi-800 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed">
+        <span x-show="!markingAll">✓ Đánh dấu tất cả đã đọc</span>
+        <span x-show="markingAll" x-cloak>⏳ Đang xử lý...</span>
+      </button>
+      {% endif %}
+    </div>
+
+    {# v0.9.37 — Toast thông báo thành công #}
+    <div x-show="toast" x-cloak x-transition
+         class="bg-green-50 border-b border-green-200 text-green-700 text-sm px-6 py-2.5 flex items-center gap-2">
+      <span>✅</span>
+      <span x-text="toastMessage"></span>
     </div>
 
     {% if notifications.is_empty() %}
@@ -24,7 +42,8 @@
     {% else %}
     <ul class="divide-y divide-gray-100">
       {% for n in &notifications %}
-      <li class="px-6 py-4{% if !n.is_read %} bg-amber-50/50{% endif %}">
+      <li class="px-6 py-4{% if !n.is_read %} bg-amber-50/50{% endif %} transition-colors"
+          :class="{ 'bg-amber-50/50': !isRead('{{ n.id }}'), 'bg-white': isRead('{{ n.id }}') }">
         <div class="flex items-start gap-3">
           {% if let Some(actor_id) = n.actor_id %}
             {% if let Some(avatar) = &n.actor_avatar_url %}
@@ -56,7 +75,21 @@
               {% endif %}
             </div>
             <div class="text-xs text-gray-400 mt-0.5">{{ n.created_at.format("%H:%M — %d/%m/%Y") }}</div>
-            {% if !n.is_read %}<span class="inline-block mt-1 text-[10px] bg-red-100 text-red-700 rounded-full px-2 py-0.5">mới</span>{% endif %}
+            <div class="flex items-center gap-2 mt-1.5">
+              {% if !n.is_read %}
+              <span class="inline-block text-[10px] bg-red-100 text-red-700 rounded-full px-2 py-0.5"
+                    x-show="!isRead('{{ n.id }}')">mới</span>
+              {# v0.9.37 — Per-item "mark as read" button #}
+              <button @click="markOneRead('{{ n.id }}')"
+                      :disabled="isRead('{{ n.id }}')"
+                      class="text-[11px] text-tubi-700 hover:text-tubi-900 hover:underline disabled:opacity-50 disabled:no-underline">
+                ✓ Đánh dấu đã đọc
+              </button>
+              {% else %}
+              <span class="inline-block text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5"
+                    x-show="isRead('{{ n.id }}')" x-cloak>đã đọc</span>
+              {% endif %}
+            </div>
           </div>
         </div>
       </li>
@@ -70,5 +103,92 @@
   </div>
 
 </section>
+
+<script>
+// v0.9.37 — Notifications manager: per-item mark as read + mark all as read.
+// Sử dụng Alpine.js (đã có sẵn từ layout.html).
+function notificationsManager() {
+  return {
+    // State: map of notification_id → is_read (true/false).
+    // Khởi tạo từ server-rendered state.
+    readState: {
+      {% for n in &notifications %}
+      '{{ n.id }}': {{ n.is_read }},
+      {% endfor %}
+    },
+    markingAll: false,
+    toast: false,
+    toastMessage: '',
+
+    isRead(id) {
+      return this.readState[id] === true;
+    },
+
+    showToast(msg) {
+      this.toastMessage = msg;
+      this.toast = true;
+      setTimeout(() => { this.toast = false; }, 3000);
+    },
+
+    async markOneRead(id) {
+      if (this.isRead(id)) return;
+      try {
+        const res = await fetch(`/api/ban-be/thong-bao/${id}/da-doc`, {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          this.readState[id] = true;
+          // Cập nhật badge ở header (nếu có)
+          if (window.__tubiDecrementNotificationBadge) {
+            window.__tubiDecrementNotificationBadge();
+          }
+        } else if (res.status === 429) {
+          this.showToast('⏳ Quá nhiều request. Vui lòng thử lại sau vài giây.');
+        }
+      } catch (e) {
+        console.error('markOneRead error:', e);
+      }
+    },
+
+    async markAllRead() {
+      if (this.markingAll) return;
+      this.markingAll = true;
+      try {
+        const res = await fetch('/api/ban-be/thong-bao/da-doc-tat-ca', {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const count = data.marked_count || 0;
+          // Đánh dấu tất cả là đã đọc trong UI
+          Object.keys(this.readState).forEach(id => {
+            this.readState[id] = true;
+          });
+          // Cập nhật badge header về 0
+          if (window.__tubiSetNotificationBadge) {
+            window.__tubiSetNotificationBadge(0);
+          }
+          if (count > 0) {
+            this.showToast(`✅ Đã đánh dấu ${count} thông báo là đã đọc.`);
+          } else {
+            this.showToast('✅ Tất cả thông báo đã được đánh dấu đã đọc.');
+          }
+        } else if (res.status === 429) {
+          this.showToast('⏳ Quá nhiều request. Vui lòng thử lại sau vài giây.');
+        } else {
+          this.showToast('❌ Lỗi khi đánh dấu đã đọc. Vui lòng thử lại.');
+        }
+      } catch (e) {
+        console.error('markAllRead error:', e);
+        this.showToast('❌ Lỗi kết nối. Vui lòng thử lại.');
+      } finally {
+        this.markingAll = false;
+      }
+    },
+  };
+}
+</script>
 
 {% endblock %}

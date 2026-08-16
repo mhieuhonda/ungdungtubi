@@ -1,0 +1,510 @@
+{% extends "layout.html" %}
+
+{% block title %}Giới Thiệu — Ứng Dụng Từ Bi{% endblock %}
+{% block og_title %}Giới Thiệu Ứng Dụng Từ Bi — Cộng Tu · Kết Nối · Phụng Sự{% endblock %}
+{% block og_description %}Ứng Dụng Từ Bi là nền tảng cộng đồng dành cho người yêu mến đạo lý, có tâm tu học và mong muốn ứng dụng lòng từ bi vào cuộc sống.{% endblock %}
+
+{% block content %}
+<!-- ================= HERO ================= -->
+<section class="relative overflow-hidden bg-gradient-to-br from-tubi-800 via-tubi-900 to-ink text-white">
+  <div class="absolute inset-0 opacity-20">
+    <div class="absolute top-10 left-10 w-64 h-64 bg-lotus-400 rounded-full blur-3xl animate-pulse"></div>
+    <div class="absolute bottom-10 right-20 w-96 h-96 bg-tubi-500 rounded-full blur-3xl animate-pulse" style="animation-delay:1s;"></div>
+  </div>
+  <div class="relative max-w-4xl mx-auto px-4 py-16 md:py-24 text-center"
+       x-data="{ show: false }" x-init="setTimeout(() => show = true, 100)">
+    <div x-show="show" x-cloak
+         x-transition:enter="transition ease-out duration-700"
+         x-transition:enter-start="opacity-0 transform scale-50"
+         x-transition:enter-end="opacity-100 transform scale-100">
+      <div class="w-20 h-20 mx-auto bg-white/10 backdrop-blur rounded-full flex items-center justify-center ring-4 ring-lotus-400/30 shadow-2xl animate-float">
+        <span class="lotus-emoji text-5xl leading-none">🪷</span>
+      </div>
+    </div>
+    <h1 x-show="show" x-cloak
+        x-transition:enter="transition ease-out duration-700 delay-200"
+        x-transition:enter-start="opacity-0 transform translate-y-4"
+        x-transition:enter-end="opacity-100 transform translate-y-0"
+        class="text-3xl md:text-5xl font-bold mt-6 mb-2">
+      ỨNG DỤNG TỪ BI
+    </h1>
+    <p x-show="show" x-cloak
+       x-transition:enter="transition ease-out duration-700 delay-400"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       class="text-lotus-300 text-base md:text-xl mb-6 tracking-wider">
+      CỘNG TU · KẾT NỐI · PHỤNG SỰ
+    </p>
+    <blockquote x-show="show" x-cloak
+        x-transition:enter="transition ease-out duration-700 delay-500"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        class="text-tubi-200 text-sm md:text-base italic max-w-2xl mx-auto leading-relaxed">
+      "Trong cuộc sống hiện đại, con người có thể kết nối với nhau chỉ trong vài giây, nhưng để tìm được những người thật sự cùng chí hướng, cùng tâm nguyện và cùng nhau tiến bước trên con đường tu học lại không hề dễ dàng."
+    </blockquote>
+    <div x-show="show" x-cloak
+         x-transition:enter="transition ease-out duration-700 delay-700"
+         x-transition:enter-start="opacity-0 transform translate-y-4"
+         x-transition:enter-end="opacity-100 transform translate-y-0"
+         class="flex flex-col sm:flex-row gap-3 justify-center mt-8">
+      {% if user.is_none() %}
+      <a href="/dang-nhap"
+         class="bg-lotus-400 hover:bg-lotus-500 text-ink px-6 py-2.5 rounded-xl text-base font-semibold transition shadow-lg hover:shadow-xl hover:scale-105">
+        🪷 Đăng Nhập Bằng Google
+      </a>
+      {% else %}
+      <a href="/khong-gian"
+         class="bg-lotus-400 hover:bg-lotus-500 text-ink px-6 py-2.5 rounded-xl text-base font-semibold transition shadow-lg hover:shadow-xl hover:scale-105">
+        🙌 Vào Không Gian Tu Học
+      </a>
+      {% endif %}
+      <a href="#toc"
+         class="border border-white/30 text-white hover:bg-white/10 px-6 py-2.5 rounded-xl text-base transition">
+        📖 Mục Lục Trang
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MỤC LỤC ================= -->
+<section id="toc" class="bg-tubi-50/40 border-b border-tubi-100">
+  <div class="max-w-4xl mx-auto px-4 py-6">
+    <div class="bg-white rounded-xl border border-tubi-100 shadow-sm p-5">
+      <h2 class="text-sm font-semibold text-tubi-800 mb-3 flex items-center gap-2">
+        <span class="lotus-emoji">🪷</span> Mục Lục
+      </h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 text-xs">
+        <a href="#ung-dung-la-gi" class="text-tubi-700 hover:text-tubi-900 hover:underline">1. Ứng Dụng Từ Bi là gì?</a>
+        <a href="#tam-nhin" class="text-tubi-700 hover:text-tubi-900 hover:underline">2. Tầm nhìn</a>
+        <a href="#trieu-ly" class="text-tubi-700 hover:text-tubi-900 hover:underline">3. Triết lý &amp; khẩu hiệu</a>
+        <a href="#khoi-sang" class="text-tubi-700 hover:text-tubi-900 hover:underline">4. Câu chuyện khởi sáng</a>
+        <a href="#tinh-nang" class="text-tubi-700 hover:text-tubi-900 hover:underline">5. Tính năng chính</a>
+        <a href="#he-sinh-thai" class="text-tubi-700 hover:text-tubi-900 hover:underline">6. Hệ sinh thái tương lai</a>
+        <a href="#tuyen-thanh-vien" class="text-tubi-700 hover:text-tubi-900 hover:underline">7. Thông báo tuyển thành viên</a>
+        <a href="#dong-hanh" class="text-tubi-700 hover:text-tubi-900 hover:underline">8. Cách đồng hành</a>
+        <a href="#lien-he" class="text-tubi-700 hover:text-tubi-900 hover:underline">9. Liên hệ</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 1. ỨNG DỤNG TỪ BI LÀ GÌ ================= -->
+<section id="ung-dung-la-gi" class="max-w-4xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">1</div>
+      <h2 class="text-xl md:text-2xl font-bold text-ink">Ứng Dụng Từ Bi là gì?</h2>
+    </div>
+    <div class="space-y-4 text-gray-700 leading-relaxed">
+      <p>
+        <strong class="text-tubi-800">Ứng Dụng Từ Bi</strong> được định hướng là một nền tảng cộng đồng dành cho những người yêu mến đạo lý, có tâm tu học và mong muốn ứng dụng lòng từ bi vào cuộc sống. Đây không chỉ là một sản phẩm công nghệ để cộng tu, niệm Phật, nghe nhạc thiền, đọc kinh sách — mà còn là khởi đầu cho một hệ sinh thái Từ Bi, nơi mọi người có thể cùng nhau tu học, chia sẻ tri thức, thực hành điều thiện và hỗ trợ nhau trên con đường giác ngộ giải thoát.
+      </p>
+      <p>
+        Ứng dụng hướng tới cộng đồng Phật tử Tịnh Độ (niệm "A Di Đà Phật") và tất cả những ai có tâm tu học, không phân biệt tôn giáo. Trong thời đại số, kết nối rất dễ nhưng để tìm được những người thật sự cùng chí hướng, cùng tâm nguyện tu học lại không hề dễ dàng. Ứng Dụng Từ Bi được tạo ra để thu hẹp khoảng cách đó — kiến tạo một không gian an lạc, thiện lành, nơi lòng từ bi được thực hành mỗi ngày.
+      </p>
+      <p>
+        Người tham gia có thể niệm Phật và ghi nhận quá trình tu tập, nghe nhạc thiền, đọc kinh sách, tham gia nhóm cộng tu, kết bạn thiện lành, tham gia Live Chat, gửi thư, chia sẻ cảm ngộ, và trong tương lai là tham gia Game Siêu Độ — nơi triết lý <em>"Tu cũng niệm Phật. Chơi cũng niệm Phật."</em> được hiện thực hoá.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 2. TẦM NHÌN ================= -->
+<section id="tam-nhin" class="bg-gradient-to-b from-tubi-50/40 to-white py-12">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-gradient-to-br from-tubi-800 to-ink rounded-2xl shadow-xl p-8 md:p-12 text-center text-white">
+      <div class="text-4xl mb-3">🌏</div>
+      <h2 class="text-xl md:text-2xl font-bold mb-6">Tầm nhìn tối thượng</h2>
+      <blockquote class="text-base md:text-lg leading-relaxed text-tubi-100 italic max-w-2xl mx-auto">
+        "Trong tương lai, khi ai đó hỏi:<br>
+        <span class="text-lotus-300">'Làm thế nào để thực hành từ bi?'</span><br>
+        <span class="text-lotus-300">'Làm thế nào để bình an giữa cuộc đời.'</span><br>
+        Câu trả lời quen thuộc sẽ là:<br>
+        <strong class="text-white not-italic">'Hãy mở Ứng Dụng Từ Bi.'</strong>"
+      </blockquote>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3. TRIẾT LÝ ================= -->
+<section id="trieu-ly" class="max-w-4xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">3</div>
+      <h2 class="text-xl md:text-2xl font-bold text-ink">Triết lý &amp; khẩu hiệu</h2>
+    </div>
+    <div class="grid md:grid-cols-2 gap-5">
+      <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+        <h3 class="font-semibold text-tubi-800 mb-2">🌱 Bộ triết lý cốt lõi</h3>
+        <p class="text-sm text-gray-700 italic">"Từ bi. Trí tuệ. Giác ngộ. Giải thoát. Tu hành. Niệm Phật. Buông bỏ. Siêu độ."</p>
+      </div>
+      <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+        <h3 class="font-semibold text-tubi-800 mb-2">📣 Khẩu hiệu</h3>
+        <p class="text-sm text-gray-700 italic">"Siêu thoát không siêu thích. Giải thoát không giải thích. Buông bỏ mới có thể trở về."</p>
+      </div>
+      <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+        <h3 class="font-semibold text-tubi-800 mb-2">🛠️ Triết lý phát triển</h3>
+        <p class="text-sm text-gray-700 italic">"Công nghệ chỉ là phương tiện. Cộng đồng, ý nghĩa và niềm tin mới là nền tảng lâu dài."</p>
+      </div>
+      <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+        <h3 class="font-semibold text-tubi-800 mb-2">🎮 Triết lý game</h3>
+        <p class="text-sm text-gray-700 italic">"Tu cũng niệm Phật. Chơi cũng niệm Phật."</p>
+      </div>
+    </div>
+    <div class="mt-5 bg-gradient-to-br from-tubi-100 to-lotus-50 rounded-xl p-5 border border-tubi-200">
+      <h3 class="font-semibold text-tubi-800 mb-2">🏁 Triết lý cuối cùng</h3>
+      <p class="text-sm text-gray-700 italic leading-relaxed">
+        "Làm chậm để đi xa. Hoàn thiện mọi thời điểm. Xây cộng đồng trước, xây hệ sinh thái sau. Không cần tốt nhất, chỉ cần phù hợp nhất. Người ta không ở lại vì công nghệ. Người ta ở lại vì cộng đồng, ý nghĩa và niềm tin."
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 4. CÂU CHUYỆN KHỞI SÁNG ================= -->
+<section id="khoi-sang" class="bg-gradient-to-b from-white to-tubi-50/40 py-12">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">4</div>
+        <h2 class="text-xl md:text-2xl font-bold text-ink">Câu chuyện khởi sáng</h2>
+      </div>
+      <div class="space-y-4 text-gray-700 leading-relaxed">
+        <p>
+          Từ mong muốn tạo nên một không gian an lạc và thiện lành nơi mọi người có thể cùng nhau tu học, <strong class="text-tubi-800">Từ Bi Team</strong> đang từng bước xây dựng Ứng Dụng Từ Bi — một nền tảng giúp mọi người đưa tinh thần từ bi vào cuộc sống và tu hành. Ứng Dụng Từ Bi được xây dựng không phải bởi riêng một cá nhân hay một đội ngũ, mà là thành quả chung của những người có tâm nguyện phụng sự.
+        </p>
+        <p>
+          Dự án được khai sáng bởi hai thành viên nòng cốt, mỗi người phụ trách một mảng chuyên sâu nhưng cùng chia sẻ một tầm nhìn chung:
+        </p>
+        <div class="grid sm:grid-cols-2 gap-4 mt-4">
+          <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+            <div class="text-2xl mb-1">🧭</div>
+            <h3 class="font-semibold text-tubi-800">Admin Định Hướng (Ti)</h3>
+            <p class="text-xs text-gray-600 mt-1">Phụ trách triết lý, nội dung, cộng đồng, truyền thông, huy động nguồn lực, thiết kế ý tưởng và định hướng phát triển.</p>
+          </div>
+          <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
+            <div class="text-2xl mb-1">💻</div>
+            <h3 class="font-semibold text-tubi-800">Admin Kỹ Thuật (Cường)</h3>
+            <p class="text-xs text-gray-600 mt-1">Phụ trách hệ thống, server, cơ sở dữ liệu, mã nguồn, bảo mật và phát triển ứng dụng.</p>
+          </div>
+        </div>
+        <div class="bg-lotus-50 border border-lotus-200 rounded-xl p-4 mt-4">
+          <p class="text-sm text-gray-700 italic">
+            "Ứng Dụng Từ Bi được xây dựng không phải bởi riêng một cá nhân hay một đội ngũ, mà là thành quả chung của những người có tâm nguyện phụng sự."
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 5. TÍNH NĂNG CHÍNH ================= -->
+<section id="tinh-nang" class="max-w-4xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">5</div>
+      <h2 class="text-xl md:text-2xl font-bold text-ink">Tính năng chính</h2>
+    </div>
+    <p class="text-sm text-gray-600 mb-5">
+      Bốn chuyên mục chính của Ứng Dụng Từ Bi được kết hợp với nhau thành một hệ sinh thái tu học toàn diện:
+    </p>
+    <div class="grid sm:grid-cols-2 gap-4">
+      <a href="/khong-gian" class="block bg-gradient-to-br from-tubi-50 to-white rounded-xl p-5 border border-tubi-100 hover:shadow-md transition">
+        <div class="text-2xl mb-2">🌍</div>
+        <h3 class="font-semibold text-tubi-800">Không Gian</h3>
+        <p class="text-xs text-gray-600 mt-1">Niệm Phật · Tượng Phật · Nhật Ký Tu Học · Nhà Nhạc (5 thư mục nhạc thiền) · Đại Sảnh · Tượng Phật · Thùng Từ Bi · Cổng Du Hí.</p>
+      </a>
+      <a href="/cong-dong" class="block bg-gradient-to-br from-tubi-50 to-white rounded-xl p-5 border border-tubi-100 hover:shadow-md transition">
+        <div class="text-2xl mb-2">👥</div>
+        <h3 class="font-semibold text-tubi-800">Cộng Đồng</h3>
+        <p class="text-xs text-gray-600 mt-1">Lướt nhóm · Lướt chủ đề · Xem toàn bộ · Nhóm + Live Chat · Nhóm Con · Không Gian Chung · Cuộc Bầu Chọn · Cài Đặt Nhóm 4 cấp.</p>
+      </a>
+      <a href="/ban-be" class="block bg-gradient-to-br from-tubi-50 to-white rounded-xl p-5 border border-tubi-100 hover:shadow-md transition">
+        <div class="text-2xl mb-2">👤</div>
+        <h3 class="font-semibold text-tubi-800">Bạn Bè</h3>
+        <p class="text-xs text-gray-600 mt-1">Kết bạn theo ID / tên · Nhắn tin realtime · Gửi thư · Mời cộng tu · Mời tham gia trò chơi · Danh sách chặn.</p>
+      </a>
+      <a href="/kinh-sach" class="block bg-gradient-to-br from-tubi-50 to-white rounded-xl p-5 border border-tubi-100 hover:shadow-md transition">
+        <div class="text-2xl mb-2">📚</div>
+        <h3 class="font-semibold text-tubi-800">Kinh Sách</h3>
+        <p class="text-xs text-gray-600 mt-1">5 thư viện: Phật Gia · Đạo Gia · Kinh Văn · Sách Quý · Quan Trọng. 3 ngôn ngữ: Việt · Anh · Trung. Đọc online + tải offline miễn phí.</p>
+      </a>
+    </div>
+    <div class="mt-6 grid sm:grid-cols-2 gap-3 text-sm">
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Niệm Phật và ghi nhận quá trình tu tập cá nhân.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Nghe nhạc thiền: Niệm · Thiền · Đạo · Không Lời · Cá Nhân.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Theo dõi thành tích: ngày · tuần · tháng · năm · tổng.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Bảng xếp hạng: Niệm Phật · Tài Phú K · Nguyên Lực I · Điểm Từ Bi.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Tượng Phật: Cầu Nguyện · Sám Hối · Hồi Hướng · Ủng Hộ.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Quỹ Từ Bi: công khai · minh bạch · cùng quản lý.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Thương Thành: Cửa hàng Ứng Dụng + Cửa hàng PvP.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Hệ thống điểm A · I · K + Phiếu Từ Bi + Đồng Bi.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Tuyển tập cảm ngộ (≥ 100 chữ, có xét duyệt) + tặng hoa.</span>
+      </div>
+      <div class="flex items-start gap-2 text-gray-700">
+        <span class="text-tubi-600 mt-0.5">✓</span>
+        <span>Game Siêu Độ (đang xây dựng) — "Tu cũng niệm Phật."</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 6. HỆ SINH THÁI TƯƠNG LAI ================= -->
+<section id="he-sinh-thai" class="bg-gradient-to-b from-tubi-50/40 to-white py-12">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">6</div>
+        <h2 class="text-xl md:text-2xl font-bold text-ink">Hệ sinh thái tương lai</h2>
+      </div>
+      <p class="text-gray-700 leading-relaxed mb-5">
+        "Trong tương lai, hệ sinh thái có thể tiếp tục được mở rộng với Game Siêu Độ, AI Từ Bi, Học Viện Từ Bi, Hỗ Trợ Người Tu, Hoạt Động Thiện Nguyện cùng nhiều công cụ hỗ trợ tu học khác."
+      </p>
+      <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">🎮</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">Game Siêu Độ</h4>
+          <p class="text-xs text-gray-600 mt-1">Bản đồ 4 cổng · 10 map/khu vực · PK 3 chế độ · Thiên Phú · Auto · Skin · Hoa Sen.</p>
+        </div>
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">🤖</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">AI Từ Bi</h4>
+          <p class="text-xs text-gray-600 mt-1">Trợ lý Phật giáo hướng dẫn niệm Phật · giải đáp kinh sách · gợi ý tu học.</p>
+        </div>
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">🏛️</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">Học Viện Từ Bi</h4>
+          <p class="text-xs text-gray-600 mt-1">Khoá học tu học · giảng pháp · khảo luận · chứng chỉ tu học.</p>
+        </div>
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">🧓</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">Hỗ Trợ Người Tu</h4>
+          <p class="text-xs text-gray-600 mt-1">Công cụ hỗ trợ người lớn tuổi / người mới bắt đầu tu học.</p>
+        </div>
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">💝</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">Hoạt Động Thiện Nguyện</h4>
+          <p class="text-xs text-gray-600 mt-1">Kết nối mạnh thường quân · tổ chức tặng sách · quyên góp.</p>
+        </div>
+        <div class="bg-tubi-50/60 rounded-xl p-4 border border-tubi-100 text-center">
+          <div class="text-3xl mb-1">🌐</div>
+          <h4 class="font-semibold text-tubi-800 text-sm">Toàn Cầu Hoá</h4>
+          <p class="text-xs text-gray-600 mt-1">Đa ngôn ngữ: Anh · Trung · Nhật · Hàn · Đông Nam Á · Mỹ · Châu Âu.</p>
+        </div>
+      </div>
+      <div class="mt-6 bg-lotus-50 border border-lotus-200 rounded-xl p-5">
+        <p class="text-sm text-gray-700 italic">
+          "Lộ trình 1.000 ngày: (1) 0–300 ngày quốc tế hoá Anh/Trung/Nhật/Hàn; (2) 300–700 ngày mở rộng TQ/ĐNA/Nhật/Hàn/Mỹ/Châu Âu, xây đại sứ cộng đồng; (3) 700–1.000 ngày hoàn thiện hệ sinh thái — Ứng Dụng + Cộng Đồng + Game + AI + Học viện + Cộng tu + Siêu độ + Giáo dục."
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7. THÔNG BÁO TUYỂN THÀNH VIÊN ================= -->
+<section id="tuyen-thanh-vien" class="max-w-4xl mx-auto px-4 py-12">
+  <div class="bg-gradient-to-br from-lotus-50 to-tubi-50 rounded-2xl border border-lotus-200 shadow-sm p-6 md:p-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full bg-lotus-400 text-ink flex items-center justify-center font-bold">7</div>
+      <h2 class="text-xl md:text-2xl font-bold text-ink">🪷 Thông báo tuyển thành viên nòng cốt</h2>
+    </div>
+    <p class="text-gray-700 leading-relaxed mb-5">
+      Hiện tại, <strong class="text-tubi-800">Từ Bi Team</strong> đang cần thêm những thành viên nòng cốt để quản lý và phát triển các chuyên mục sau:
+    </p>
+    <div class="space-y-3">
+      <div class="bg-white rounded-xl p-4 border border-lotus-200 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">📚</div>
+          <div>
+            <h4 class="font-semibold text-tubi-800">Thư Viện Kinh Sách</h4>
+            <p class="text-sm text-gray-700 mt-1">Tìm kiếm và tải các bản kinh văn, sách điện tử để Admin Cường thiết kế và xây dựng Thư Viện.</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-lotus-200 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">🎵</div>
+          <div>
+            <h4 class="font-semibold text-tubi-800">Nhạc Thiền &amp; Nhạc Phật</h4>
+            <p class="text-sm text-gray-700 mt-1">Tìm kiếm và tải các bản nhạc thiền và nhạc Phật. Phân loại thành 3 chuyên mục: Nhạc Niệm, Nhạc Thiền, Nhạc Không Lời.</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-lotus-200 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">💻</div>
+          <div>
+            <h4 class="font-semibold text-tubi-800">Website tubi.louis.vangioitutien.com</h4>
+            <p class="text-sm text-gray-700 mt-1">Quản lý, kiểm duyệt thành viên trên Live Chat; đóng góp ý tưởng phát triển.</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-lotus-200 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">🌏</div>
+          <div>
+            <h4 class="font-semibold text-tubi-800">Fanpage &amp; Group cộng đồng</h4>
+            <p class="text-sm text-gray-700 mt-1">Quản lý Fanpage Từ Bi Team và Group Cộng Đồng Từ Bi; quảng bá và mời tham gia.</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-lotus-200 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="text-2xl">🎁</div>
+          <div>
+            <h4 class="font-semibold text-tubi-800">Chương trình Tặng Sách Từ Bi</h4>
+            <p class="text-sm text-gray-700 mt-1">Quản lý chương trình tặng sách điện tử + page Liti Books; xây dựng Quỹ Từ Bi để triển khai Tặng Sách Giấy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-6 bg-white/60 rounded-xl p-5 border border-lotus-200">
+      <p class="text-sm text-gray-700 italic leading-relaxed">
+        "🌱 Các bạn thân mến! Dự án Ứng Dụng Từ Bi là một dự án cộng đồng. Trước khi tham gia, mong các bạn xác định tinh thần tự nguyện và đồng hành lâu dài. Đây là một dự án Từ Bi, được xây dựng theo mô hình tự vận hành, chứ không đơn thuần là một chương trình từ thiện. Trong tương lai, khi dự án được toàn cầu hóa, có pháp nhân và công ty vận hành, những thành viên quản lý hôm nay sẽ chính là cán bộ nòng cốt của Hệ Sinh Thái Từ Bi trong tương lai."
+      </p>
+      <p class="text-sm text-tubi-800 font-semibold mt-3">
+        🙏 Chân thành cảm ơn và trân trọng kính mời bạn cùng tham gia, cùng phụng sự và lan tỏa tinh thần Từ Bi đến với mọi người! ❤️
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 8. CÁCH ĐỒNG HÀNH ================= -->
+<section id="dong-hanh" class="bg-gradient-to-b from-white to-tubi-50/40 py-12">
+  <div class="max-w-4xl mx-auto px-4">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">8</div>
+        <h2 class="text-xl md:text-2xl font-bold text-ink">Cách đồng hành cùng dự án</h2>
+      </div>
+      <p class="text-gray-700 leading-relaxed mb-5">
+        Nếu bạn có lòng từ bi, yêu mến những giá trị thiện lành, bạn có thể đồng hành cùng chúng tôi bằng nhiều cách:
+      </p>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">①</span>
+          <span class="text-sm text-gray-700">Tham gia cộng đồng và đóng góp ý kiến.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">②</span>
+          <span class="text-sm text-gray-700">Chia sẻ kiến thức, bài viết hoặc tài liệu tu học.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">③</span>
+          <span class="text-sm text-gray-700">Trải nghiệm và phản hồi về ứng dụng.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">④</span>
+          <span class="text-sm text-gray-700">Hỗ trợ về lập trình, thiết kế, máy chủ và bảo mật.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">⑤</span>
+          <span class="text-sm text-gray-700">Hỗ trợ về nội dung, truyền thông và quản trị cộng đồng.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">⑥</span>
+          <span class="text-sm text-gray-700">Đóng góp về pháp lý, tài chính hoặc gây quỹ.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">⑦</span>
+          <span class="text-sm text-gray-700">Trở thành tình nguyện viên, nhà tài trợ hoặc mạnh thường quân.</span>
+        </div>
+        <div class="flex items-start gap-3 bg-tubi-50/40 rounded-lg p-3 border border-tubi-100">
+          <span class="text-tubi-600 font-bold">⑧</span>
+          <span class="text-sm text-gray-700">Giới thiệu dự án đến những người có cùng chí hướng.</span>
+        </div>
+      </div>
+      <div class="mt-6 bg-gradient-to-br from-tubi-800 to-ink rounded-xl p-6 text-center text-white">
+        <p class="text-sm md:text-base font-semibold mb-2">Hãy cùng chúng tôi:</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-tubi-100">
+          <p>• Cùng nhau tu tập.</p>
+          <p>• Cùng nhau vui chơi.</p>
+          <p>• Cùng nhau phát triển ứng dụng.</p>
+          <p>• Cùng nhau xây dựng cộng đồng.</p>
+          <p class="sm:col-span-2">• Cùng nhau lan tỏa lòng từ bi và trí tuệ giải thoát.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 9. LIÊN HỆ + CTA ================= -->
+<section id="lien-he" class="max-w-4xl mx-auto px-4 py-12">
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 md:p-10">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-full bg-tubi-100 text-tubi-700 flex items-center justify-center font-bold">9</div>
+      <h2 class="text-xl md:text-2xl font-bold text-ink">Liên hệ &amp; đồng hành</h2>
+    </div>
+    <div class="grid sm:grid-cols-2 gap-4 text-sm">
+      <div class="bg-tubi-50/40 rounded-xl p-4 border border-tubi-100">
+        <h4 class="font-semibold text-tubi-800 mb-2">🌐 Website</h4>
+        <a href="https://tubi.louis.vangioitutien.com" class="text-tubi-700 hover:underline break-all">tubi.louis.vangioitutien.com</a>
+      </div>
+      <div class="bg-tubi-50/40 rounded-xl p-4 border border-tubi-100">
+        <h4 class="font-semibold text-tubi-800 mb-2">✉️ Email</h4>
+        <a href="mailto:ungdungtubi@gmail.com" class="text-tubi-700 hover:underline break-all">ungdungtubi@gmail.com</a>
+      </div>
+      <div class="bg-tubi-50/40 rounded-xl p-4 border border-tubi-100">
+        <h4 class="font-semibold text-tubi-800 mb-2">👥 Đơn vị phát triển</h4>
+        <p class="text-gray-700">Từ Bi Team</p>
+        <p class="text-xs text-gray-500 mt-1">Cộng đồng xây dựng: Tu Bi Group</p>
+      </div>
+      <div class="bg-tubi-50/40 rounded-xl p-4 border border-tubi-100">
+        <h4 class="font-semibold text-tubi-800 mb-2">📦 Tình trạng</h4>
+        <p class="text-gray-700">Đang thiết kế phiên bản đầu tiên (Giai đoạn I).</p>
+        <p class="text-xs text-gray-500 mt-1">Phiên bản hiện tại: v0.9.37 — Giai đoạn 41 (phần 2)</p>
+      </div>
+    </div>
+    <div class="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
+      {% if user.is_none() %}
+      <a href="/dang-nhap" class="bg-tubi-700 hover:bg-tubi-800 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+        🪷 Tham Gia Ngay
+      </a>
+      {% else %}
+      <a href="/tong-quan" class="bg-tubi-700 hover:bg-tubi-800 text-white px-6 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
+        🧭 Khám Phá Tổng Quan
+      </a>
+      {% endif %}
+      <a href="/quy-tu-bi" class="border border-tubi-200 text-tubi-700 hover:bg-tubi-50 px-6 py-2.5 rounded-xl text-sm transition">
+        🪷 Quyỹ Từ Bi
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FOOTER QUOTE ================= -->
+<section class="bg-tubi-800 py-10">
+  <div class="max-w-3xl mx-auto px-4 text-center">
+    <span class="text-3xl">🪷</span>
+    <blockquote class="text-base md:text-lg text-tubi-100 mt-3 italic leading-relaxed">
+      "TỪ BI – TRÍ TUỆ – GIÁC NGỘ – GIẢI THOÁT"
+    </blockquote>
+    <p class="text-tubi-300 text-sm mt-3">Nam Mô A Di Đà Phật. Nguyện công đức vô lượng.</p>
+  </div>
+</section>
+{% endblock %}

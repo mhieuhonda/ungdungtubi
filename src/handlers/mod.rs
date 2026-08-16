@@ -177,6 +177,16 @@ pub struct HomeTemplate {
     pub active_page: String,
 }
 
+/// v0.9.37 — Trang Giới Thiệu Ứng Dụng Từ Bi.
+/// Nội dung tĩnh (mission, vision, triết lý, tính năng, hệ sinh thái, tuyển thành viên)
+/// được biên soạn dựa trên tài liệu trong thư mục HieuLouis/.
+#[derive(Template)]
+#[template(path = "gioi-thieu.html")]
+pub struct GioiThieuTemplate {
+    pub user: Option<User>,
+    pub active_page: String,
+}
+
 #[derive(Template)]
 #[template(path = "auth/login.html")]
 pub struct LoginTemplate {
@@ -206,6 +216,29 @@ pub async fn home(State(state): State<AppState>, jar: CookieJar) -> Response {
     .render()
     .unwrap_or_else(|e| {
         log::error!("Template render error (home): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// GET /gioi-thieu — Trang giới thiệu chi tiết Ứng Dụng Từ Bi.
+///
+/// v0.9.37 — Giai đoạn 41 (phần 2).
+/// Trang tĩnh, công khai (không yêu cầu đăng nhập), nội dung dài, có mục lục.
+/// Phục vụ mục đích:
+///   1. Người mới biết ứng dụng là gì, vì sao nên tham gia.
+///   2. Nhà tài trợ / đối tác đánh giá định vị dự án.
+///   3. Tuyển thành viên (5 vị trí) theo "THÔNG BÁO TUYỂN THÀNH VIÊN.docx".
+///   4. SEO — content-rich page để Google index.
+pub async fn gioi_thieu(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let user = get_user_from_session(&state.pool, &jar).await;
+    let html = GioiThieuTemplate {
+        user,
+        active_page: "gioi-thieu".into(),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (gioi-thieu): {e}");
         format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
     });
     Html(html).into_response()

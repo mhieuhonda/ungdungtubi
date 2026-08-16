@@ -166,7 +166,9 @@
                                 <!-- Col 1: Hệ thống -->
                                 <div class="p-3 border-r border-gray-100">
                                     <div class="text-[10px] font-bold text-tubi-700 uppercase tracking-wider mb-1.5 px-2">⚙️ Hệ Thống</div>
+                                    <a href="/gioi-thieu" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Giới Thiệu</a>
                                     <a href="/tong-quan" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🧭 Tổng Quan</a>
+                                    <a href="/khong-gian/nha-nhac" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎵 Nhà Nhạc</a>
                                     <a href="/quy-tu-bi" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Quỹ Từ Bi</a>
                                     <a href="/bang-xep-hang" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🏆 Bảng Xếp Hạng</a>
                                     <a href="/thanh-tich" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎖️ Thành Tích</a>
@@ -286,16 +288,13 @@
             </div>
         </div>
 
-        <!-- Mobile Menu (3 gạch) — v0.9.17: GIỮ NGUYÊN 7 MỤC + thêm dark mode.
-             v0.9.26 FIX: Thêm @click.outside + @keydown.escape.window để đóng menu
-             khi click ra ngoài hoặc nhấn ESC (trước đây menu bị stuck open vĩnh viễn).
-             v0.9.27 FIX: Thêm style="display:none" fallback + mobile-menu-drawer class
-             chống FOUC — menu không flash visible trước khi Alpine init.
-             Các mục khác truy cập qua:
-               - Nút giữa 🪷 bottom nav → /tong-quan (hub đầy đủ)
-               - /ban-be và /ca-nhan cho Cài Đặt, Tin Nhắn, Hộp Thư, Thông Báo, Tìm Bạn
-               - /kinh-sach và /cong-dong cho Kinh Phật, Kinh Đạo, Tìm Sách, Tạo Nhóm
-               - Theme toggle (🌙/☀️) có ở header desktop + nút riêng trên mobile drawer -->
+        <!-- Mobile Menu (3 gạch) — v0.9.37 MỞ RỘNG: Đưa TẤT CẢ route quan trọng vào
+             mobile drawer để fix lỗi "trang mồ côi" — trước đây /cai-dat, /khong-gian/nha-nhac,
+             /thuong-thanh, /quy-tu-bi, /thanh-tich, /bang-xep-hang, /doi-ngu-quan-li, /tim-kiem,
+             /ban-be/tin-nhan, /ban-be/thu, /ban-be/thong-bao, /ban-be/tim-kiem, /gioi-thieu
+             KHÔNG có link trên mobile drawer → user phải biết URL mới truy cập được.
+             v0.9.26 FIX: @click.outside + @keydown.escape.window đóng menu khi click ra ngoài / ESC.
+             v0.9.27 FIX: style="display:none" fallback + mobile-menu-drawer class chống FOUC. -->
         <div x-show="mobileMenu" x-cloak
              style="display:none"
              x-transition
@@ -303,28 +302,110 @@
              @keydown.escape.window="mobileMenu = false"
              class="mobile-menu-drawer md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
             <div class="px-3 py-2 space-y-0.5">
-                <!-- v0.9.26: Mobile menu links tự đóng menu khi click (trước đây click link
-                     vẫn giữ nguyên trang nhưng menu không tự đóng nếu click để scroll) -->
+                <!-- v0.9.26: Mobile menu links tự đóng menu khi click -->
                 <a href="/khong-gian" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🌍</span>
                     <span class="text-sm font-medium">Không Gian</span>
+                </a>
+                <a href="/khong-gian/nha-nhac" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🎵</span>
+                    <span class="text-xs">Nhà Nhạc</span>
                 </a>
                 <a href="/cong-dong" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👥</span>
                     <span class="text-sm font-medium">Cộng Đồng</span>
                 </a>
+                <a href="/cong-dong/tao-nhom" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">➕</span>
+                    <span class="text-xs">Tạo Nhóm</span>
+                </a>
                 <a href="/ban-be" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">👤</span>
                     <span class="text-sm font-medium">Bạn Bè</span>
+                </a>
+                <a href="/ban-be/tin-nhan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">💬</span>
+                    <span class="text-xs">Tin Nhắn</span>
+                </a>
+                <a href="/ban-be/thu" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">✉️</span>
+                    <span class="text-xs">Hộp Thư</span>
+                </a>
+                <a href="/ban-be/thong-bao" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🔔</span>
+                    <span class="text-xs">Thông Báo</span>
+                </a>
+                <a href="/ban-be/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🔍</span>
+                    <span class="text-xs">Tìm Bạn</span>
                 </a>
                 <a href="/kinh-sach" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">📚</span>
                     <span class="text-sm font-medium">Kinh Sách</span>
                 </a>
+                <a href="/kinh-sach/thu-vien/phat-gia" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🪷</span>
+                    <span class="text-xs">Phật Gia</span>
+                </a>
+                <a href="/kinh-sach/thu-vien/dao-gia" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">☯️</span>
+                    <span class="text-xs">Đạo Gia</span>
+                </a>
+                <a href="/kinh-sach/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">📖</span>
+                    <span class="text-xs">Tìm Sách</span>
+                </a>
+
+                <!-- Khối tính năng phụ (v0.9.37: fix orphan pages trên mobile) -->
+                <div class="pt-2 mt-2 border-t border-gray-200 dark:border-slate-700">
+                    <p class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500 font-semibold">Khám phá</p>
+                </div>
+                <a href="/gioi-thieu" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🪷</span>
+                    <span class="text-sm font-medium">Giới Thiệu</span>
+                    <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-tubi-100 text-tubi-700">MỚI</span>
+                </a>
+                <a href="/tong-quan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🧭</span>
+                    <span class="text-sm font-medium">Tổng Quan</span>
+                </a>
+                <a href="/quy-tu-bi" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🪷</span>
+                    <span class="text-sm font-medium">Quỹ Từ Bi</span>
+                </a>
+                <a href="/bang-xep-hang" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🏆</span>
+                    <span class="text-sm font-medium">Bảng Xếp Hạng</span>
+                </a>
+                <a href="/thanh-tich" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🎖️</span>
+                    <span class="text-sm font-medium">Thành Tích</span>
+                </a>
+                <a href="/thuong-thanh" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🏪</span>
+                    <span class="text-sm font-medium">Thương Thành</span>
+                </a>
+                <a href="/doi-ngu-quan-li" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">👥</span>
+                    <span class="text-sm font-medium">Đội Ngũ Quản Lý</span>
+                </a>
+                <a href="/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">🔎</span>
+                    <span class="text-sm font-medium">Tìm Kiếm</span>
+                </a>
+
                 {% if let Some(u) = user %}
+                <!-- Khối tài khoản cá nhân -->
+                <div class="pt-2 mt-2 border-t border-gray-200 dark:border-slate-700">
+                    <p class="px-3 py-1 text-[10px] uppercase tracking-wider text-gray-400 dark:text-slate-500 font-semibold">Tài khoản</p>
+                </div>
                 <a href="/ca-nhan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                     <span class="text-xl">🪷</span>
                     <span class="text-sm font-medium">Hồ Sơ</span>
+                </a>
+                <a href="/cai-dat" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-xl">⚙️</span>
+                    <span class="text-sm font-medium">Cài Đặt</span>
                 </a>
                 {% if u.is_staff() %}
                 <a href="/admin" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
@@ -428,7 +509,9 @@
                 <div>
                     <h3 class="font-semibold text-white mb-2 text-xs uppercase tracking-wider">Hệ Thống</h3>
                     <ul class="space-y-1.5 text-xs">
+                        <li><a href="/gioi-thieu" class="hover:text-white transition">🪷 Giới Thiệu</a></li>
                         <li><a href="/tong-quan" class="hover:text-white transition">🧭 Tổng Quan</a></li>
+                        <li><a href="/khong-gian/nha-nhac" class="hover:text-white transition">🎵 Nhà Nhạc</a></li>
                         <li><a href="/quy-tu-bi" class="hover:text-white transition">🪷 Quỹ Từ Bi</a></li>
                         <li><a href="/bang-xep-hang" class="hover:text-white transition">🏆 BXH</a></li>
                         <li><a href="/thanh-tich" class="hover:text-white transition">🎖️ Thành Tích</a></li>
@@ -472,7 +555,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.36 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.37 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

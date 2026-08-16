@@ -679,16 +679,38 @@ function dmChat(opts) {
 window.dmChat = dmChat;
 
 // ====================================================================
-// notificationBadge — Poll notification count mỗi 30s
+// notificationBadge — Poll notification count mỗi 60s
 // ====================================================================
+// v0.9.37 — Expose 2 global helper functions để notifications.html page
+// có thể cập nhật badge từ nút "Đánh dấu tất cả đã đọc" / per-item mark-as-read.
+// Trước đây badge chỉ update qua 60s poll → user click mark-all-read mà badge
+// vẫn hiển thị số cũ đến 60s sau mới refresh → confusing UX.
 
 function notificationBadge() {
     return {
         unreadCount: 0,
+        pollInterval: null,
         init() {
             this.fetchUnread();
             // v0.9.29: Tăng interval từ 30s → 60s để giảm tải server.
-            setInterval(() => this.fetchUnread(), 60000);
+            // v0.9.37: Giảm frequency để giảm 429 risk khi user đổi tab liên tục.
+            this.pollInterval = setInterval(() => this.scheduledFetch(), 60000);
+            // v0.9.37: Lắng nghe custom event "tubi-notifications-changed" để
+            // refresh ngay lập tức khi user mark-as-read (thay vì chờ 60s).
+            window.addEventListener('tubi-notifications-changed', () => {
+                this.fetchUnread();
+            });
+            // v0.9.37: Khi tab visible lại, fetch ngay lập tức (sau khi bị hidden,
+            // setInterval bị throttle → có thể missed poll).
+            window.addEventListener('tubi-tab-visible', () => {
+                this.fetchUnread();
+            });
+        },
+        /// v0.9.37: Scheduled fetch — chỉ chạy khi tab visible (không hidden).
+        /// Tránh waste request khi user đã chuyển sang tab khác.
+        scheduledFetch() {
+            if (window.__tubiPollingPaused) return;
+            this.fetchUnread();
         },
         async fetchUnread() {
             try {
@@ -698,6 +720,15 @@ function notificationBadge() {
                 if (resp.ok) {
                     const data = await resp.json();
                     this.unreadCount = data.unread_count || 0;
+                    // v0.9.37: Sync với global state
+                    window.__tubiNotificationCount = this.unreadCount;
+                } else if (resp.status === 429) {
+                    // v0.9.37: Nếu 429, tạm pause poll 30s rồi resume
+                    if (this.pollInterval) clearInterval(this.pollInterval);
+                    setTimeout(() => {
+                        this.pollInterval = setInterval(() => this.scheduledFetch(), 60000);
+                        this.fetchUnread();
+                    }, 30000);
                 }
             } catch (_) {}
         },
@@ -705,3 +736,19 @@ function notificationBadge() {
 }
 
 window.notificationBadge = notificationBadge;
+
+// v0.9.37 — Global helpers cho notifications page
+window.__tubiNotificationCount = 0;
+
+// Set badge to specific value (vd: 0 sau mark-all-read)
+window.__tubiSetNotificationBadge = function(count) {
+    window.__tubiNotificationCount = count;
+    // Dispatch event để notificationBadge() Alpine component update
+    window.dispatchEvent(new CustomEvent('tubi-notifications-changed', { detail: { count } }));
+};
+
+// Decrement badge by 1 (vd: sau per-item mark-as-read)
+window.__tubiDecrementNotificationBadge = function() {
+    const newCount = Math.max(0, (window.__tubiNotificationCount || 0) - 1);
+    window.__tubiSetNotificationBadge(newCount);
+};

@@ -4,7 +4,31 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.36 — Giai đoạn 41
+## 📦 Phiên bản hiện tại: v0.9.37 — Giai đoạn 41 (phần 2)
+
+**Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷**
+
+Bản phát hành này là phần **bổ sung và sửa lỗi** cho Giai đoạn 41 (v0.9.36), tập trung vào **5 vấn đề user báo cáo nhiều nhất**:
+
+1. **"Trang mồ côi" / thiếu liên kết nội bộ** — nhiều route hợp lệ (`/cai-dat`, `/khong-gian/nha-nhac`, `/thuong-thanh`, `/admin/nha-nhac/dang-cho-duyet`...) không có nút bấm/menu/link nào dẫn đến trên giao diện, đặc biệt là mobile drawer. **Fix:** Mở rộng mobile drawer từ 5 → 27 items, thêm `/gioi-thieu` + `/khong-gian/nha-nhac` vào mega-menu và footer, thêm tile `/admin/nha-nhac/dang-cho-duyet` vào admin dashboard.
+
+2. **Thiếu trang giới thiệu chi tiết** — **Fix:** Tạo route `/gioi-thieu` + handler + template với 9 section (Hero, Mục lục, Ứng Dụng Từ Bi là gì, Tầm nhìn, Triết lý, Founder story, Tính năng chính, Hệ sinh thái tương lai, Thông báo tuyển thành viên). Nội dung trích dẫn trực tiếp từ 6 file `.docx` trong thư mục `HieuLouis/`.
+
+3. **Lỗi "gửi bài" không rõ nguyên nhân** — pending member hoặc DB error, user bị redirect về trang nhóm mà KHÔNG có thông báo gì. **Fix:** Redirect với `?err=...` query param, `view_group` parse và render banner error rõ ràng. Fix `group_name` rỗng khi validation error. Fix DB error trả plain-text 500 → render lại form với error message. Cập nhật `topic_count` + `comment_count` ngay sau INSERT (fix stale counter).
+
+4. **Không có nút "đánh dấu đã đọc" trong thông báo** — chỉ có auto-mark-on-visit. **Fix:** Thêm endpoint `POST /api/ban-be/thong-bao/da-doc-tat-ca` (bulk UPDATE). Thêm nút "✓ Đánh dấu tất cả đã đọc" + per-item "✓ Đánh dấu đã đọc" trong `notifications.html`. Header badge cập nhật realtime qua `window.__tubiSetNotificationBadge()`.
+
+5. **Lỗi 429 Too Many Requests khi đổi tab** — limit quá thấp (60/phút API, 120/phút general), classification sai (`/api/ban-be/*` rơi vào `api`). **Fix:**
+   - Tăng limit: `api` 60→180, `social` 60→180, `general` 120→300, `post` 30→60.
+   - Fix 3 classification bugs: `/api/ban-be/*` → `social`, `/api/nha-nhac/dang-nhac*` → `upload`, `/kinh-sach/*/{cam-ngo,tang-hoa}` → `post`.
+   - 429 response: HTML page (có countdown timer + nút "Quay lại") cho browser, JSON response cho `fetch()`.
+   - Client-side: `tubiFetch()` wrapper tự catch 429 + toast, pause polling khi tab hidden, resume khi visible.
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0937--2026-08-16--giai-doạn-41-phần-2-about-page-orphan-link-fix-post-submit-fix-notification-mark-all-429-hardening-).
+
+---
+
+## 📦 Phiên bản trước: v0.9.36 — Giai đoạn 41
 
 **Giai đoạn 41: Community Group Logo + Audio File Uploads 🪷**
 

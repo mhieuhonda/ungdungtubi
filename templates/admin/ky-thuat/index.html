@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.36</title>
+    <title>⚙️ Admin Kỹ Thuật — Ứng Dụng Từ Bi v0.9.37</title>
     <!-- v0.9.32: Mobile-first + Dark mode + Admin nav fix (Quản lý Nhóm/Kinh Sách/Bình luận/Quỹ → admin pages) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -382,6 +382,16 @@
                         </div>
                     </a>
 
+                    <!-- v0.9.37 — FIX ORPHAN: /admin/nha-nhac/dang-cho-duyet trước đây không có link
+                         từ bất kỳ dashboard nào. Admin phải biết URL để duyệt nhạc cộng đồng. -->
+                    <a href="/admin/nha-nhac/dang-cho-duyet" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
+                        <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">🎵</div>
+                        <div class="min-w-0">
+                            <div class="font-semibold text-sm text-code-text group-hover:text-code-accent transition truncate">Duyệt Nhạc Cộng Đồng</div>
+                            <div class="text-[11px] text-code-muted truncate">YouTube + Audio file uploads</div>
+                        </div>
+                    </a>
+
                     <!-- Bảng xếp hạng -->
                     <a href="/bang-xep-hang" class="nav-tile bg-code-panel/60 border border-code-border rounded-xl p-4 flex items-center gap-3 group">
                         <div class="tile-icon w-10 h-10 rounded-lg bg-code-purple/15 flex items-center justify-center text-lg shrink-0 transition">🏆</div>
@@ -584,7 +594,7 @@
                 <div class="flex items-center justify-between flex-wrap gap-2 text-[11px] text-code-muted">
                     <div class="flex items-center gap-2">
                         <span>🪷</span>
-                        <span>Ứng Dụng Từ Bi v0.9.36 · Admin Kỹ Thuật ·
+                        <span>Ứng Dụng Từ Bi v0.9.37 · Admin Kỹ Thuật ·
                             {% if let Some(u) = user %}{{ u.permission_count() }}/{{ u.system_permission_count() }} quyền{% else %}0/0 quyền{% endif %}
                         </span>
                     </div>
