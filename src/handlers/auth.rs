@@ -661,7 +661,7 @@ fn error_page(title: &str, msg: &str) -> Response {
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center px-4">
 <div class="max-w-md w-full bg-white rounded-2xl p-8 shadow-lg text-center">
-  <div class="text-5xl mb-4">🪷</div>
+  <img src="/static/tubi.png" alt="Ứng Dụng Từ Bi" class="w-16 h-16 mx-auto rounded-2xl object-cover shadow-md mb-4" width="64" height="64">
   <h1 class="text-xl font-bold text-tubi-800 mb-2" style="color:#1B5E20">{title_esc}</h1>
   <p class="text-gray-600 text-sm mb-6">{msg_esc}</p>
   <a href="/" class="inline-block bg-tubi-800 text-white px-6 py-2 rounded-xl hover:bg-tubi-900 transition" style="background-color:#2E7D32">← Về trang chủ</a>

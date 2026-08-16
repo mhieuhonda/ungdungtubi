@@ -4,7 +4,25 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.37 — Giai đoạn 41 (phần 2)
+## 📦 Phiên bản hiện tại: v0.9.38 — Giai đoạn 42
+
+**Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷**
+
+Bản phát hành này giải quyết **4 vấn đề user báo cáo** và **1 yêu cầu thương hiệu**:
+
+1. **Bug "Lỗi cập nhật logo nhóm."** — khi user (owner/admin) upload logo mới cho nhóm cộng đồng, handler trả lỗi 500. **Nguyên nhân gốc:** migration 026 (v0.9.36) thêm cột `groups.logo_upload_id` nhưng trên production có thể chưa được apply đầy đủ (checksum mismatch, partial deploy, DB rollback manual). **Fix:** Mở rộng `ensure_schema_safety()` trong `src/db/mod.rs` — chạy idempotent DDL (`ALTER TABLE groups ADD COLUMN IF NOT EXISTS logo_upload_id ...`) trước sqlx migrations. Cùng cơ chế đã fix v0.9.25 cho `users.i_balance` + `permissions` table.
+
+2. **Bug "lỗi gửi bài" khi đăng nhạc trong Nhà Nhạc** — khi user submit file âm thanh (MP3/M4A/OGG/WAV/FLAC) hoặc YouTube link, INSERT vào `user_music_submissions` fail vì các cột `source_type`, `audio_file_upload_id`, `audio_duration_seconds` (migration 026) chưa tồn tại. **Fix:** Safety schema check cho `audio_files` table + 3 cột mới trên `user_music_submissions`. Cải thiện error message từ "⚠️ Lỗi gửi bài — vui lòng thử lại." → "⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật."
+
+3. **Thay toàn bộ logo web sang PNG thật** — trước v0.9.38, logo toàn web dùng emoji 🪷 (SVG data URI cho favicon, `<span>🪷</span>` cho header/footer/bottom-nav/home/login). Emoji render khác nhau trên mỗi platform → thương hiệu không nhất quán. **Fix:** Thay 14 logo positions bằng `<img src="/static/tubi.png">` (PNG 1254×1254 thật): favicon (5 sizes cho tab/taskbar/PWA/apple-touch-icon/splash), header, footer, bottom nav center button, home hero, login page top logo, /gioi-thieu hero, /tong-quan tile, error pages, 429 page, og-image + twitter:image meta. Giữ emoji 🪷 trong text decorations (menu items, button text, copyright text).
+
+4. **Cập nhật /gioi-thieu team info** — Đỗ Văn Cường rút lui về làm hỗ trợ, Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật. Đổi card "Admin Kỹ Thuật (Cường)" → "Admin Kỹ Thuật (Hiếu)" + thêm amber banner thông báo chuyển đổi đội ngũ. Trang `/doi-ngu-quan-li` đã có sẵn thông tin đúng từ v0.9.30.
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0938--2026-08-17--giai-doạn-42-logo-png-group-logo-bug-fix-music-submit-bug-fix-about-page-team-update-).
+
+---
+
+## 📦 Phiên bản trước: v0.9.37 — Giai đoạn 41 (phần 2)
 
 **Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷**
 

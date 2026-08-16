@@ -275,7 +275,7 @@ h1 {{ font-size: 1.5rem; font-weight: 700; color: #064e3b; margin-bottom: 0.5rem
 </head>
 <body>
 <div class="container">
-  <div class="emoji">🪷</div>
+  <img src="/static/tubi.png" alt="Ứng Dụng Từ Bi" style="width:64px;height:64px;border-radius:1rem;object-fit:cover;margin:0 auto 1rem;display:block;box-shadow:0 4px 12px rgba(0,0,0,0.1);">
   <h1>429 — Quá nhiều request</h1>
   <p class="subtitle">Bạn đang thao tác quá nhanh. Hãy nghỉ một lát rồi thử lại.</p>
   <div class="countdown-box">
@@ -289,7 +289,7 @@ h1 {{ font-size: 1.5rem; font-weight: 700; color: #064e3b; margin-bottom: 0.5rem
   </div>
   <button class="btn-back" id="backBtn" onclick="history.back()" disabled>← Quay lại</button>
   <div class="footer">
-    🪷 Ứng Dụng Từ Bi v0.9.37 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
+    🪷 Ứng Dụng Từ Bi v0.9.38 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
   </div>
 </div>
 <script>

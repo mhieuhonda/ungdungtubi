@@ -569,8 +569,11 @@ fn placeholder_page(
     </script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link rel="apple-touch-icon" href="/static/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/tubi.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/tubi.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/tubi.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/tubi.png">
+    <link rel="alternate icon" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/css/app.css">
     <style>[x-cloak] {{ display: none !important; }}</style>
 </head>
@@ -579,9 +582,7 @@ fn placeholder_page(
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-16">
                 <a href="/" class="flex items-center space-x-3 group">
-                    <div class="w-10 h-10 bg-lotus rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
-                        <span class="text-tubi-900 text-xl" style="color:#1B5E20">🪷</span>
-                    </div>
+                    <img src="/static/tubi.png" alt="Ứng Dụng Từ Bi" class="w-10 h-10 rounded-full object-cover group-hover:scale-110 transition-transform duration-300 shadow-md" width="40" height="40">
                     <div>
                         <h1 class="text-lg font-bold tracking-wide">ỨNG DỤNG TỪ BI</h1>
                         <p class="text-xs text-tubi-200 -mt-1">Giác Ngộ · Giải Thoát · Từ Bi</p>
@@ -623,7 +624,7 @@ fn placeholder_page(
             <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <div>
                     <div class="flex items-center space-x-2 mb-4">
-                        <span class="text-2xl">🪷</span>
+                        <img src="/static/tubi.png" alt="TỪ BI" class="w-7 h-7 rounded object-cover" width="28" height="28">
                         <span class="font-bold text-white">Ứng Dụng Từ Bi</span>
                     </div>
                     <p class="text-sm text-tubi-300">
@@ -664,9 +665,7 @@ fn placeholder_page(
             {bottom_kg}
             {bottom_cd}
             <a href="/" class="flex flex-col items-center justify-center -mt-4">
-                <div class="w-12 h-12 bg-tubi-800 rounded-full flex items-center justify-center shadow-lg border-2 border-white" style="background-color:#2E7D32">
-                    <span class="text-2xl">🪷</span>
-                </div>
+                <img src="/static/tubi.png" alt="Trang chủ" class="w-12 h-12 rounded-full object-cover shadow-lg border-2 border-white" width="48" height="48">
             </a>
             {bottom_bb}
             {bottom_ks}

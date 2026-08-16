@@ -152,5 +152,115 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
         Err(e) => log::error!("  ❌ Failed to ensure role_permissions: {e}"),
     }
 
+    // ─── v0.9.38 — Giai đoạn 42: Safety schema cho migration 026 ─────────
+    // Trên production, migration 026 có thể không được apply đầy đủ vì checksum
+    // mismatch, partial deploy, hoặc DB bị rollback manual. Khi đó:
+    //   - `UPDATE groups SET logo_upload_id = ...` fail với
+    //     "column \"logo_upload_id\" does not exist" → "Lỗi cập nhật logo nhóm."
+    //   - `INSERT INTO user_music_submissions (..., source_type, audio_file_upload_id, ...)`
+    //     fail với "column \"source_type\" does not exist" → "lỗi gửi bài"
+    //   - `INSERT INTO audio_files ...` fail vì bảng chưa tồn tại.
+    // Fix: chạy idempotent DDL trực tiếp (ADD COLUMN IF NOT EXISTS / CREATE TABLE
+    // IF NOT EXISTS) trước khi sqlx migrations chạy, để schema luôn nhất quán.
+    // (Tương tự cơ chế đã fix v0.9.25 cho users.i_balance / permissions.)
+
+    // 6. Ensure `groups.logo_upload_id` column (v0.9.36 — Giai đoạn 41).
+    match sqlx::query(
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS logo_upload_id UUID REFERENCES images(id) ON DELETE SET NULL"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ groups.logo_upload_id column ensured"),
+        Err(e) => log::error!("  ❌ Failed to ensure groups.logo_upload_id: {e}"),
+    }
+
+    // 7. Ensure `audio_files` table (v0.9.36 — Giai đoạn 41).
+    match sqlx::query(
+        "CREATE TABLE IF NOT EXISTS audio_files (
+            id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+            uploader_id      UUID         REFERENCES users(id) ON DELETE SET NULL,
+            original_name    VARCHAR(255) NOT NULL,
+            stored_filename  VARCHAR(255) NOT NULL UNIQUE,
+            mime_type        VARCHAR(100) NOT NULL,
+            size_bytes       BIGINT       NOT NULL,
+            sha256           VARCHAR(64)  NOT NULL,
+            duration_seconds INT,
+            purpose          VARCHAR(50)  NOT NULL DEFAULT 'other',
+            is_public        BOOLEAN      NOT NULL DEFAULT true,
+            created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ audio_files table ensured"),
+        Err(e) => log::error!("  ❌ Failed to ensure audio_files: {e}"),
+    }
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_audio_files_uploader ON audio_files(uploader_id)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_audio_files_purpose ON audio_files(purpose)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_audio_files_sha256 ON audio_files(sha256)"
+    ).execute(pool).await;
+
+    // 8. Ensure `user_music_submissions` new columns (v0.9.36 — Giai đoạn 41).
+    //    source_type có CHECK constraint — dùng DO $$ để idempotent.
+    match sqlx::query(
+        "ALTER TABLE user_music_submissions
+            ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'youtube'"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ user_music_submissions.source_type ensured"),
+        Err(e) => log::error!("  ❌ Failed to ensure user_music_submissions.source_type: {e}"),
+    }
+    // Add CHECK constraint nếu chưa có (idempotent)
+    let _ = sqlx::query(
+        "DO $$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'user_music_submissions_source_type_check'
+            ) THEN
+                ALTER TABLE user_music_submissions
+                ADD CONSTRAINT user_music_submissions_source_type_check
+                CHECK (source_type IN ('youtube', 'audio_file'));
+            END IF;
+        END $$"
+    ).execute(pool).await;
+
+    match sqlx::query(
+        "ALTER TABLE user_music_submissions
+            ADD COLUMN IF NOT EXISTS audio_file_upload_id UUID REFERENCES audio_files(id) ON DELETE SET NULL"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ user_music_submissions.audio_file_upload_id ensured"),
+        Err(e) => log::error!("  ❌ Failed to ensure user_music_submissions.audio_file_upload_id: {e}"),
+    }
+    match sqlx::query(
+        "ALTER TABLE user_music_submissions
+            ADD COLUMN IF NOT EXISTS audio_duration_seconds INT"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ user_music_submissions.audio_duration_seconds ensured"),
+        Err(e) => log::error!("  ❌ Failed to ensure user_music_submissions.audio_duration_seconds: {e}"),
+    }
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_source_type ON user_music_submissions(source_type)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_audio_file ON user_music_submissions(audio_file_upload_id) WHERE audio_file_upload_id IS NOT NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_groups_logo_upload ON groups(logo_upload_id) WHERE logo_upload_id IS NOT NULL"
+    ).execute(pool).await;
+
     log::info!("🔒 Safety schema check hoàn tất");
 }

@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.37 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.38 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.37 — Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷");
+    log::info!("📦 Phiên bản: v0.9.38 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -672,6 +672,23 @@ const HEALTH_FEATURES: &[&str] = &[
     "client-pause-polling-when-tab-hidden-v0.9.37",
     "client-resume-polling-on-tab-visible-v0.9.37",
     "client-notification-badge-pause-on-429-v0.9.37",
+    // ─── v0.9.38 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update
+    "logo-png-replace-emoji-favicon-v0.9.38",
+    "logo-png-replace-emoji-header-v0.9.38",
+    "logo-png-replace-emoji-bottom-nav-v0.9.38",
+    "logo-png-replace-emoji-footer-v0.9.38",
+    "logo-png-replace-emoji-home-hero-v0.9.38",
+    "logo-png-replace-emoji-login-page-v0.9.38",
+    "logo-png-replace-emoji-error-pages-v0.9.38",
+    "logo-png-og-image-twitter-card-v0.9.38",
+    "logo-png-apple-touch-icon-v0.9.38",
+    "group-logo-safety-schema-fix-v0.9.38",
+    "music-submit-safety-schema-fix-v0.9.38",
+    "audio-files-table-safety-schema-v0.9.38",
+    "music-submissions-source-type-safety-schema-v0.9.38",
+    "group-logo-error-redirect-with-err-v0.9.38",
+    "music-submit-error-message-improved-v0.9.38",
+    "about-page-team-update-cuong-hieu-v0.9.38",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -690,7 +707,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.37",
+            "version": "0.9.38",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -720,11 +737,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.37",
+        "version": "0.9.38",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 41,
-        "phase_name": "Giai đoạn 41 (phần 2) — About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷",
+        "phase": 42,
+        "phase_name": "Giai đoạn 42 — Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -741,6 +758,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "mod_dashboard": "/admin/thanh-vien",
             "v0_9_36_note": "Giai đoạn 41 — Community group logo upload + audio file uploads (MP3/M4A/OGG/WAV/FLAC) for music submissions",
             "v0_9_37_note": "Giai đoạn 41 (phần 2) — Trang /gioi-thieu + fix orphan links (mobile drawer + admin music pending tile) + fix lỗi gửi bài (silent reject + empty group_name + stale counter) + nút đánh dấu đã đọc (per-item + mark-all) + fix 429 (tăng limit, sửa classify, HTML page, fetch wrapper)",
+            "v0_9_38_note": "Giai đoạn 42 — Replace all web logos (favicon/header/footer/bottom-nav/home/login) với tubi.png (PNG thật, không còn emoji 🪷); fix bug 'Lỗi cập nhật logo nhóm' (safety schema cho groups.logo_upload_id); fix bug 'lỗi gửi bài' khi đăng nhạc (safety schema cho audio_files + user_music_submissions.source_type/audio_file_upload_id/audio_duration_seconds); cập nhật /gioi-thieu team info (Đỗ Văn Cường rút về hỗ trợ, Nguyễn Đình Minh Hiếu chuyển sang Admin Kỹ Thuật).",
             "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",

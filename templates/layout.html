@@ -17,16 +17,16 @@
     <meta property="og:title" content="{% block og_title %}Ứng Dụng Từ Bi — Sân chơi tu đạo{% endblock %}">
     <meta property="og:description" content="{% block og_description %}Sân chơi tu đạo, thư viện kinh sách, niệm Phật, cộng tu. Siêu thoát không siêu thích.{% endblock %}">
     <meta property="og:url" content="https://tubi.louis.vangioitutien.com">
-    <meta property="og:image" content="https://tubi.louis.vangioitutien.com/static/og-image.png">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="Ứng Dụng Từ Bi — 🪷 Hoa Sen">
+    <meta property="og:image" content="https://tubi.louis.vangioitutien.com/static/tubi.png">
+    <meta property="og:image:width" content="1254">
+    <meta property="og:image:height" content="1254">
+    <meta property="og:image:alt" content="Ứng Dụng Từ Bi — Logo thương hiệu">
     <meta property="og:locale" content="vi_VN">
     {# Twitter Card — cho Twitter, Telegram, Discord #}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Ứng Dụng Từ Bi — Sân chơi tu đạo">
     <meta name="twitter:description" content="Sân chơi tu đạo, thư viện kinh sách, niệm Phật, cộng tu.">
-    <meta name="twitter:image" content="https://tubi.louis.vangioitutien.com/static/og-image.png">
+    <meta name="twitter:image" content="https://tubi.louis.vangioitutien.com/static/tubi.png">
 
     <title>{% block title %}Ứng Dụng Từ Bi{% endblock %}</title>
 
@@ -79,13 +79,16 @@
     <!-- Alpine.js -->
     <script defer src="https://unpkg.com/alpinejs@3.14.9/dist/cdn.min.js"></script>
 
-    <!-- Favicon — v0.9.33: Emoji 🪷 sharpened (geometricPrecision + emoji font fallback + 256 viewBox)
-         v0.9.32 dùng 100×100 font-size 90 → render mờ ở 16/32px. v0.9.33 bump lên 256 viewBox,
-         font-size 240, thêm font-family fallback (Apple/Segoe/Noto/Twemoji) để browser pick
-         best emoji font, text-rendering + shape-rendering geometricPrecision cho nét hơn. -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' shape-rendering='geometricPrecision'%3E%3Ctext x='128' y='128' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, system-ui, sans-serif' font-size='240' text-anchor='middle' dominant-baseline='central' text-rendering='geometricPrecision'%3E🪷%3C/text%3E%3C/svg%3E">
-    <link rel="apple-touch-icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' shape-rendering='geometricPrecision'%3E%3Ctext x='128' y='128' font-family='Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, Twemoji Mozilla, system-ui, sans-serif' font-size='240' text-anchor='middle' dominant-baseline='central' text-rendering='geometricPrecision'%3E🪷%3C/text%3E%3C/svg%3E">
-    <!-- Fallback PNG-less favicon cho trình duyệt cũ không hỗ trợ SVG data URI -->
+    <!-- Favicon — v0.9.38: Giai đoạn 42 — Đổi toàn bộ logo web sang tubi.png (PNG thật, không còn emoji).
+         Trước v0.9.38 dùng SVG data URI với emoji 🪷 → render khác nhau trên mỗi platform (Apple/Google/Microsoft).
+         Giờ dùng PNG thống nhất trên mọi trình duyệt, hiển thị đúng logo thương hiệu.
+         Sizes: 16x16 (tab), 32x32 (taskbar), 192x192 (PWA), 512x512 (splash). -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/tubi.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/tubi.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/tubi.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/tubi.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/tubi.png">
+    <!-- Fallback SVG cho trình duyệt cũ (giữ favicon.svg làm backup) -->
     <link rel="alternate icon" href="/static/favicon.svg">
 
     <!-- Custom CSS — v0.9.20: tách thành 2 files cho gọn gàng -->
@@ -116,12 +119,11 @@
     <header class="bg-white/95 dark:bg-slate-800 backdrop-blur border-b border-gray-200 dark:border-slate-700 sticky top-0 z-50 transition-colors">
         <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
             <div class="flex items-center justify-between h-14">
-                <!-- Logo — v0.9.33: Emoji 🪷 sharpened (geometricPrecision + emoji font fallback) -->
+                <!-- Logo — v0.9.38: Giai đoạn 42 — Đổi sang tubi.png (PNG thật, không còn emoji 🪷). -->
                 <a href="/" class="flex items-center gap-2 group">
-                    <div class="w-9 h-9 bg-gradient-to-br from-tubi-600 to-tubi-800 rounded-xl flex items-center justify-center
-                                group-hover:scale-105 transition-transform shadow-sm">
-                        <span class="lotus-logo-header text-2xl">🪷</span>
-                    </div>
+                    <img src="/static/tubi.png" alt="Ứng Dụng Từ Bi" 
+                         class="w-9 h-9 rounded-xl object-cover group-hover:scale-105 transition-transform shadow-sm"
+                         width="36" height="36">
                     <div class="leading-tight">
                         <div class="text-sm font-bold tracking-tight text-ink">TỪ BI</div>
                         <div class="text-[10px] text-gray-500 -mt-0.5 hidden sm:block">Giác Ngộ · Giải Thoát</div>
@@ -465,9 +467,10 @@
                 <span class="text-[10px] leading-none mt-1">Cộng Đồng</span>
             </a>
             <a href="/tong-quan" class="flex justify-center items-end pb-1.5" aria-label="Tổng quan">
-                <div class="w-12 h-12 -mt-4 bg-gradient-to-br from-tubi-700 to-tubi-900 rounded-full flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-800">
-                    <span class="lotus-logo-header text-2xl">🪷</span>
-                </div>
+                <!-- v0.9.38: tubi.png logo ở giữa bottom nav -->
+                <img src="/static/tubi.png" alt="Tổng quan" 
+                     class="w-12 h-12 -mt-4 rounded-full object-cover shadow-lg border-2 border-white dark:border-slate-800"
+                     width="48" height="48">
             </a>
             <a href="/ban-be" class="flex flex-col items-center justify-center pb-1.5 min-h-[44px]
                {% if active_page == "friends" %}text-tubi-700 dark:text-tubi-300{% else %}text-gray-400 dark:text-slate-500{% endif %}">
@@ -488,7 +491,7 @@
             <div class="grid grid-cols-6 gap-8">
                 <div class="col-span-1">
                     <div class="flex items-center gap-2 mb-3">
-                        <span class="text-xl">🪷</span>
+                        <img src="/static/tubi.png" alt="TỪ BI" class="w-6 h-6 rounded object-cover" width="24" height="24">
                         <span class="font-bold text-white text-sm">TỪ BI</span>
                     </div>
                     <p class="text-xs text-gray-400 leading-relaxed">
@@ -555,7 +558,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.37 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.38 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

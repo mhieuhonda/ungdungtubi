@@ -17,8 +17,9 @@
          x-transition:enter="transition ease-out duration-700"
          x-transition:enter-start="opacity-0 transform scale-50"
          x-transition:enter-end="opacity-100 transform scale-100">
-      <div class="w-20 h-20 mx-auto bg-white/10 backdrop-blur rounded-full flex items-center justify-center ring-4 ring-lotus-400/30 shadow-2xl animate-float">
-        <span class="lotus-emoji text-5xl leading-none">🪷</span>
+      <div class="w-20 h-20 mx-auto bg-white/10 backdrop-blur rounded-full flex items-center justify-center ring-4 ring-lotus-400/30 shadow-2xl animate-float overflow-hidden">
+        <!-- v0.9.38: Giai đoạn 42 — Logo tubi.png thay emoji 🪷 -->
+        <img src="/static/tubi.png" alt="Ứng Dụng Từ Bi" class="w-16 h-16 rounded-full object-cover" width="64" height="64">
       </div>
     </div>
     <h1 x-show="show" x-cloak
@@ -183,8 +184,20 @@
           </div>
           <div class="bg-tubi-50/60 rounded-xl p-5 border border-tubi-100">
             <div class="text-2xl mb-1">💻</div>
-            <h3 class="font-semibold text-tubi-800">Admin Kỹ Thuật (Cường)</h3>
-            <p class="text-xs text-gray-600 mt-1">Phụ trách hệ thống, server, cơ sở dữ liệu, mã nguồn, bảo mật và phát triển ứng dụng.</p>
+            <h3 class="font-semibold text-tubi-800">Admin Kỹ Thuật (Hiếu)</h3>
+            <p class="text-xs text-gray-600 mt-1">Phụ trách hệ thống, server, cơ sở dữ liệu, mã nguồn, bảo mật và phát triển ứng dụng. Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật để phụ trách mảng kỹ thuật của dự án.</p>
+          </div>
+        </div>
+        <!-- v0.9.38 — Giai đoạn 42: Cập nhật đội ngũ — Đỗ Văn Cường rút về hỗ trợ -->
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-4">
+          <div class="flex items-start gap-3">
+            <span class="text-xl shrink-0">⚙️</span>
+            <div class="flex-1">
+              <h4 class="font-semibold text-amber-900 text-sm">Đỗ Văn Cường — đã rút lui về làm hỗ trợ</h4>
+              <p class="text-xs text-amber-800 mt-1 leading-relaxed">
+                Đỗ Văn Cường, vốn là Admin Kỹ Thuật nòng cốt từ những ngày đầu, nay đã rút lui về làm hỗ trợ kỹ thuật. Nguyễn Đình Minh Hiếu — trước đây đảm nhận vai trò Admin Cộng Đồng — được điều chuyển sang vị trí Admin Kỹ Thuật để phụ trách chính mảng kỹ thuật của Ứng Dụng Từ Bi. Sự chuyển đổi này giúp dự án có người chịu trách nhiệm toàn thời gian cho hạ tầng, server và phát triển ứng dụng.
+              </p>
+            </div>
           </div>
         </div>
         <div class="bg-lotus-50 border border-lotus-200 rounded-xl p-4 mt-4">
@@ -342,7 +355,7 @@
           <div class="text-2xl">📚</div>
           <div>
             <h4 class="font-semibold text-tubi-800">Thư Viện Kinh Sách</h4>
-            <p class="text-sm text-gray-700 mt-1">Tìm kiếm và tải các bản kinh văn, sách điện tử để Admin Cường thiết kế và xây dựng Thư Viện.</p>
+            <p class="text-sm text-gray-700 mt-1">Tìm kiếm và tải các bản kinh văn, sách điện tử để Admin Hiếu thiết kế và xây dựng Thư Viện.</p>
           </div>
         </div>
       </div>

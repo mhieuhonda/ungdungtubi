@@ -6,6 +6,156 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.38] — 2026-08-17 — Giai đoạn 42: Logo PNG + Group Logo Bug Fix + Music Submit Bug Fix + About Page Team Update 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Bản phát hành này giải quyết **4 vấn đề user báo cáo** và **1 yêu cầu thương hiệu**:
+
+1. **Bug "Lỗi cập nhật logo nhóm."** — khi user (owner/admin) upload logo mới cho nhóm cộng đồng,
+   handler `change_group_logo` trả lỗi 500. Nguyên nhân gốc: migration 026 (v0.9.36) thêm cột
+   `groups.logo_upload_id` nhưng trên production có thể chưa được apply đầy đủ (checksum mismatch,
+   partial deploy, DB rollback manual). Khi `UPDATE groups SET logo_upload_id = ...` chạy mà cột
+   không tồn tại → SQL error → user thấy "Lỗi cập nhật logo nhóm." trên trang trắng.
+2. **Bug "lỗi gửi bài" khi đăng nhạc trong Nhà Nhạc** — khi user submit file âm thanh (MP3/M4A/OGG/WAV/FLAC)
+   hoặc YouTube link, INSERT vào `user_music_submissions` fail vì các cột `source_type`,
+   `audio_file_upload_id`, `audio_duration_seconds` (migration 026) chưa tồn tại. User thấy
+   "⚠️ Lỗi gửi bài — vui lòng thử lại." mà không rõ nguyên nhân.
+3. **Yêu cầu thay toàn bộ logo web sang PNG thật** — trước v0.9.38, logo toàn web dùng emoji 🪷
+   (SVG data URI cho favicon, `<span>🪷</span>` cho header/footer/bottom-nav/home/login). Emoji
+   render khác nhau trên mỗi platform (Apple Color Emoji vs Segoe UI Emoji vs Noto Color Emoji)
+   → thương hiệu không nhất quán. User cung cấp `tubi.png` (1254×1254 PNG thật) yêu cầu thay toàn bộ.
+4. **Cập nhật thông tin đội ngũ trên trang /gioi-thieu** — Đỗ Văn Cường rút lui về làm hỗ trợ,
+   Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật để phụ trách chính.
+
+### 🔧 Fix Root Cause — Safety Schema Check cho migration 026
+
+Cùng cơ chế đã fix v0.9.25 (cho `users.i_balance` + `permissions` table), giờ áp dụng cho
+migration 026 (v0.9.36 — Community Group Logo + Audio File Uploads). Trước khi sqlx migrations
+chạy, `ensure_schema_safety()` chạy idempotent DDL trực tiếp (`ADD COLUMN IF NOT EXISTS` /
+`CREATE TABLE IF NOT EXISTS`) để đảm bảo schema luôn nhất quán:
+
+- **[SAFETY-1]** `src/db/mod.rs` — `ALTER TABLE groups ADD COLUMN IF NOT EXISTS logo_upload_id
+  UUID REFERENCES images(id) ON DELETE SET NULL`. Fix bug "Lỗi cập nhật logo nhóm."
+- **[SAFETY-2]** `src/db/mod.rs` — `CREATE TABLE IF NOT EXISTS audio_files (... 11 columns ...)`
+  + 3 index. Fix bug "lỗi gửi bài" (audio file upload path).
+- **[SAFETY-3]** `src/db/mod.rs` — `ALTER TABLE user_music_submissions ADD COLUMN IF NOT EXISTS
+  source_type TEXT NOT NULL DEFAULT 'youtube'` + CHECK constraint (idempotent qua `DO $$ ... END $$`).
+- **[SAFETY-4]** `src/db/mod.rs` — `ALTER TABLE user_music_submissions ADD COLUMN IF NOT EXISTS
+  audio_file_upload_id UUID REFERENCES audio_files(id) ON DELETE SET NULL`.
+- **[SAFETY-5]** `src/db/mod.rs` — `ALTER TABLE user_music_submissions ADD COLUMN IF NOT EXISTS
+  audio_duration_seconds INT`.
+- **[SAFETY-6]** `src/db/mod.rs` — 3 index phụ: `idx_music_submissions_source_type`,
+  `idx_music_submissions_audio_file`, `idx_groups_logo_upload`.
+
+### 🐛 Fix UX — Handler Error Handling
+
+- **[UX-1]** `src/handlers/community.rs::change_group_logo` — Khi `UPDATE groups SET logo_upload_id`
+  fail, thay vì trả plain-text 500 "Lỗi cập nhật logo nhóm." (UX tệ — trang trắng), giờ redirect
+  về `/cong-dong/nhom/{slug}?err=...` (group page đã có error banner từ v0.9.37). Cleanup file
+  PNG + image row đã tạo để tránh orphan rows. Log error chi tiết (group slug + image_id + error).
+- **[UX-2]** `src/handlers/nha_nhac.rs::nha_nhac_submit_music_file` — Cải thiện error message
+  từ "⚠️ Lỗi gửi bài — vui lòng thử lại." → "⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu.
+  Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật." Log error chi tiết.
+- **[UX-3]** `src/handlers/nha_nhac.rs::nha_nhac_submit_music` (YouTube path) — Cải thiện error
+  message tương tự [UX-2]. Log error với prefix "(YouTube)" để phân biệt.
+
+### 🎨 Replace All Web Logos — tubi.png (NEW MAJOR)
+
+User cung cấp `tubi.png` (PNG 1254×1254, RGBA, 1.25 MB). Thay toàn bộ logo web từ emoji 🪷
+sang PNG thật:
+
+- **[LOGO-1]** `src/static/tubi.png` — Copy file từ upload user vào static assets (Docker image
+  sẽ copy vào `/app/static/tubi.png`).
+- **[LOGO-2]** `src/static/og-image.png` — Overwrite social preview image với tubi.png (Facebook/
+  Twitter/Telegram/Discord preview khi share URL).
+- **[LOGO-3]** `templates/layout.html` — Favicon (tab logo): thay SVG data URI emoji 🪷 bằng
+  `<link rel="icon" type="image/png" sizes="32x32" href="/static/tubi.png">` + 5 sizes (16/32/180/192/512)
+  cho mọi platform (browser tab, taskbar, PWA, apple-touch-icon, splash screen). Giữ `favicon.svg`
+  làm fallback cho trình duyệt cũ.
+- **[LOGO-4]** `templates/layout.html` — Header logo: thay `<span class="lotus-logo-header">🪷</span>`
+  trong green gradient box bằng `<img src="/static/tubi.png" class="w-9 h-9 rounded-xl object-cover">` (36×36).
+- **[LOGO-5]** `templates/layout.html` — Bottom nav center button (mobile): thay `<span>🪷</span>`
+  bằng `<img src="/static/tubi.png" class="w-12 h-12 -mt-4 rounded-full">` (48×48, nút nổi).
+- **[LOGO-6]** `templates/layout.html` — Footer logo (desktop): thay `<span class="text-xl">🪷</span>`
+  bằng `<img src="/static/tubi.png" class="w-6 h-6 rounded">` (24×24).
+- **[LOGO-7]** `templates/layout.html` — OG image meta: `og:image` + `twitter:image` đổi từ
+  `/static/og-image.png` (1200×630 cũ) sang `/static/tubi.png` (1254×1254 mới). Cập nhật
+  `og:image:width` + `og:image:height` + `og:image:alt`.
+- **[LOGO-8]** `templates/home.html` — Hero logo: thay `<span class="lotus-emoji text-5xl">🪷</span>`
+  bằng `<img src="/static/tubi.png" class="w-16 h-16 rounded-full">` (64×64) trong white circle container.
+- **[LOGO-9]** `templates/auth/login.html` — Top logo: thay `<span class="text-4xl">🪷</span>`
+  bằng `<img src="/static/tubi.png" class="w-16 h-16 mx-auto rounded-2xl">` (64×64).
+- **[LOGO-10]** `templates/gioi-thieu.html` — Hero logo (section 1): thay emoji span bằng
+  `<img src="/static/tubi.png" class="w-16 h-16 rounded-full">` (64×64).
+- **[LOGO-11]** `templates/tong-quan/index.html` — Tile "Giới Thiệu" logo: thay emoji div
+  bằng `<img src="/static/tubi.png" class="w-12 h-12 rounded-full">` (48×48).
+- **[LOGO-12]** `src/handlers/mod.rs` (placeholder/error pages) — Favicon (5 sizes PNG),
+  header logo, footer logo, bottom nav center button — tất cả đổi sang `<img src="/static/tubi.png">`.
+- **[LOGO-13]** `src/handlers/auth.rs` — Error page (login callback error) top logo: thay
+  `<div class="text-5xl">🪷</div>` bằng `<img src="/static/tubi.png" class="w-16 h-16">`.
+- **[LOGO-14]** `src/middleware/rate_limit.rs` — 429 Too Many Requests page: thay
+  `<div class="emoji">🪷</div>` bằng `<img src="/static/tubi.png" style="width:64px;height:64px">`.
+
+Lưu ý: emoji 🪷 vẫn được giữ trong text decorations (menu items, button text, footer copyright
+text "🪷 Ứng Dụng Từ Bi v0.9.38 · Nguyện công đức vô lượng..."). Chỉ thay **logo positions**
+(brand icon) bằng PNG, không thay emoji trang trí.
+
+### 👥 About Page Team Update — /gioi-thieu
+
+Cập nhật thông tin đội ngũ trên trang `/gioi-thieu` (section 4 "Founder Story") theo yêu cầu user:
+
+- **[TEAM-1]** `templates/gioi-thieu.html` — Đổi card "Admin Kỹ Thuật (Cường)" → "Admin Kỹ Thuật (Hiếu)".
+  Mô tả: "Phụ trách hệ thống, server, cơ sở dữ liệu, mã nguồn, bảo mật và phát triển ứng dụng.
+  Nguyễn Đình Minh Hiếu từ Admin Cộng Đồng chuyển sang Admin Kỹ Thuật để phụ trách mảng kỹ thuật
+  của dự án."
+- **[TEAM-2]** `templates/gioi-thieu.html` — Thêm amber banner "Đỗ Văn Cường — đã rút lui về làm
+  hỗ trợ" ngay dưới 2 card founder. Nội dung: "Đỗ Văn Cường, vốn là Admin Kỹ Thuật nòng cốt từ
+  những ngày đầu, nay đã rút lui về làm hỗ trợ kỹ thuật. Nguyễn Đình Minh Hiếu — trước đây đảm
+  nhận vai trò Admin Cộng Đồng — được điều chuyển sang vị trí Admin Kỹ Thuật để phụ trách chính
+  mảng kỹ thuật của Ứng Dụng Từ Bi. Sự chuyển đổi này giúp dự án có người chịu trách nhiệm toàn
+  thời gian cho hạ tầng, server và phát triển ứng dụng."
+- **[TEAM-3]** `templates/gioi-thieu.html` — Section 7 (Tuyển thành viên): Đổi "Admin Cường
+  thiết kế và xây dựng Thư Viện" → "Admin Hiếu thiết kế và xây dựng Thư Viện" (Thư Viện Kinh Sách).
+- Lưu ý: Trang `/doi-ngu-quan-li` (đội ngũ quản lí chi tiết) đã có sẵn thông tin đúng từ v0.9.30
+  (Đỗ Văn Cường — "Hiện tại đã lui về hỗ trợ", Nguyễn Đình Minh Hiếu — "Hiện tại đang làm chính").
+  Không cần sửa.
+
+### 📦 Version Sync v0.9.38
+
+- Bump version `0.9.37` → `0.9.38` ở: `Cargo.toml`, `src/main.rs` (startup log + health check
+  public + health check inner + phase 41 → 42), `templates/layout.html` (footer), `templates/khong-gian/index.html`
+  (footer), `templates/admin/cong-dong/index.html` (footer), `templates/admin/quan-li/index.html`
+  (footer), `templates/admin/ky-thuat/index.html` (title + footer), `templates/admin/placeholder.html`
+  (title + footer), `templates/admin/phat-trien/index.html` (phase badge + roadmap + footer),
+  `src/middleware/rate_limit.rs` (429 page footer), `Dockerfile.coolify` (comment).
+- Update phase 41 → 42 trong health check + main log + admin phat-trien dashboard.
+- Thêm 16 feature flags v0.9.38 vào `HEALTH_FEATURES` array (logo-png-replace-emoji-* × 8 +
+  group-logo-safety-schema-fix + music-submit-safety-schema-fix + audio-files-table-safety-schema +
+  music-submissions-source-type-safety-schema + group-logo-error-redirect-with-err +
+  music-submit-error-message-improved + about-page-team-update-cuong-hieu).
+- Thêm `v0_9_38_note` vào health check `notes` object.
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 41 (About Page + Orphan Fix + Post-Fix + Notif + 429)
+  → "Hoàn thành" (green). Giai đoạn 42 (Logo PNG + Group Logo Fix + Music Submit Fix + Team Update)
+  → "Đang triển khai" (indigo, badge 43).
+
+### 📋 Ghi chú vận hành
+
+- **Database**: Safety schema check chạy idempotent DDL trước sqlx migrations → đảm bảo schema
+  luôn nhất quán ngay cả khi migration 026 chưa được apply (checksum mismatch, partial deploy,
+  manual rollback). KHÔNG xóa dữ liệu user, chỉ ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS.
+- **Logo file**: `tubi.png` (1254×1254 PNG, 1.25 MB) được copy vào `src/static/tubi.png`. Docker
+  image copy vào `/app/static/tubi.png`. Browser cache: file tĩnh có ETag qua tower-http ServeDir,
+  nhưng không có content hash trong filename → user có thể cần hard-refresh (Ctrl+Shift+R) lần đầu
+  để thấy logo mới. Sau đó browser cache sẽ hoạt động bình thường.
+- **Emoji 🪷 trong text**: Vẫn được giữ trong menu items, button text, copyright text — chỉ thay
+  logo positions (brand icon) bằng PNG. Nếu user muốn thay toàn bộ emoji 🪷 (kể cả text decorations),
+  cần yêu cầu riêng.
+- **Rollback**: Nếu logo PNG có vấn đề, có thể rollback bằng cách revert commit này. Fallback
+  SVG (`favicon.svg`) vẫn còn → trình duyệt cũ không bị broken icon.
+
+---
+
 ## [0.9.37] — 2026-08-16 — Giai đoạn 41 (phần 2): About Page + Orphan-Link Fix + Post-Submit Fix + Notification Mark-All + 429 Hardening 🪷
 
 ### 🎯 Mục tiêu giai đoạn

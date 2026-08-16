@@ -651,10 +651,11 @@ pub async fn nha_nhac_submit_music(
             </div>"#
         ).into_response(),
         Err(e) => {
-            log::error!("❌ nha_nhac_submit_music: {e}");
+            // v0.9.38 — Giai đoạn 42: Log error chi tiết, hiển thị thông báo thân thiện hơn.
+            log::error!("❌ nha_nhac_submit_music (YouTube): {e}");
             Html(
                 r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                    ⚠️ Lỗi gửi bài — vui lòng thử lại.
+                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật.
                 </div>"#
             ).into_response()
         }
@@ -1098,6 +1099,10 @@ pub async fn nha_nhac_submit_music_file(
             .into_response()
         }
         Err(e) => {
+            // v0.9.38 — Giai đoạn 42: Log error chi tiết + cleanup file/audio_files row.
+            // Schema safety check (db/mod.rs) đảm bảo các cột source_type,
+            // audio_file_upload_id, audio_duration_seconds luôn tồn tại — nhưng
+            // vẫn wrap cho an toàn và hiển thị thông báo rõ ràng cho user.
             log::error!("❌ Lỗi insert user_music_submissions (audio): {e}");
             // Cleanup file + audio_files row
             let _ = std::fs::remove_file(&file_path);
@@ -1107,7 +1112,7 @@ pub async fn nha_nhac_submit_music_file(
                 .await;
             Html(
                 r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                    ⚠️ Lỗi gửi bài — vui lòng thử lại.
+                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật.
                 </div>"#,
             )
             .into_response()

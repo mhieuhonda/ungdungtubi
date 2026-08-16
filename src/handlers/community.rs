@@ -1281,6 +1281,11 @@ pub async fn change_group_logo(
     }
 
     // 7. Update group's logo_upload_id
+    // v0.9.38 — Giai đoạn 42: Nếu UPDATE fail (column không tồn tại do migration
+    // 026 chưa được apply, hoặc DB error khác), redirect về trang nhóm với
+    // ?err=... thay vì trả plain-text 500 (UX tệ). Group page đã có error banner
+    // (v0.9.37 — fix lỗi "gửi bài không được"). Schema safety check ở db/mod.rs
+    // đảm bảo cột logo_upload_id luôn tồn tại, nhưng vẫn wrap cho an toàn.
     let logo_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
     if let Err(e) = sqlx::query(
         "UPDATE groups SET logo_upload_id = $1, updated_at = NOW() WHERE id = $2",
@@ -1290,8 +1295,15 @@ pub async fn change_group_logo(
     .execute(&state.pool)
     .await
     {
-        log::error!("❌ Lỗi cập nhật logo_upload_id: {e}");
-        return (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Lỗi cập nhật logo nhóm.").into_response();
+        log::error!("❌ Lỗi cập nhật logo_upload_id (group {slug}, image {image_id}): {e}");
+        // Cleanup file + image row đã tạo (tránh orphan rows)
+        let _ = std::fs::remove_file(&file_path);
+        let _ = sqlx::query("DELETE FROM images WHERE id = $1")
+            .bind(image_id)
+            .execute(&state.pool)
+            .await;
+        let err_msg = urlencoding::encode("Không cập nhật được logo nhóm. Vui lòng thử lại hoặc liên hệ admin kỹ thuật.");
+        return Redirect::to(&format!("/cong-dong/nhom/{slug}?err={err_msg}")).into_response();
     }
 
     log::info!("🎨 User {} updated logo for group {slug}: {logo_url}", user.id);
