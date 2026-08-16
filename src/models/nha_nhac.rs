@@ -434,6 +434,9 @@ impl SubmissionStatus {
 }
 
 /// Một submission nhạc từ user.
+///
+/// v0.9.36 — Giai đoạn 41: thêm `source_type` ('youtube' | 'audio_file') +
+/// `audio_file_upload_id` (link tới audio_files.id) + `audio_duration_seconds`.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct UserMusicSubmission {
     pub id: i64,
@@ -451,6 +454,15 @@ pub struct UserMusicSubmission {
     pub play_count: i64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// v0.9.36 — Giai đoạn 41: 'youtube' hoặc 'audio_file'.
+    #[sqlx(default)]
+    pub source_type: String,
+    /// v0.9.36 — Giai đoạn 41: NULL cho YouTube, link tới audio_files.id cho upload.
+    #[sqlx(default)]
+    pub audio_file_upload_id: Option<Uuid>,
+    /// v0.9.36 — Giai đoạn 41: thời lượng file âm thanh (giây) nếu source_type=audio_file.
+    #[sqlx(default)]
+    pub audio_duration_seconds: Option<i32>,
 }
 
 impl UserMusicSubmission {
@@ -466,9 +478,25 @@ impl UserMusicSubmission {
             _ => "Khác",
         }
     }
-    /// Generate YouTube embed URL for inline playback.
+    /// Generate YouTube embed URL for inline playback (only for source_type= youtube).
     pub fn youtube_embed_url(&self) -> String {
         format!("https://www.youtube.com/embed/{}?rel=0&modestbranding=1", self.youtube_id)
+    }
+    /// True nếu đây là submission dạng upload file âm thanh.
+    pub fn is_audio_file(&self) -> bool {
+        self.source_type == "audio_file"
+    }
+    /// Format duration thành "MM:SS" hoặc "HH:MM:SS" nếu có audio_duration_seconds.
+    pub fn duration_display(&self) -> String {
+        match self.audio_duration_seconds {
+            Some(total) if total > 0 => {
+                let h = total / 3600;
+                let m = (total % 3600) / 60;
+                let s = total % 60;
+                if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m}:{s:02}") }
+            }
+            _ => "—:—".to_string(),
+        }
     }
     pub fn relative_time(&self) -> String {
         let now = Utc::now();
@@ -581,6 +609,9 @@ pub struct ReviewSubmissionForm {
 }
 
 /// Submission kèm tên người đăng (cho admin view).
+///
+/// v0.9.36 — Giai đoạn 41: thêm `source_type`, `audio_file_upload_id`,
+/// `audio_duration_seconds`, `audio_file_url` (URL playback file local).
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct SubmissionWithUser {
     pub id: i64,
@@ -600,4 +631,48 @@ pub struct SubmissionWithUser {
     pub updated_at: DateTime<Utc>,
     pub submitter_name: String,
     pub submitter_avatar: Option<String>,
+    /// v0.9.36 — Giai đoạn 41: 'youtube' hoặc 'audio_file'.
+    #[sqlx(default)]
+    pub source_type: String,
+    /// v0.9.36 — Giai đoạn 41: NULL cho YouTube, link tới audio_files.id cho upload.
+    #[sqlx(default)]
+    pub audio_file_upload_id: Option<Uuid>,
+    /// v0.9.36 — Giai đoạn 41: thời lượng file âm thanh (giây) nếu source_type=audio_file.
+    #[sqlx(default)]
+    pub audio_duration_seconds: Option<i32>,
+    /// v0.9.36 — Giai đoạn 41: stored_filename của audio_files (để build URL playback).
+    /// JOIN từ audio_files khi query. NULL cho YouTube.
+    #[sqlx(default)]
+    pub audio_stored_filename: Option<String>,
+}
+
+impl SubmissionWithUser {
+    /// True nếu đây là submission dạng upload file âm thanh.
+    pub fn is_audio_file(&self) -> bool {
+        self.source_type == "audio_file"
+    }
+    /// Generate YouTube embed URL for inline playback (only for source_type=youtube).
+    pub fn youtube_embed_url(&self) -> String {
+        format!("https://www.youtube.com/embed/{}?rel=0&modestbranding=1", self.youtube_id)
+    }
+    /// Format duration thành "MM:SS" hoặc "HH:MM:SS" nếu có audio_duration_seconds.
+    pub fn duration_display(&self) -> String {
+        match self.audio_duration_seconds {
+            Some(total) if total > 0 => {
+                let h = total / 3600;
+                let m = (total % 3600) / 60;
+                let s = total % 60;
+                if h > 0 { format!("{h}:{m:02}:{s:02}") } else { format!("{m}:{s:02}") }
+            }
+            _ => "—:—".to_string(),
+        }
+    }
+    /// Icon cho loại nguồn (YouTube hoặc file âm thanh).
+    pub fn source_icon(&self) -> &'static str {
+        if self.is_audio_file() { "🎵" } else { "▶️" }
+    }
+    /// Nhãn cho loại nguồn.
+    pub fn source_label(&self) -> &'static str {
+        if self.is_audio_file() { "File âm thanh" } else { "YouTube" }
+    }
 }

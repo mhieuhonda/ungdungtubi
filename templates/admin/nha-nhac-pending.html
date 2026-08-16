@@ -18,7 +18,7 @@
             <span>🎵</span> Duyệt Nhạc Cộng Đồng
           </h1>
           <p class="text-sm text-amber-100 mt-1">
-            Xem duyệt bài hát do thành viên gửi qua YouTube
+            Xem duyệt bài hát do thành viên gửi qua YouTube hoặc tải file âm thanh (MP3/M4A/OGG/WAV/FLAC)
           </p>
         </div>
         <div class="text-right">
@@ -42,8 +42,29 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div class="p-5 sm:p-6">
         <div class="flex flex-col sm:flex-row gap-4">
-          <!-- YouTube Preview -->
+          <!-- Preview: YouTube iframe OR audio player -->
           <div class="sm:w-64 shrink-0">
+            {% if sub.is_audio_file() %}
+            <!-- v0.9.36 — Giai đoạn 41: Audio file preview -->
+            <div class="rounded-lg overflow-hidden bg-violet-50 border border-violet-200 p-4">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-2xl">🎵</span>
+                <div class="min-w-0">
+                  <div class="text-xs font-semibold text-violet-700">File âm thanh</div>
+                  <div class="text-[10px] text-violet-500 truncate">{{ sub.duration_display() }}</div>
+                </div>
+              </div>
+              {% if let Some(filename) = &sub.audio_stored_filename %}
+              <audio controls preload="metadata" class="w-full h-9">
+                <source src="/uploads/{{ filename }}" type="audio/mpeg">
+                Trình duyệt không hỗ trợ phát âm thanh.
+              </audio>
+              {% else %}
+              <p class="text-[10px] text-red-500">⚠️ File không tìm thấy</p>
+              {% endif %}
+            </div>
+            {% else %}
+            <!-- YouTube Preview -->
             <div class="aspect-video rounded-lg overflow-hidden bg-gray-100">
               <iframe src="https://www.youtube.com/embed/{{ sub.youtube_id }}?rel=0&modestbranding=1"
                       class="w-full h-full"
@@ -52,6 +73,7 @@
                       allowfullscreen
                       loading="lazy"></iframe>
             </div>
+            {% endif %}
           </div>
 
           <!-- Submission Info -->
@@ -73,6 +95,10 @@
               <span class="px-2 py-1 rounded-full bg-gray-100 text-gray-700">
                 👤 {{ sub.submitter_name }}
               </span>
+              <!-- v0.9.36 — Giai đoạn 41: Source type badge -->
+              <span class="px-2 py-1 rounded-full {% if sub.is_audio_file() %}bg-violet-50 text-violet-700 border border-violet-200{% else %}bg-red-50 text-red-700 border border-red-200{% endif %}">
+                {{ sub.source_icon() }} {{ sub.source_label() }}
+              </span>
             </div>
 
             {% if !sub.description.is_empty() %}
@@ -80,7 +106,11 @@
             {% endif %}
 
             <div class="flex flex-wrap gap-2 text-[11px] text-gray-400 mb-4">
+              {% if sub.is_audio_file() %}
+              <span>🎵 File âm thanh · {{ sub.duration_display() }}</span>
+              {% else %}
               <span>🔗 <a href="{{ sub.youtube_url }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">{{ sub.youtube_id }}</a></span>
+              {% endif %}
               <span>· 🕐 {{ sub.created_at.format("%d/%m/%Y %H:%M") }}</span>
             </div>
 

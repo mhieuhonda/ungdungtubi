@@ -24,9 +24,15 @@
 
     <div class="p-6 md:p-8">
     <div class="flex items-start gap-4 mb-4">
+      {% if let Some(logo_url) = logo_image_url %}
+      <div class="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border-2 border-gray-100 shadow-sm">
+        <img src="{{ logo_url }}" alt="Logo {{ group.name }}" class="w-full h-full object-cover">
+      </div>
+      {% else %}
       <div class="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style="background-color:#E8F5E9">
         {{ group.category_icon_or_lotus() }}
       </div>
+      {% endif %}
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap mb-1">
           <h1 class="text-2xl md:text-3xl font-bold text-gray-900">{{ group.name }}</h1>
@@ -61,6 +67,18 @@
                 x-data="{ fileName: '' }">
             <label class="cursor-pointer inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-tubi-700 transition" style="color:#388E3C">
               📷 Đổi ảnh bìa
+              <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif"
+                     class="hidden"
+                     onchange="this.closest('form').submit()">
+            </label>
+          </form>
+          <!-- v0.9.36 — Giai đoạn 41: Change logo (owner/admin only) -->
+          <form method="POST" action="/cong-dong/nhom/{{ group.slug }}/doi-logo"
+                enctype="multipart/form-data" class="inline"
+                x-data="{ fileName: '' }">
+            <label class="cursor-pointer inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-tubi-700 transition" style="color:#7C3AED"
+                   title="Đổi logo nhóm (ảnh vuông nhỏ, khác với ảnh bìa banner)">
+              🎨 Đổi logo
               <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif"
                      class="hidden"
                      onchange="this.closest('form').submit()">

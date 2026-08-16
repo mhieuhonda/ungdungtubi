@@ -18,6 +18,9 @@ pub struct Group {
     pub category_id: Option<i32>,
     pub owner_id: Uuid,
     pub cover_upload_id: Option<Uuid>,
+    /// v0.9.36 — Giai đoạn 41: Logo riêng (icon vuông nhỏ) của nhóm, khác với cover_upload_id (banner).
+    #[sqlx(default)]
+    pub logo_upload_id: Option<Uuid>,
     /// public | private | hidden
     pub visibility: String,
     pub require_approval: bool,

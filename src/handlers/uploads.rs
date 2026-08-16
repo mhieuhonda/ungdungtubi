@@ -30,6 +30,188 @@ const ALLOWED_MIME: &[(&str, &str)] = &[
     ("image/gif", "gif"),
 ];
 
+/// v0.9.36 — Giai đoạn 41: Danh sách MIME types âm thanh được phép + phần mở rộng.
+/// Dùng cho upload nhạc cộng đồng (đăng nhạc từ file).
+/// Giới hạn: MP3, M4A, OGG, WAV, FLAC — tối đa 20 MB/file (xem `MAX_AUDIO_BYTES`).
+pub const ALLOWED_AUDIO_MIME: &[(&str, &str)] = &[
+    ("audio/mpeg", "mp3"),
+    ("audio/mp3", "mp3"),
+    ("audio/mp4", "m4a"),
+    ("audio/x-m4a", "m4a"),
+    ("audio/m4a", "m4a"),
+    ("audio/ogg", "ogg"),
+    ("audio/vorbis", "ogg"),
+    ("audio/wav", "wav"),
+    ("audio/x-wav", "wav"),
+    ("audio/wave", "wav"),
+    ("audio/flac", "flac"),
+    ("audio/x-flac", "flac"),
+];
+
+/// v0.9.36 — Giới hạn upload file âm thanh: 20 MB.
+/// Lớn hơn ảnh (5 MB) vì file âm thanh thường lớn.
+pub const MAX_AUDIO_BYTES: usize = 20 * 1024 * 1024;
+
+/// v0.9.36 — Giai đoạn 41: Tìm phần mở rộng cho MIME type âm thanh.
+pub fn audio_mime_to_ext(mime: &str) -> Option<&'static str> {
+    ALLOWED_AUDIO_MIME
+        .iter()
+        .find(|(m, _)| *m == mime)
+        .map(|(_, ext)| *ext)
+}
+
+/// v0.9.36 — Giai đoạn 41: Read multipart fields for audio upload.
+///
+/// Khác với `read_multipart_file`: đọc thêm các field metadata text
+/// (title, artist, category, description) cùng với field `file` (audio binary).
+///
+/// Returns: `(file_bytes, original_name, detected_mime, text_fields)`.
+pub async fn read_multipart_audio_file(
+    multipart: &mut Multipart,
+    max_bytes: usize,
+) -> Result<(Bytes, Option<String>, Option<String>, std::collections::HashMap<String, String>), Response> {
+    let mut original_name: Option<String> = None;
+    let mut detected_mime: Option<String> = None;
+    let mut text_fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut field_count = 0u32;
+    let mut accumulated: Vec<u8> = Vec::new();
+
+    while let Ok(Some(field)) = multipart.next_field().await {
+        field_count += 1;
+        if field_count > 10 {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "Quá nhiều field trong form upload nhạc."
+                })),
+            )
+                .into_response());
+        }
+
+        let field_name = field.name().unwrap_or("").to_string();
+        let field_filename = field.file_name().map(std::string::ToString::to_string);
+        let content_type = field.content_type().map(std::string::ToString::to_string);
+
+        // Text field (title, artist, category, description)
+        if field_filename.is_none() && (content_type.as_deref() == Some("text/plain")
+            || content_type.is_none()
+            || field_name == "title" || field_name == "artist"
+            || field_name == "category" || field_name == "description")
+        {
+            if let Ok(text) = field.text().await {
+                text_fields.insert(field_name, text);
+            }
+            continue;
+        }
+
+        // File field — only accept field named "file"
+        if field_name != "file" {
+            continue;
+        }
+
+        if let Some(fname) = field_filename {
+            let safe: String = fname
+                .chars()
+                .filter(|c| c.is_alphanumeric() || matches!(c, '.' | '_' | '-'))
+                .collect();
+            if !safe.is_empty() {
+                original_name = Some(safe);
+            }
+        }
+        if let Some(ct) = content_type {
+            detected_mime = Some(ct);
+        }
+
+        match field.bytes().await {
+            Ok(chunk) => {
+                accumulated.extend_from_slice(&chunk);
+                if accumulated.len() as u64 > max_bytes as u64 {
+                    return Err((
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        Json(serde_json::json!({
+                            "error": format!("File âm thanh vượt quá giới hạn {max_bytes} bytes (~{} MB).", max_bytes / 1024 / 1024)
+                        })),
+                    )
+                        .into_response());
+                }
+            }
+            Err(e) => {
+                log::error!("❌ Lỗi đọc field multipart (audio): {e}");
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({
+                        "error": "Không đọc được dữ liệu upload."
+                    })),
+                )
+                    .into_response());
+            }
+        }
+    }
+
+    Ok((Bytes::from(accumulated), original_name, detected_mime, text_fields))
+}
+
+/// v0.9.36 — Giai đoạn 41: Insert audio file metadata vào bảng `audio_files`.
+#[allow(clippy::too_many_arguments)]
+pub async fn insert_audio_metadata(
+    pool: &sqlx::PgPool,
+    file_id: Uuid,
+    uploader_id: Uuid,
+    original_name: Option<&String>,
+    stored_filename: &str,
+    mime: &str,
+    file_bytes: &Bytes,
+    sha256_str: &str,
+    duration_seconds: Option<i32>,
+    purpose: &str,
+) -> Result<Uuid, sqlx::Error> {
+    let default_name = format!("upload.{}", mime.split('/').nth(1).unwrap_or("bin"));
+    let original_name = original_name.map_or(&default_name, |s| s);
+    sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO audio_files
+            (id, uploader_id, original_name, stored_filename, mime_type,
+             size_bytes, sha256, duration_seconds, purpose, is_public)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+         RETURNING id",
+    )
+    .bind(file_id)
+    .bind(uploader_id)
+    .bind(original_name)
+    .bind(stored_filename)
+    .bind(mime)
+    .bind(i64::try_from(file_bytes.len()).unwrap_or(i64::MAX))
+    .bind(sha256_str)
+    .bind(duration_seconds)
+    .bind(purpose)
+    .fetch_one(pool)
+    .await
+}
+
+/// v0.9.36 — Giai đoạn 41: Ước lượng thời lượng audio từ byte size.
+///
+/// Đây là ước lượng đơn giản — không parse format thật. Trả về None nếu không
+/// ước lượng được. Sai số có thể lớn. Trong tương lai có thể thay bằng
+/// crate `symphonia` để parse chính xác.
+pub fn estimate_audio_duration_seconds(file_bytes_len: usize, mime: &str) -> Option<i32> {
+    if file_bytes_len == 0 { return None; }
+    // Ước lượng bitrate theo format (bit/s)
+    let bitrate: usize = match mime {
+        "audio/mpeg" | "audio/mp3" => 128_000,      // MP3 @ 128 kbps
+        "audio/mp4" | "audio/x-m4a" | "audio/m4a" => 128_000,  // AAC @ 128 kbps
+        "audio/ogg" | "audio/vorbis" => 112_000,    // Vorbis @ 112 kbps
+        "audio/wav" | "audio/x-wav" | "audio/wave" => 1_411_200, // PCM 16-bit 44.1kHz stereo
+        "audio/flac" | "audio/x-flac" => 800_000,   // FLAC ~800 kbps
+        _ => return None,
+    };
+    // duration = bytes * 8 / bitrate
+    let secs = (file_bytes_len * 8) / bitrate;
+    if secs > 0 && secs < 24 * 3600 { // sanity: < 24h
+        Some(secs as i32)
+    } else {
+        None
+    }
+}
+
 /// Tìm MIME type trong Content-Type header.
 pub fn parse_mime(content_type: &str) -> Option<String> {
     let mime = content_type.split(';').next()?.trim().to_lowercase();

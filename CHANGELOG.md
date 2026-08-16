@@ -6,6 +6,212 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.36] — 2026-08-16 — Giai đoạn 41: Community Group Logo + Audio File Uploads 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Triển khai **2 tính năng mới** cho Giai đoạn 41:
+
+1. **Đổi logo cộng đồng** — Cho phép chủ nhóm/admin upload logo riêng (icon vuông nhỏ,
+   khác với ảnh bìa banner). Trước v0.9.36, nhóm cộng đồng chỉ có thể đổi ảnh bìa
+   (`cover_upload_id`); icon đại diện nhóm là emoji cố định theo category. Giờ v0.9.36
+   thêm `logo_upload_id` riêng để nhóm có thể chọn logo tuỳ ý (PNG/JPG/WebP/GIF).
+
+2. **Tải file âm thanh (MP3/M4A/OGG/WAV/FLAC) trong Nhà Nhạc** — Bổ sung cho nguồn
+   YouTube hiện có (v0.9.35). Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx" mục 3
+   (Nhà Nhạc): *"Cá nhân là danh sách nhạc do thành viên tải lên từ điện thoại hoặc thêm
+   từ kho nhạc miễn phí của hệ thống."* Trước v0.9.36, user chỉ có thể đăng nhạc qua link
+   YouTube; giờ v0.9.36 user có thể upload file âm thanh trực tiếp (tối đa 20 MB/file).
+
+### 🎨 Community Group Logo (MAJOR)
+
+- **[LOGO-1] `migrations/026_community_logo_and_audio_files.sql`** — Thêm cột
+  `logo_upload_id UUID REFERENCES images(id) ON DELETE SET NULL` vào bảng `groups`.
+  Index `idx_groups_logo_upload` (partial WHERE NOT NULL).
+
+- **[LOGO-2] `src/models/community.rs`** — Thêm field `logo_upload_id: Option<Uuid>`
+  vào struct `Group` với `#[sqlx(default)]` (backward compat với DB chưa migrate).
+
+- **[LOGO-3] `src/handlers/community.rs`** — Thêm field `logo_image_url: Option<String>`
+  vào `GroupTemplate` struct. Trong `view_group`, fetch logo URL qua
+  `SELECT i.stored_filename FROM images i JOIN groups g ON g.logo_upload_id = i.id`.
+
+- **[LOGO-4] `src/handlers/community.rs`** — Thêm handler `change_group_logo`:
+  - Route: `POST /cong-dong/nhom/{slug}/doi-logo`
+  - Permission: chỉ owner hoặc admin của nhóm
+  - Accept: multipart form `file` (image/jpeg, image/png, image/webp, image/gif)
+  - Lưu file vào `upload_dir/<uuid>.<ext>`, insert metadata vào `images` table,
+    update `groups.logo_upload_id`.
+  - Validate MIME, compute SHA-256, parse dimensions (giống `change_group_cover`).
+
+- **[LOGO-5] `templates/community/group.html`** — Hiển thị logo:
+  - Nếu `logo_image_url` có giá trị → render `<img src=logo_url>` trong khung 16×16
+    rounded-2xl với border + shadow.
+  - Nếu không → fallback về `group.category_icon_or_lotus()` (emoji theo category).
+  - Thêm nút "🎨 Đổi logo" (violet, distinct từ "📷 Đổi ảnh bìa" green) cho owner/admin.
+
+- **[LOGO-6] `src/main.rs`** — Route mới:
+  ```
+  POST /cong-dong/nhom/{slug}/doi-logo → handlers::community::change_group_logo
+  ```
+
+### 🎵 Audio File Upload trong Nhà Nhạc (MAJOR)
+
+- **[AUDIO-1] `migrations/026_community_logo_and_audio_files.sql`** — Tạo bảng
+  `audio_files` mới (metadata file âm thanh do user upload):
+  - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+  - `uploader_id UUID REFERENCES users(id) ON DELETE SET NULL`
+  - `original_name VARCHAR(255) NOT NULL`
+  - `stored_filename VARCHAR(255) NOT NULL UNIQUE` (= `<uuid>.<ext>`)
+  - `mime_type VARCHAR(100) NOT NULL`
+  - `size_bytes BIGINT NOT NULL`
+  - `sha256 VARCHAR(64) NOT NULL` (checksum chống trùng)
+  - `duration_seconds INT` (thời lượng, ước lượng từ bitrate)
+  - `purpose VARCHAR(50) NOT NULL DEFAULT 'other'`
+    (`music_submission` | `personal_track` | `other`)
+  - `is_public BOOLEAN NOT NULL DEFAULT true`
+  - Indexes: `idx_audio_files_uploader`, `idx_audio_files_purpose`, `idx_audio_files_sha256`.
+  - Bảng `migration_log` cũng được tạo `IF NOT EXISTS` (safety cho migration 025).
+
+- **[AUDIO-2] `migrations/026_community_logo_and_audio_files.sql`** — Thêm 3 cột vào
+  `user_music_submissions`:
+  - `source_type TEXT NOT NULL DEFAULT 'youtube' CHECK (source_type IN ('youtube', 'audio_file'))`
+  - `audio_file_upload_id UUID REFERENCES audio_files(id) ON DELETE SET NULL`
+  - `audio_duration_seconds INT` (thời lượng ước lượng)
+  - Indexes: `idx_music_submissions_source_type`, `idx_music_submissions_audio_file`.
+
+- **[AUDIO-3] `src/handlers/uploads.rs`** — Thêm helpers cho audio:
+  - `ALLOWED_AUDIO_MIME` const — 12 MIME types: audio/mpeg, audio/mp3, audio/mp4,
+    audio/x-m4a, audio/m4a, audio/ogg, audio/vorbis, audio/wav, audio/x-wav,
+    audio/wave, audio/flac, audio/x-flac.
+  - `MAX_AUDIO_BYTES` const = 20 × 1024 × 1024 (20 MB).
+  - `audio_mime_to_ext(mime)` — trả về extension (mp3, m4a, ogg, wav, flac).
+  - `read_multipart_audio_file(multipart, max_bytes)` — read multipart fields
+    (file binary + text fields title/artist/category/description). Trả về
+    `(Bytes, Option<String>, Option<String>, HashMap<String, String>)`.
+  - `insert_audio_metadata(pool, file_id, uploader_id, original_name, stored_filename,
+    mime, file_bytes, sha256, duration_seconds, purpose)` — insert vào `audio_files`.
+  - `estimate_audio_duration_seconds(file_bytes_len, mime)` — ước lượng thời lượng
+    từ byte size + bitrate trung bình theo format (MP3 128k, AAC 128k, Vorbis 112k,
+    WAV PCM 1411k, FLAC 800k). Sai số có thể lớn — trong tương lai thay bằng
+    crate `symphonia` để parse chính xác.
+
+- **[AUDIO-4] `src/models/nha_nhac.rs`** — Cập nhật `UserMusicSubmission` struct:
+  - Thêm field `source_type: String` (default `'youtube'`)
+  - Thêm field `audio_file_upload_id: Option<Uuid>`
+  - Thêm field `audio_duration_seconds: Option<i32>`
+  - Method mới: `is_audio_file()`, `duration_display()`.
+  - Tất cả đều có `#[sqlx(default)]` để backward compat với DB chưa migrate.
+
+- **[AUDIO-5] `src/models/nha_nhac.rs`** — Cập nhật `SubmissionWithUser` struct
+  (cho admin view):
+  - Thêm `source_type`, `audio_file_upload_id`, `audio_duration_seconds`,
+    `audio_stored_filename` (JOIN từ audio_files).
+  - Method mới: `is_audio_file()`, `youtube_embed_url()`, `duration_display()`,
+    `source_icon()`, `source_label()`.
+
+- **[AUDIO-6] `src/handlers/nha_nhac.rs`** — Thêm handler `nha_nhac_submit_music_file`:
+  - Route: `POST /api/nha-nhac/dang-nhac-file`
+  - Accept: multipart form (file + title + artist + category + description)
+  - Validate: file không rỗng, MIME audio hợp lệ, title ≤ 200 chars, artist ≤ 100 chars,
+    category ∈ {niem, thien, dao, khong_loi}, description ≤ 500 chars.
+  - Rate limit: max 5 submissions per user per day (same as YouTube).
+  - Dedup: check SHA-256 trùng với audio_files user đã upload.
+  - Lưu file vào `upload_dir/<uuid>.<ext>`, insert vào `audio_files`, insert vào
+    `user_music_submissions` với `source_type='audio_file'`.
+  - Trả về HTMX partial (success/error message).
+  - Cleanup: nếu insert DB fail, xóa file đã ghi + xóa row audio_files.
+
+- **[AUDIO-7] `src/handlers/nha_nhac.rs`** — Cập nhật `admin_music_pending`:
+  - JOIN `audio_files` để lấy `stored_filename` cho audio preview.
+  - Trả về `SubmissionWithUser` với `audio_stored_filename` field.
+
+- **[AUDIO-8] `src/handlers/nha_nhac.rs`** — Cập nhật `admin_music_review`:
+  - Khi approve: nếu `source_type='audio_file'`, build `audio_url` từ local file
+    (`upload_url_prefix + stored_filename`) thay vì YouTube URL.
+  - Insert vào `music_tracks` với `audio_url` local + `duration_seconds` từ submission.
+
+- **[AUDIO-9] `templates/khong-gian/nha-nhac.html`** — Cập nhật modal "Đăng Nhạc":
+  - Đổi nút "🎵 Đăng Nhạc (YouTube)" → "🎵 Đăng Nhạc Cộng Đồng".
+  - Thêm tab switcher (Alpine.js `x-data="{ submitMode: 'youtube' }"`):
+    - Tab "▶️ Link YouTube" (amber accent) — form YouTube hiện có (unchanged).
+    - Tab "🎵 Tải file MP3" (violet accent) — form upload file mới.
+  - Form upload file: title, artist, category, file (accept audio/*), description.
+    File input có Tailwind `file:` classes (violet button).
+  - Submit button: "🎵 Tải lên file nhạc" (violet).
+  - HTMX `hx-encoding="multipart/form-data"` cho form upload.
+
+- **[AUDIO-10] `templates/admin/nha-nhac-pending.html`** — Cập nhật admin review UI:
+  - Header text: "...YouTube hoặc tải file âm thanh (MP3/M4A/OGG/WAV/FLAC)".
+  - Preview area: nếu `sub.is_audio_file()` → render `<audio controls>` với source
+    là `/uploads/<stored_filename>`. Nếu không → render YouTube iframe như cũ.
+  - Source badge: "▶️ YouTube" (red) hoặc "🎵 File âm thanh" (violet).
+  - Footer info: hiển thị duration cho audio file.
+
+### 📦 Version Sync v0.9.36
+
+- **[VER-1] `Cargo.toml`** — `version = "0.9.36"`.
+- **[VER-2] `src/main.rs`** — Startup log v0.9.36 + phase 41 + health check version/phase.
+- **[VER-3] `templates/layout.html`** — Footer: v0.9.36.
+- **[VER-4] `templates/khong-gian/index.html`** — Footer: v0.9.36.
+- **[VER-5] `templates/khong-gian/nha-nhac.html`** — Footer note: v0.9.36 · Giai đoạn 41.
+- **[VER-6] `Dockerfile.coolify`** — Comment: v0.9.36 — Giai đoạn 41.
+- **[VER-7] `templates/admin/phat-trien/index.html`** — Phase badge: GIAI ĐOẠN 41.
+  Roadmap: 40 → "Hoàn thành" (green), 41 → "Đang triển khai" (indigo,
+  "Community Logo + Audio File Uploads"). Footer: v0.9.36.
+- **[VER-8] 5 admin templates** — Footer version sync: `templates/admin/{ky-thuat,
+  quan-li, cong-dong/index, cong-dong/cam-ngo, placeholder}.html` — version → v0.9.36.
+
+### 📋 Health Check Updates
+
+- `HEALTH_FEATURES` thêm 13 features mới:
+  - `community-group-logo-upload-v0.9.36`
+  - `group-logo-change-endpoint-v0.9.36`
+  - `audio-files-table-v0.9.36`
+  - `music-audio-file-upload-mp3-v0.9.36`
+  - `music-audio-file-upload-m4a-v0.9.36`
+  - `music-audio-file-upload-ogg-v0.9.36`
+  - `music-audio-file-upload-wav-v0.9.36`
+  - `music-audio-file-upload-flac-v0.9.36`
+  - `music-audio-20mb-limit-v0.9.36`
+  - `music-audio-duration-estimate-v0.9.36`
+  - `music-audio-sha256-dedup-v0.9.36`
+  - `music-source-type-youtube-or-audio-v0.9.36`
+  - `admin-music-pending-shows-source-type-v0.9.36`
+- `khong_gian.features` thêm `nha-nhac-audio-file-upload`.
+- `khong_gian.nha_nhac` thêm `submission_sources: ["youtube", "audio_file"]`,
+  `audio_formats: ["mp3", "m4a", "ogg", "wav", "flac"]`, `audio_max_bytes: 20971520`.
+- `cong_dong` object mới (status, features, group_logo_route).
+- `v0_9_36_note` — Mô tả thay đổi giai đoạn 41.
+- Phase 40 → 41 trong health check + main log.
+
+### 🛠️ Yêu cầu kỹ thuật
+
+- **Rust 1.97.1** — đã pin trong `Cargo.toml` (`rust-version = "1.97.1"`) và
+  `Dockerfile` (`FROM rust:1.97.1-slim-bookworm`).
+- **PostgreSQL 17** — migration 026 sử dụng `ALTER TABLE ADD COLUMN IF NOT EXISTS`,
+  `CREATE TABLE IF NOT EXISTS`, `CHECK` constraint, `REFERENCES` FK.
+- **axum 0.8** — `Multipart` extractor cho upload file. Route chain `get().post()`.
+- **askama 0.14** — template `khong-gian/nha-nhac.html` và `community/group.html`
+  extends `layout.html`.
+- **HTMX** — `hx-post`, `hx-target`, `hx-swap`, `hx-encoding="multipart/form-data"`
+  cho form upload không reload page.
+- **Alpine.js** — `x-data="{ submitMode: 'youtube' }"` cho tab switcher trong modal.
+
+### 🧪 Test scenarios
+
+- Owner/admin nhóm vào `/cong-dong/nhom/{slug}` → thấy nút "🎨 Đổi logo" → chọn ảnh
+  PNG/JPG → submit → logo hiện ở header nhóm (thay emoji category).
+- User vào `/khong-gian/nha-nhac` → bấm "🎵 Đăng Nhạc Cộng Đồng" → modal hiện 2 tab
+  (YouTube / Tải file MP3) → chọn tab "Tải file MP3" → điền title/artist/category →
+  chọn file MP3 → submit → thông báo "Đã tải lên file âm thanh! Chờ admin duyệt."
+- Admin vào `/admin/nha-nhac/dang-cho-duyet` → thấy submission mới với badge
+  "🎵 File âm thanh" (violet) → preview audio player → bấm "✅ Duyệt" → submission
+  approved → xuất hiện trong `music_tracks` với audio_url local → user có thể play
+  trong Nhà Nhạc.
+
+---
+
 ## [0.9.33] — 2026-08-16 — Giai đoạn 38: Nhà Nhạc (Music House — KG-03) + Logo Emoji Sharpened 🪷
 
 ### 🎯 Mục tiêu giai đoạn

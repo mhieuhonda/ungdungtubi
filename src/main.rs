@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.35 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.36 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.35 — Giai đoạn 40: Nhạc Cộng Đồng + Game Cleanup 🪷");
+    log::info!("📦 Phiên bản: v0.9.36 — Giai đoạn 41: Community Logo + Audio File Uploads 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -212,6 +212,8 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/api/nha-nhac/submissions", get(handlers::nha_nhac::nha_nhac_my_submissions_api))
         .route("/api/nha-nhac/submissions/approved", get(handlers::nha_nhac::nha_nhac_community_music_api))
         .route("/api/nha-nhac/submission/{id}/play", post(handlers::nha_nhac::nha_nhac_submission_play))
+        // v0.9.36 — Giai đoạn 41: Audio file upload (MP3/M4A/OGG/WAV/FLAC)
+        .route("/api/nha-nhac/dang-nhac-file", post(handlers::nha_nhac::nha_nhac_submit_music_file))
         // Routes — Kinh Sách (v0.9.6 — Giai đoạn 10)
         .route("/kinh-sach/tim-kiem", get(handlers::kinh_sach::kinh_sach_search))
         .route("/kinh-sach/thu-vien/{category_slug}", get(handlers::kinh_sach::kinh_sach_category))
@@ -339,6 +341,11 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route(
             "/cong-dong/nhom/{slug}/doi-anh",
             post(handlers::community::change_group_cover),
+        )
+        // v0.9.36 — Giai đoạn 41: Group logo change (icon đại diện, khác với ảnh bìa)
+        .route(
+            "/cong-dong/nhom/{slug}/doi-logo",
+            post(handlers::community::change_group_logo),
         )
         // Routes — Bạn Bè (v0.9.5 — Giai đoạn 9)
         // Note: /ban-be route đã có ở trên (delegate sang handlers::friends::ban_be_index)
@@ -616,6 +623,20 @@ const HEALTH_FEATURES: &[&str] = &[
     "music-rate-limit-5-per-day-v0.9.35",
     "music-duplicate-check-v0.9.35",
     "game-store-removed-v0.9.35",
+    // v0.9.36 — Giai đoạn 41: Community Group Logo + Audio File Uploads
+    "community-group-logo-upload-v0.9.36",
+    "group-logo-change-endpoint-v0.9.36",
+    "audio-files-table-v0.9.36",
+    "music-audio-file-upload-mp3-v0.9.36",
+    "music-audio-file-upload-m4a-v0.9.36",
+    "music-audio-file-upload-ogg-v0.9.36",
+    "music-audio-file-upload-wav-v0.9.36",
+    "music-audio-file-upload-flac-v0.9.36",
+    "music-audio-20mb-limit-v0.9.36",
+    "music-audio-duration-estimate-v0.9.36",
+    "music-audio-sha256-dedup-v0.9.36",
+    "music-source-type-youtube-or-audio-v0.9.36",
+    "admin-music-pending-shows-source-type-v0.9.36",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -634,7 +655,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.33",
+            "version": "0.9.36",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -664,11 +685,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.33",
+        "version": "0.9.36",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 38,
-        "phase_name": "Giai đoạn 38 — Nhà Nhạc (Music House) + Logo Emoji Sharpened 🪷",
+        "phase": 41,
+        "phase_name": "Giai đoạn 41 — Community Group Logo + Audio File Uploads 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -683,6 +704,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "admin_quan_li_dashboard": "/admin/quan-li",
             "admin_phat_trien_dashboard": "/admin/phat-trien",
             "mod_dashboard": "/admin/thanh-vien",
+            "v0_9_36_note": "Giai đoạn 41 — Community group logo upload + audio file uploads (MP3/M4A/OGG/WAV/FLAC) for music submissions",
             "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",
@@ -694,7 +716,7 @@ async fn health_check_inner(state: &AppState) -> Response {
         },
         "khong_gian": {
             "status": "ok",
-            "features": ["niem-phat", "tuong-phat-vows", "practice-diary", "i-balance", "nha-nhac-music-house"],
+            "features": ["niem-phat", "tuong-phat-vows", "practice-diary", "i-balance", "nha-nhac-music-house", "nha-nhac-audio-file-upload"],
             "vow_types": ["prayer", "repentance", "dedication"],
             "i_rewards": {"prayer": 1, "repentance": 2, "dedication": 3},
             "nha_nhac": {
@@ -703,8 +725,16 @@ async fn health_check_inner(state: &AppState) -> Response {
                 "categories": ["niem", "thien", "dao", "khong_loi", "ca_nhan"],
                 "playback_modes": ["single_repeat", "shuffle", "repeat_all", "loop"],
                 "sleep_timer": true,
-                "personal_playlist": true
+                "personal_playlist": true,
+                "submission_sources": ["youtube", "audio_file"],
+                "audio_formats": ["mp3", "m4a", "ogg", "wav", "flac"],
+                "audio_max_bytes": 20971520
             }
+        },
+        "cong_dong": {
+            "status": "ok",
+            "features": ["groups", "topics", "comments", "group-cover-upload", "group-logo-upload-v0.9.36"],
+            "group_logo_route": "POST /cong-dong/nhom/{slug}/doi-logo"
         },
         "kinh_sach": kinh_sach_stats,
         "admin": admin_stats,

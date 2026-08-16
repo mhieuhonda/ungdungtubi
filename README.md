@@ -4,11 +4,48 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.33 — Giai đoạn 38
+## 📦 Phiên bản hiện tại: v0.9.36 — Giai đoạn 41
 
-**Giai đoạn 38: Nhà Nhạc (Music House — KG-03) + Logo Emoji Sharpened 🪷**
+**Giai đoạn 41: Community Group Logo + Audio File Uploads 🪷**
 
-Triển khai **Nhà Nhạc** — phòng KG-03 trong Không Gian (theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết"). 5 thư mục nhạc (Niem · Thien · Dao · KhongLoi · CaNhan), 4 chế độ phát (SingleRepeat · Shuffle · RepeatAll · Loop), hẹn giờ tắt, playlist Cá Nhân. Làm nét logo emoji 🪷 (giữ nguyên emoji, tối ưu render `geometricPrecision` + emoji font fallback + 256 viewBox).
+Triển khai **2 tính năng mới**: (1) **Đổi logo cộng đồng** — thêm `logo_upload_id` vào bảng `groups`, cho phép chủ nhóm/admin upload logo riêng (icon vuông nhỏ, khác với ảnh bìa banner). (2) **Tải file âm thanh (MP3/M4A/OGG/WAV/FLAC) trong Nhà Nhạc** — bổ sung cho nguồn YouTube hiện có (v0.9.35). Tạo bảng `audio_files` mới, thêm `source_type` + `audio_file_upload_id` + `audio_duration_seconds` vào `user_music_submissions`. Theo tài liệu "Hệ Thống Và Chức Năng Chi Tiết.docx" mục 3: *"Cá nhân là danh sách nhạc do thành viên tải lên từ điện thoại hoặc thêm từ kho nhạc miễn phí của hệ thống."*
+
+### 🎨 Community Group Logo — `/cong-dong/nhom/{slug}/doi-logo`
+
+- **[LOGO-1]** `migrations/026_community_logo_and_audio_files.sql` — Thêm cột `logo_upload_id UUID REFERENCES images(id) ON DELETE SET NULL` vào bảng `groups`. Tạo bảng `audio_files` mới + thêm 3 cột `source_type`/`audio_file_upload_id`/`audio_duration_seconds` vào `user_music_submissions`.
+- **[LOGO-2]** `src/models/community.rs` — Thêm field `logo_upload_id: Option<Uuid>` vào struct `Group` (with `#[sqlx(default)]`).
+- **[LOGO-3]** `src/handlers/community.rs` — Thêm field `logo_image_url` vào `GroupTemplate` struct + fetch logo URL trong `view_group`.
+- **[LOGO-4]** `src/handlers/community.rs` — Thêm handler `change_group_logo`: route `POST /cong-dong/nhom/{slug}/doi-logo` (multipart form, owner/admin only, image MIME validation, SHA-256, parse dimensions).
+- **[LOGO-5]** `templates/community/group.html` — Hiển thị logo (if set) thay emoji category. Thêm nút "🎨 Đổi logo" (violet) cho owner/admin, distinct từ "📷 Đổi ảnh bìa" (green).
+- **[LOGO-6]** `src/main.rs` — Route mới `POST /cong-dong/nhom/{slug}/doi-logo`.
+
+### 🎵 Audio File Upload trong Nhà Nhạc — `POST /api/nha-nhac/dang-nhac-file`
+
+- **[AUDIO-1]** `migrations/026_community_logo_and_audio_files.sql` — Tạo bảng `audio_files` (id, uploader_id, original_name, stored_filename, mime_type, size_bytes, sha256, duration_seconds, purpose, is_public) + 3 cột mới trên `user_music_submissions`.
+- **[AUDIO-2]** `src/handlers/uploads.rs` — Thêm `ALLOWED_AUDIO_MIME` (12 MIME types: MP3, M4A, OGG, WAV, FLAC), `MAX_AUDIO_BYTES` (20 MB), `audio_mime_to_ext`, `read_multipart_audio_file`, `insert_audio_metadata`, `estimate_audio_duration_seconds` (bitrate-based estimate).
+- **[AUDIO-3]** `src/models/nha_nhac.rs` — Cập nhật `UserMusicSubmission` + `SubmissionWithUser` với 3 cột mới + JOIN audio_files để lấy stored_filename cho admin preview.
+- **[AUDIO-4]** `src/handlers/nha_nhac.rs` — Thêm handler `nha_nhac_submit_music_file` (multipart upload, validate, rate limit 5/ngày, SHA-256 dedup, cleanup on fail). Cập nhật `admin_music_pending` (JOIN audio_files) + `admin_music_review` (build local URL khi approve audio file).
+- **[AUDIO-5]** `templates/khong-gian/nha-nhac.html` — Modal "Đăng Nhạc" giờ có 2 tab (Alpine.js): "▶️ Link YouTube" (amber) + "🎵 Tải file MP3" (violet). Nút đổi từ "Đăng Nhạc (YouTube)" → "Đăng Nhạc Cộng Đồng".
+- **[AUDIO-6]** `templates/admin/nha-nhac-pending.html` — Admin review UI: preview `<audio>` player cho file upload, YouTube iframe cho link. Source badge (▶️ YouTube / 🎵 File âm thanh).
+- **[AUDIO-7]** `src/main.rs` — Route mới `POST /api/nha-nhac/dang-nhac-file`.
+
+### 📦 Version Sync v0.9.36
+
+- Bump version `0.9.35` → `0.9.36` ở: `Cargo.toml`, `src/main.rs` (startup log + health check public + health check inner + phase 40 → 41), `templates/layout.html` (footer), `templates/khong-gian/index.html` (footer), `templates/khong-gian/nha-nhac.html` (footer note), `Dockerfile.coolify` (comment), `templates/admin/phat-trien/index.html` (phase badge + roadmap), và footer version ở 5 admin templates.
+- Update phase 40 → 41 trong health check + main log.
+- Thêm 13 feature flags v0.9.36 vào `HEALTH_FEATURES` array.
+- Cập nhật `khong_gian.features` trong health check: thêm `nha-nhac-audio-file-upload`.
+- Thêm `khong_gian.nha_nhac.submission_sources` + `audio_formats` + `audio_max_bytes`.
+- Thêm `cong_dong` object trong health check (status, features, group_logo_route).
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 40 → "Hoàn thành" (green), Giai đoạn 41 → "Đang triển khai" (indigo).
+
+---
+
+## 📦 Phiên bản trước: v0.9.35 — Giai đoạn 40
+
+**Giai đoạn 40: Nhạc Cộng Đồng (YouTube) + Game Cleanup**
+
+User submit YouTube music links, admin approves/rejects. When playing, YouTube video opens INLINE (embedded iframe). Migration 025 tạo bảng `user_music_submissions` (status: pending/approved/rejected, reviewed_by, review_note, reviewed_at, play_count, rate limit 5 submissions/user/day). Game store removed from Thương Thành (chỉ giữ App + PvP stores).
 
 ### 🎵 Nhà Nhạc — `/khong-gian/nha-nhac`
 

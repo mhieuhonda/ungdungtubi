@@ -26,7 +26,7 @@
 //!   - POST /api/nha-nhac/submission/{id}/play           — Increment play count
 
 use axum::{
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     response::{Html, IntoResponse, Json, Redirect, Response},
     Form,
 };
@@ -674,9 +674,11 @@ pub async fn admin_music_pending(
     }
 
     let submissions = sqlx::query_as::<_, SubmissionWithUser>(
-        "SELECT ms.*, u.display_name AS submitter_name, u.avatar_url AS submitter_avatar
+        "SELECT ms.*, u.display_name AS submitter_name, u.avatar_url AS submitter_avatar,
+                af.stored_filename AS audio_stored_filename
          FROM user_music_submissions ms
          JOIN users u ON ms.user_id = u.id
+         LEFT JOIN audio_files af ON af.id = ms.audio_file_upload_id
          WHERE ms.status = 'pending'
          ORDER BY ms.created_at ASC"
     )
@@ -733,14 +735,44 @@ pub async fn admin_music_review(
         Ok(r) if r.rows_affected() > 0 => {
             // If approved, also add to music_tracks table so it appears in the main music library
             if new_status == "approved" {
+                // v0.9.36 — Giai đoạn 41: Nếu source_type = 'audio_file', dùng URL file local
+                // (upload_url_prefix + stored_filename) thay vì YouTube URL.
+                // fetch stored_filename từ audio_files JOIN.
+                let row: Option<(String, Option<String>, Option<i32>)> = sqlx::query_as(
+                    "SELECT ms.youtube_url, af.stored_filename, ms.audio_duration_seconds
+                     FROM user_music_submissions ms
+                     LEFT JOIN audio_files af ON af.id = ms.audio_file_upload_id
+                     WHERE ms.id = $1"
+                )
+                .bind(sub_id)
+                .fetch_optional(&state.pool)
+                .await
+                .ok()
+                .flatten();
+
+                let (audio_url, duration_secs) = match row {
+                    Some((_yt_url, Some(stored_filename), duration)) => {
+                        // audio_file: dùng URL file local
+                        let local_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
+                        (local_url, duration.unwrap_or(0))
+                    }
+                    Some((yt_url, None, _duration)) => {
+                        // youtube: dùng YouTube URL (trường hợp cũ)
+                        (yt_url, 0)
+                    }
+                    None => (String::new(), 0),
+                };
+
                 let _ = sqlx::query(
                     "INSERT INTO music_tracks (title, category, description, artist, audio_url, duration_seconds, is_public, upload_user_id, sort_order, is_active)
-                     SELECT title, category, description, artist, youtube_url, 0, true, user_id,
+                     SELECT title, category, description, artist, $2, $3, true, user_id,
                             COALESCE((SELECT MAX(sort_order) + 1 FROM music_tracks WHERE category = ms.category), 0),
                             true
                      FROM user_music_submissions ms WHERE ms.id = $1"
                 )
                 .bind(sub_id)
+                .bind(&audio_url)
+                .bind(duration_secs)
                 .execute(&state.pool)
                 .await;
             }
@@ -810,4 +842,275 @@ pub async fn nha_nhac_submission_play(
     .await;
 
     Json(serde_json::json!({"ok": true, "id": sub_id})).into_response()
+}
+
+// ─── v0.9.36 — Giai đoạn 41: Audio File Upload ───────────────────────────
+
+/// POST /api/nha-nhac/dang-nhac-file — User uploads an audio file (MP3/M4A/OGG/WAV/FLAC).
+///
+/// Multipart form fields:
+///   - `file` (binary): audio file (max 20 MB)
+///   - `title` (text): song title (required, max 200 chars)
+///   - `artist` (text): artist name (required, max 100 chars)
+///   - `category` (text): one of niem/thien/dao/khong_loi (required)
+///   - `description` (text): optional, max 500 chars
+///
+/// Returns HTMX partial (success or error message).
+pub async fn nha_nhac_submit_music_file(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    mut multipart: Multipart,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap?next=/khong-gian/nha-nhac").into_response();
+    };
+
+    // 1. Read multipart: file (binary) + text fields (title, artist, category, description)
+    let max_audio_bytes = crate::handlers::uploads::MAX_AUDIO_BYTES;
+    let (file_bytes, original_name, detected_mime, text_fields) =
+        match crate::handlers::uploads::read_multipart_audio_file(&mut multipart, max_audio_bytes).await {
+            Ok(result) => result,
+            Err(resp) => return resp,
+        };
+
+    if file_bytes.is_empty() {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Không nhận được file âm thanh. Vui lòng chọn file (MP3, M4A, OGG, WAV, FLAC).
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 2. Validate MIME type (audio only)
+    let mime = detected_mime
+        .as_deref()
+        .map_or_else(String::new, |m| crate::handlers::uploads::parse_mime(m).unwrap_or_default());
+    let Some(ext) = crate::handlers::uploads::audio_mime_to_ext(&mime) else {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Định dạng không được hỗ trợ. Chỉ chấp nhận: MP3, M4A, OGG, WAV, FLAC.
+            </div>"#,
+        )
+        .into_response();
+    };
+
+    // 3. Validate text fields (title, artist, category)
+    let title = text_fields.get("title").map(|s| s.trim().to_string()).unwrap_or_default();
+    if title.is_empty() {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Tiêu đề không được để trống.
+            </div>"#,
+        )
+        .into_response();
+    }
+    if title.chars().count() > 200 {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Tiêu đề tối đa 200 ký tự.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    let artist = text_fields.get("artist").map(|s| s.trim().to_string()).unwrap_or_default();
+    if artist.is_empty() {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Nghệ sĩ không được để trống.
+            </div>"#,
+        )
+        .into_response();
+    }
+    if artist.chars().count() > 100 {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Nghệ sĩ tối đa 100 ký tự.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    let category_str = text_fields.get("category").map(|s| s.trim().to_string()).unwrap_or_default();
+    let Some(cat) = MusicCategory::from_str(&category_str) else {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Thư mục nhạc không hợp lệ. Chọn: niem, thien, dao, khong_loi.
+            </div>"#,
+        )
+        .into_response();
+    };
+    if matches!(cat, MusicCategory::CaNhan) {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Không thể đăng vào thư mục Cá Nhân.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    let description = text_fields
+        .get("description")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+    if description.chars().count() > 500 {
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Mô tả tối đa 500 ký tự.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 4. Rate limit: max 5 submissions per user per day (same as YouTube)
+    let today_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_music_submissions WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 day'"
+    )
+    .bind(user.id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+
+    if today_count >= 5 {
+        return Html(
+            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Bạn đã đăng 5 bài hôm nay. Vui lòng đợi ngày mai.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 5. Check duplicate by SHA-256 (same audio file already submitted by same user)
+    let sha256_str = crate::handlers::uploads::compute_sha256(&file_bytes);
+    let dup: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM user_music_submissions ms
+            JOIN audio_files af ON af.id = ms.audio_file_upload_id
+            WHERE ms.user_id = $1 AND af.sha256 = $2
+        )"
+    )
+    .bind(user.id)
+    .bind(&sha256_str)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+
+    if dup {
+        return Html(
+            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                ℹ️ Bạn đã đăng file này rồi.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 6. Ensure upload_dir exists
+    if let Err(e) = std::fs::create_dir_all(&state.config.upload_dir) {
+        log::error!("❌ Không tạo được upload_dir (audio): {e}");
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Lỗi server — không tạo được thư mục lưu trữ.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 7. Save audio file to filesystem: <uuid>.<ext>
+    let file_id = uuid::Uuid::new_v4();
+    let stored_filename = format!("{file_id}.{ext}");
+    let file_path = state.config.upload_dir.join(&stored_filename);
+
+    if let Err(e) = std::fs::write(&file_path, &file_bytes) {
+        log::error!("❌ Lỗi ghi file âm thanh: {e}");
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                ⚠️ Lỗi server — không lưu được file âm thanh.
+            </div>"#,
+        )
+        .into_response();
+    }
+
+    // 8. Estimate duration (simple bitrate-based estimate)
+    let duration_seconds = crate::handlers::uploads::estimate_audio_duration_seconds(file_bytes.len(), &mime);
+
+    // 9. Insert into audio_files table
+    let audio_file_id = match crate::handlers::uploads::insert_audio_metadata(
+        &state.pool,
+        file_id,
+        user.id,
+        original_name.as_ref(),
+        &stored_filename,
+        &mime,
+        &file_bytes,
+        &sha256_str,
+        duration_seconds,
+        "music_submission",
+    )
+    .await
+    {
+        Ok(id) => id,
+        Err(e) => {
+            log::error!("❌ Lỗi insert audio_files: {e}");
+            // Cleanup file
+            let _ = std::fs::remove_file(&file_path);
+            return Html(
+                r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                    ⚠️ Lỗi server — không ghi được metadata file âm thanh.
+                </div>"#,
+            )
+            .into_response();
+        }
+    };
+
+    // 10. Insert submission with source_type='audio_file'
+    // youtube_url = local URL (for backward compat with music_tracks insert on approval)
+    // youtube_id = "LOCAL-{file_id}" (placeholder, 11+ chars, no clash with real YouTube IDs)
+    let local_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
+    let placeholder_id = format!("LOCAL-{file_id}");
+
+    let result = sqlx::query(
+        "INSERT INTO user_music_submissions
+            (user_id, title, artist, category, youtube_url, youtube_id, description, status,
+             source_type, audio_file_upload_id, audio_duration_seconds)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'audio_file', $8, $9)"
+    )
+    .bind(user.id)
+    .bind(&title)
+    .bind(&artist)
+    .bind(cat.db_value())
+    .bind(&local_url)
+    .bind(&placeholder_id)
+    .bind(&description)
+    .bind(audio_file_id)
+    .bind(duration_seconds)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(_) => {
+            log::info!("🎵 User {} uploaded audio file: {} ({} bytes, {})", user.id, stored_filename, file_bytes.len(), mime);
+            Html(
+                r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
+                    ✅ Đã tải lên file âm thanh! Vui lòng chờ admin duyệt.
+                </div>"#,
+            )
+            .into_response()
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi insert user_music_submissions (audio): {e}");
+            // Cleanup file + audio_files row
+            let _ = std::fs::remove_file(&file_path);
+            let _ = sqlx::query("DELETE FROM audio_files WHERE id = $1")
+                .bind(audio_file_id)
+                .execute(&state.pool)
+                .await;
+            Html(
+                r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                    ⚠️ Lỗi gửi bài — vui lòng thử lại.
+                </div>"#,
+            )
+            .into_response()
+        }
+    }
 }
