@@ -6,6 +6,242 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.41] — 2026-08-17 — Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Bản phát hành này hoàn thiện **3 module admin còn sót** từ các giai đoạn trước,
+fix **4 bug user báo cáo**, và cải thiện UX mobile menu:
+
+1. **Hoàn thiện Quản lý Bình luận** — trước v0.9.41, trang `/admin/binh-luan`
+   chỉ hiển thị placeholder "Module đang hoàn thiện" + read-only list (và list
+   còn bị lỗi type mismatch UUID vs i64 → luôn rỗng).
+2. **Hoàn thiện Quản lý Nhóm Cộng Đồng** — tương tự bình luận,
+   `/admin/cong-dong/nhom` chỉ là placeholder.
+3. **Hoàn thiện module Từ vựng cấm** — trước v0.9.41, nút "Từ vựng cấm" trong
+   admin dashboard chỉ là anchor `#tu-vung-cam` (không có trang).
+4. **Fix bug "hoạt động 6 giờ trước dù đang online"** — heartbeat client
+   setInterval 10 phút, không fire ngay khi user login.
+5. **Fix lỗi "không thể lưu bài hát vào cơ sở dữ liệu"** — error message chỉ
+   nói chung chung, không có cách debug.
+6. **Rút gọn mobile menu thêm** — vertical list với padding lớn → 2-column grid
+   compact.
+
+### 💬 Quản lý Bình luận — `/admin/binh-luan`
+
+Trước v0.9.41, đây là placeholder read-only. User report: "Module Quản lý
+Bình luận hiện đang ở giai đoạn hoàn thiện. Phiên bản v0.9.32 hiển thị danh
+sách read-only bên dưới..." dù đã qua rất nhiều giai đoạn. Nguyên nhân root:
+`AdminCommentRow.id` và `topic_id` declared là `i64`, nhưng DB `comments.id`
+và `topics.id` là `UUID` → `sqlx::query_as` fail silently, `unwrap_or_else`
+trả `vec![]` → list luôn rỗng. v0.9.41 thay bằng moderation UI đầy đủ:
+
+- **[CMT-1]** `migrations/029_admin_moderation_and_forbidden_words.sql` — Thêm
+  cột `comments.is_pinned BOOLEAN`, `comments.is_locked BOOLEAN`,
+  `comments.moderation_status VARCHAR(20)` (pending/approved/rejected/flagged),
+  `comments.moderated_by UUID`, `comments.moderated_at TIMESTAMPTZ`. Index cho
+  pinned + moderation_status.
+- **[CMT-2]** `src/db/mod.rs::ensure_schema_safety()` — Safety schema check
+  idempotent cho 5 cột mới của comments + CHECK constraint (DO $$ BEGIN).
+- **[CMT-3]** `src/handlers/admin.rs::AdminCommentModerationRow` — Row struct
+  mới với `id: Uuid` + `topic_id: Uuid` (FIX type mismatch cũ), thêm
+  `author_id`, `author_avatar`, `author_role`, `group_id`, `group_name`,
+  `group_slug`, `is_pinned`, `is_locked`, `moderation_status`.
+- **[CMT-4]** `src/handlers/admin.rs::fetch_admin_comments_moderation()` —
+  Fetch 100 comments mới nhất JOIN users + topics + groups, ORDER BY
+  `is_pinned DESC, created_at DESC` (pinned lên đầu).
+- **[CMT-5]** `src/handlers/admin.rs::admin_binh_luan_list` — `GET
+  /admin/binh-luan` — render `admin/binh-luan/index.html` với stats (visible,
+  hidden, pinned, flagged) + list comments + actions.
+- **[CMT-6]** `src/handlers/admin.rs::admin_binh_luan_hide` — `POST
+  /admin/binh-luan/{id}/an` — Set `is_active=false, moderated_by, moderated_at`.
+- **[CMT-7]** `src/handlers/admin.rs::admin_binh_luan_show` — `POST
+  /admin/binh-luan/{id}/hien` — Set `is_active=true`.
+- **[CMT-8]** `src/handlers/admin.rs::admin_binh_luan_delete` — `POST
+  /admin/binh-luan/{id}/xoa` — Hard delete + update topic comment_count.
+- **[CMT-9]** `src/handlers/admin.rs::admin_binh_luan_toggle_pin` — `POST
+  /admin/binh-luan/{id}/ghim` — Toggle `is_pinned`.
+- **[CMT-10]** `src/handlers/admin.rs::admin_binh_luan_toggle_lock` — `POST
+  /admin/binh-luan/{id}/khoa` — Toggle `is_locked` (khoá nhánh trả lời).
+- **[CMT-11]** `templates/admin/binh-luan/index.html` — Full moderation UI:
+  header + banner "Module đã hoàn thiện — v0.9.41" + 4 stats cards + list
+  comments với author avatar, role badge, topic link, group link, 4 action
+  buttons (ẩn/hiện, ghim, khoá, xóa).
+- **[CMT-12]** `src/main.rs` — Routes mới: 5 POST endpoints cho moderation
+  actions. Replace `admin_binh_luan_placeholder` với `admin_binh_luan_list`.
+
+### 🏛️ Quản lý Nhóm Cộng Đồng — `/admin/cong-dong/nhom`
+
+Trước v0.9.41, đây là placeholder read-only. User report: "phần quản lí nhóm
+cộng đồng cũng bị vậy" (cũng hiện placeholder). v0.9.41 thay bằng moderation
+đầy đủ:
+
+- **[NHOM-1]** Migration 029 — Thêm cột `groups.is_featured BOOLEAN`,
+  `groups.moderation_status VARCHAR(20)`, `groups.moderated_by UUID`,
+  `groups.moderated_at TIMESTAMPTZ`. Index cho featured.
+- **[NHOM-2]** Safety schema check idempotent cho 4 cột mới của groups.
+- **[NHOM-3]** `src/handlers/admin.rs::AdminGroupModerationRow` — Row struct
+  mới với `is_featured`, `moderation_status`, `owner_name`, `owner_avatar`.
+- **[NHOM-4]** `src/handlers/admin.rs::fetch_admin_groups_moderation()` —
+  Fetch 100 groups JOIN users để lấy owner, ORDER BY `is_featured DESC,
+  created_at DESC`.
+- **[NHOM-5]** `src/handlers/admin.rs::admin_nhom_list` — `GET
+  /admin/cong-dong/nhom` — render `admin/cong-dong/nhom.html` với stats
+  (active, locked, featured) + list groups + actions.
+- **[NHOM-6]** `src/handlers/admin.rs::admin_nhom_toggle_lock` — `POST
+  /admin/cong-dong/nhom/{id}/khoa` — Toggle `is_active` (lock/unlock nhóm).
+- **[NHOM-7]** `src/handlers/admin.rs::admin_nhom_toggle_featured` — `POST
+  /admin/cong-dong/nhom/{id}/dac-biet` — Toggle `is_featured`.
+- **[NHOM-8]** `src/handlers/admin.rs::admin_nhom_delete` — `POST
+  /admin/cong-dong/nhom/{id}/xoa` — Soft delete (`is_active=false,
+  moderation_status='rejected'`). Yêu cầu `is_admin()` (chỉ admin, không phải
+  mod).
+- **[NHOM-9]** `templates/admin/cong-dong/nhom.html` — Full moderation UI:
+  header + banner + 4 stats cards + list groups với owner avatar, member/
+  topic count, 3 action buttons (khoá, đặc biệt, xóa).
+- **[NHOM-10]** `src/main.rs` — Routes mới: 3 POST endpoints. Replace
+  `admin_groups_placeholder` với `admin_nhom_list`.
+
+### 🚫 Từ Vựng Cấm — `/admin/tu-vung-cam`
+
+Trước v0.9.41, nút "Từ vựng cấm" trong admin dashboard chỉ là anchor
+`#tu-vung-cam` (không có trang). v0.9.41 thêm module đầy đủ:
+
+- **[VOC-1]** Migration 029 — Tạo bảng `forbidden_words` (id, word, action,
+  category, reason, is_system, is_active, created_by, created_at, updated_at).
+  CHECK constraints cho action (block/flag) + category (profanity/spam/
+  politics/religious/scam/other). Index cho active + category.
+- **[VOC-2]** Migration 029 — Seed 9 từ cấm hệ thống mặc định (`is_system=true`):
+  7 từ tục tĩu (block) + 2 keyword lừa đảo (flag). `ON CONFLICT DO NOTHING`.
+- **[VOC-3]** Safety schema check idempotent cho bảng `forbidden_words` + seed
+  system words (chạy trước sqlx migrations, đảm bảo bảng luôn tồn tại).
+- **[VOC-4]** `src/handlers/admin.rs::ForbiddenWordRow` — Row struct với
+  `created_by_name` JOIN từ users.
+- **[VOC-5]** `src/handlers/admin.rs::admin_tu_vung_cam_list` — `GET
+  /admin/tu-vung-cam` — render `admin/tu-vung-cam/index.html` với stats
+  (active, inactive, system) + form tạo mới + list words.
+- **[CMT-6]** `src/handlers/admin.rs::admin_tu_vung_cam_create` — `POST
+  /admin/tu-vung-cam/tao` — Validate word (lowercase, max 100), action,
+  category. `ON CONFLICT (word) DO UPDATE` để bật lại nếu đã tắt.
+- **[VOC-7]** `src/handlers/admin.rs::admin_tu_vung_cam_enable` — `POST
+  /admin/tu-vung-cam/{id}/bat` — Set `is_active=true`.
+- **[VOC-8]** `src/handlers/admin.rs::admin_tu_vung_cam_disable` — `POST
+  /admin/tu-vung-cam/{id}/tat` — Set `is_active=false`.
+- **[VOC-9]** `src/handlers/admin.rs::admin_tu_vung_cam_delete` — `POST
+  /admin/tu-vung-cam/{id}/xoa` — Hard delete, `WHERE is_system = false` (system
+  words không xóa được, chỉ tắt được).
+- **[VOC-10]** `src/handlers/admin.rs::check_forbidden_words()` — Helper async
+  function: load tất cả active forbidden_words, lowercase content + check
+  `contains`. Trả về `Option<(word, action)>`. Sẵn sàng integrate vào
+  `create_comment` / `create_topic` / chat handlers (sẽ dùng ở v0.9.42+).
+- **[VOC-11]** `templates/admin/tu-vung-cam/index.html` — Full UI: header +
+  banner + 3 stats cards + form tạo mới (word, action, category, reason) +
+  list words với badges (Hệ thống / Bật / Tắt / Block / Flag) + 3 action
+  buttons (bật/tắt, xóa).
+- **[VOC-12]** `src/main.rs` — Routes mới: GET + 4 POST endpoints.
+- **[VOC-13]** `templates/admin/ky-thuat/index.html` — Fix link "Từ vựng cấm"
+  từ `#tu-vung-cam` → `/admin/tu-vung-cam`.
+
+### 💓 Heartbeat Fix — "hoạt động 6 giờ trước dù đang online"
+
+User report: "còn bị lỗi khi tôi đang online nó lại hiện hoạt động 6 giờ
+trước". Nguyên nhân root:
+
+- Heartbeat client (`src/static/js/app.js::sessionHeartbeat`) dùng
+  `setInterval(..., 10 * 60 * 1000)` — fire lần đầu sau 10 phút, không fire
+  ngay khi user login.
+- Admin stats `active_users` đếm `WHERE last_seen_at > NOW() - INTERVAL '5 min'`.
+- User vừa login (chưa đủ 10 phút) → `last_seen_at` NULL hoặc stale (giá trị
+  từ session trước cách đây 6 giờ) → không nằm trong top "active 5 phút" →
+  admin thấy "6 giờ trước".
+
+Fix v0.9.41:
+
+- **[HB-1]** `src/static/js/app.js::sessionHeartbeat` — Fire heartbeat NGAY
+  khi DOM ready (không chờ interval). Đảm bảo `last_seen_at = NOW()` ngay sau
+  khi user login / refresh page.
+- **[HB-2]** Giảm interval từ 10 phút → 2 phút (120000ms). Đảm bảo user active
+  luôn trong cửa sổ 5 phút "đang hoạt động" của admin stats.
+- **[HB-3]** Thêm `visibilitychange` listener — khi tab visible trở lại sau
+  1 phút idle, fire heartbeat ngay (không chờ interval tiếp theo).
+- **[HB-4]** Thêm `click` + `keydown` listeners — track `lastActive` timestamp
+  cho visibilitychange logic.
+
+### 🎵 Music Submit Error — "không thể lưu bài hát vào cơ sở dữ liệu"
+
+User report: "khi tôi đăng bài hát lên web nó báo 'Lỗi gửi bài — không thể
+lưu bài hát vào cơ sở dữ liệu', cần fix siêu triệt để". Nguyên nhân root:
+error message chỉ nói chung chung, không có cách debug. v0.9.41 cải thiện:
+
+- **[MUS-1]** `src/handlers/nha_nhac.rs::nha_nhac_submit_music` (YouTube) —
+  Phân loại lỗi `sqlx::Error` (ColumnNotFound / Database / Decode), hiển thị
+  error chi tiết cho user (để report admin), log đầy đủ user_id + title +
+  category + youtube_id để admin trace.
+- **[MUS-2]** `src/handlers/nha_nhac.rs::nha_nhac_submit_music_file` (audio) —
+  Tương tự: phân loại lỗi + log chi tiết + cleanup file/audio_files row khi
+  fail.
+- **[MUS-3]** Error message mới hiển thị:
+  - "Thiếu cột DB: {col}" — khi ColumnNotFound.
+  - "Bài hát đã tồn tại (trùng youtube_id)" — khi unique constraint violation.
+  - "Vi phạm ràng buộc DB: {msg}" — khi check constraint violation.
+  - "Bảng DB không tồn tại: {msg}" — khi relation does not exist.
+  - "Lỗi database: {msg}" — fallback cho các lỗi DB khác.
+  - "Lỗi không xác định: {e}" — fallback cho các lỗi khác.
+
+### 📱 Mobile Menu Compact
+
+User report: "tôi thấy hiện tại vào thanh ba gạch, dù đã rút gọn nhưng nó vẫn
+rất dài, cần rút gọn thêm nhưng không gây xấu hoặc lỗi". v0.9.41:
+
+- **[MOB-1]** `templates/layout.html` — Chuyển sub-items từ vertical list
+  (py-2, gap-3, text-xl icon, text-xs label) sang **2-column grid** (gap-0.5,
+  py-1.5, text-sm icon, text-[11px] label). Compact gấp đôi chiều cao.
+- **[MOB-2]** 4 nút quick-access thu nhỏ: text-lg icon (từ text-xl), text-[9px]
+  label (từ text-[10px]), py-1.5 (từ py-2), p-1.5 (từ p-2).
+- **[MOB-3]** Section headers thu nhỏ: text-base icon (từ text-xl), text-xs
+  font (từ text-sm), py-1.5 (từ py-2.5), px-2.5 (từ px-3), gap-2 (từ gap-3).
+- **[MOB-4]** Chevron icon thu nhỏ: w-3.5 h-3.5 (từ w-4 h-4).
+- **[MOB-5]** "Tìm Bạn" (5th item trong Bạn Bè) và "Quản Trị" (3rd item trong
+  Tài Khoản) dùng `col-span-2` để chiếm cả hàng (vì label dài).
+
+### 📦 Version Sync v0.9.41
+
+- Bump version `0.9.40` → `0.9.41` ở: `Cargo.toml`, `src/main.rs` (startup
+  log + health check public + health check inner + phase 44 → 45), `templates/
+  layout.html` (footer), `templates/khong-gian/index.html` (footer), `templates/
+  admin/placeholder.html` (footer), `templates/admin/thuong-thanh/index.html`
+  (footer), `templates/admin/thuong-thanh/danh-muc.html` (footer), `templates/
+  admin/ky-thuat/index.html` (footer), `templates/admin/cong-dong/index.html`
+  (footer), `templates/admin/quan-li/index.html` (footer), `templates/admin/
+  phat-trien/index.html` (phase badge + roadmap), `Dockerfile.coolify`
+  (comment), `src/db/mod.rs` (comment), `src/middleware/rate_limit.rs`
+  (comment), `src/handlers/admin.rs` (comment), `src/handlers/thuong_thanh.rs`
+  (comment), `src/models/thuong_thanh.rs` (comment).
+- Update phase 44 → 45 trong health check + main log.
+- Thêm 38 feature flags v0.9.41 vào `HEALTH_FEATURES` array (admin moderation
+  + forbidden words + heartbeat fix + mobile menu + music submit error).
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 44 → "Hoàn thành" (green),
+  Giai đoạn 45 → "Đang triển khai" (indigo).
+
+### 🛠️ Technical Notes
+
+- **Build verified**: `SQLX_OFFLINE=true cargo build --release` thành công
+  với Rust 1.97.1, 0 errors, 25 warnings (pre-existing dead_code).
+- **Migration 029**: idempotent (CREATE TABLE IF NOT EXISTS / ADD COLUMN IF
+  NOT EXISTS), an toàn chạy lại.
+- **Safety schema**: `ensure_schema_safety()` chạy idempotent DDL trước sqlx
+  migrations, đảm bảo các cột/bảng mới luôn tồn tại ngay cả khi migration
+  checksum mismatch.
+- **Backward compat**: các placeholder functions cũ (`admin_binh_luan_placeholder`,
+  `admin_groups_placeholder`) vẫn giữ trong code nhưng không còn được route
+  sử dụng — có thể xóa ở v0.9.42+.
+- **Forbidden words helper**: `check_forbidden_words()` đã implement nhưng
+  chưa integrate vào `create_comment` / `create_topic` / chat handlers — sẽ
+  integrate ở v0.9.42+ (cần kiểm tra perf vì mỗi comment submit sẽ thêm 1
+  query SELECT tất cả forbidden_words).
+
+---
+
 ## [0.9.40] — 2026-08-17 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷
 
 ### 🎯 Mục tiêu giai đoạn

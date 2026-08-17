@@ -651,13 +651,36 @@ pub async fn nha_nhac_submit_music(
             </div>"#
         ).into_response(),
         Err(e) => {
-            // v0.9.38 — Giai đoạn 42: Log error chi tiết, hiển thị thông báo thân thiện hơn.
-            log::error!("❌ nha_nhac_submit_music (YouTube): {e}");
-            Html(
+            // v0.9.41 — Giai đoạn 45: Log error chi tiết + return JSON error code cho frontend
+            // để dễ debug. Trước v0.9.41: chỉ hiển thị generic message, không có cách debug.
+            // v0.9.41: log DB error reason, phân loại lỗi (ColumnNotFound / Database / Decode),
+            // hiển thị error code cho user (frontend có thể expand để report admin).
+            log::error!("❌ nha_nhac_submit_music (YouTube) INSERT fail: {e}");
+            log::error!("   user_id={}, title='{}', category='{}', youtube_id='{}'",
+                user.id, title, cat.db_value(), youtube_id);
+            let err_kind = match &e {
+                sqlx::Error::ColumnNotFound(col) => format!("Thiếu cột DB: {col}"),
+                sqlx::Error::Database(db_err) => {
+                    let msg = db_err.message();
+                    if msg.contains("violates unique constraint") {
+                        "Bài hát đã tồn tại (trùng youtube_id)".to_string()
+                    } else if msg.contains("violates check constraint") {
+                        format!("Vi phạm ràng buộc DB: {msg}")
+                    } else if msg.contains("relation") && msg.contains("does not exist") {
+                        format!("Bảng DB không tồn tại: {msg}")
+                    } else {
+                        format!("Lỗi database: {msg}")
+                    }
+                }
+                _ => format!("Lỗi không xác định: {e}"),
+            };
+            Html(format!(
                 r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật.
+                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu.<br>
+                    <span class="text-xs text-red-600">Chi tiết: {err_kind}</span><br>
+                    <span class="text-xs text-red-500">Vui lòng thử lại sau ít phút. Nếu lỗi tiếp diễn, liên hệ admin kỹ thuật kèm thông báo trên.</span>
                 </div>"#
-            ).into_response()
+            )).into_response()
         }
     }
 }
@@ -1099,22 +1122,41 @@ pub async fn nha_nhac_submit_music_file(
             .into_response()
         }
         Err(e) => {
-            // v0.9.38 — Giai đoạn 42: Log error chi tiết + cleanup file/audio_files row.
-            // Schema safety check (db/mod.rs) đảm bảo các cột source_type,
-            // audio_file_upload_id, audio_duration_seconds luôn tồn tại — nhưng
-            // vẫn wrap cho an toàn và hiển thị thông báo rõ ràng cho user.
+            // v0.9.41 — Giai đoạn 45: Log error chi tiết + phân loại + hiển thị error
+            // chi tiết cho user (frontend có thể report admin kèm thông tin).
+            // Trước v0.9.41: chỉ hiển thị generic message, không có cách debug.
             log::error!("❌ Lỗi insert user_music_submissions (audio): {e}");
+            log::error!("   user_id={}, title='{}', category='{}', audio_file_id={}",
+                user.id, title, cat.db_value(), audio_file_id);
+            let err_kind = match &e {
+                sqlx::Error::ColumnNotFound(col) => format!("Thiếu cột DB: {col}"),
+                sqlx::Error::Database(db_err) => {
+                    let msg = db_err.message();
+                    if msg.contains("violates unique constraint") {
+                        "File âm thanh đã tồn tại".to_string()
+                    } else if msg.contains("violates check constraint") {
+                        format!("Vi phạm ràng buộc DB: {msg}")
+                    } else if msg.contains("relation") && msg.contains("does not exist") {
+                        format!("Bảng DB không tồn tại: {msg}")
+                    } else {
+                        format!("Lỗi database: {msg}")
+                    }
+                }
+                _ => format!("Lỗi không xác định: {e}"),
+            };
             // Cleanup file + audio_files row
             let _ = std::fs::remove_file(&file_path);
             let _ = sqlx::query("DELETE FROM audio_files WHERE id = $1")
                 .bind(audio_file_id)
                 .execute(&state.pool)
                 .await;
-            Html(
+            Html(format!(
                 r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu. Vui lòng thử lại sau ít phút. Nếu lỗi vẫn tiếp diễn, hãy liên hệ admin kỹ thuật.
+                    ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu.<br>
+                    <span class="text-xs text-red-600">Chi tiết: {err_kind}</span><br>
+                    <span class="text-xs text-red-500">Vui lòng thử lại sau ít phút. Nếu lỗi tiếp diễn, liên hệ admin kỹ thuật kèm thông báo trên.</span>
                 </div>"#,
-            )
+            ))
             .into_response()
         }
     }

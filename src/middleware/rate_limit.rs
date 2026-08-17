@@ -289,7 +289,7 @@ h1 {{ font-size: 1.5rem; font-weight: 700; color: #064e3b; margin-bottom: 0.5rem
   </div>
   <button class="btn-back" id="backBtn" onclick="history.back()" disabled>← Quay lại</button>
   <div class="footer">
-    🪷 Ứng Dụng Từ Bi v0.9.40 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
+    🪷 Ứng Dụng Từ Bi v0.9.41 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
   </div>
 </div>
 <script>

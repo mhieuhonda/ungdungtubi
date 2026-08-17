@@ -345,7 +345,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
          WHERE NOT EXISTS (SELECT 1 FROM user_settings WHERE user_id = users.id)"
     ).execute(pool).await;
 
-    // ─── v0.9.40 — Giai đoạn 44: Safety schema cho Chợ Đạo Hữu + Admin ──────
+    // ─── v0.9.41 — Giai đoạn 44: Safety schema cho Chợ Đạo Hữu + Admin ──────
     // Migration 028 có thể không được apply đầy đủ trên production do checksum
     // mismatch, partial deploy, hoặc manual rollback. Khi đó:
     //   - `INSERT INTO shop_categories ...` fail với
@@ -357,7 +357,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     // Fix: chạy idempotent DDL trực tiếp (CREATE TABLE IF NOT EXISTS,
     // ALTER TABLE ... ADD COLUMN IF NOT EXISTS) trước khi sqlx migrations chạy.
 
-    // 12. Ensure `shop_categories` table (v0.9.40 — Giai đoạn 44).
+    // 12. Ensure `shop_categories` table (v0.9.41 — Giai đoạn 44).
     match sqlx::query(
         "CREATE TABLE IF NOT EXISTS shop_categories (
             id              BIGSERIAL    PRIMARY KEY,
@@ -379,7 +379,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     .execute(pool)
     .await
     {
-        Ok(_) => log::info!("  ✅ shop_categories table ensured (v0.9.40 — Chợ Đạo Hữu)"),
+        Ok(_) => log::info!("  ✅ shop_categories table ensured (v0.9.41 — Chợ Đạo Hữu)"),
         Err(e) => log::error!("  ❌ Failed to ensure shop_categories: {e}"),
     }
     let _ = sqlx::query(
@@ -407,7 +407,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
          ON CONFLICT (slug) DO NOTHING"
     ).execute(pool).await;
 
-    // 13. Ensure new columns on shop_items (v0.9.40 — Giai đoạn 44).
+    // 13. Ensure new columns on shop_items (v0.9.41 — Giai đoạn 44).
     let _ = sqlx::query(
         "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS category_id BIGINT REFERENCES shop_categories(id) ON DELETE SET NULL"
     ).execute(pool).await;
@@ -444,7 +444,7 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
            AND sc.slug = REPLACE(LOWER(si.category), '_', '-')"
     ).execute(pool).await;
 
-    // 14. Ensure new columns on transactions (v0.9.40 — Giai đoạn 44).
+    // 14. Ensure new columns on transactions (v0.9.41 — Giai đoạn 44).
     let _ = sqlx::query(
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'k'"
     ).execute(pool).await;
@@ -456,6 +456,151 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     ).execute(pool).await;
     let _ = sqlx::query(
         "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS buyer_contact TEXT"
+    ).execute(pool).await;
+
+    // ─── v0.9.41 — Giai đoạn 45: Safety schema cho Admin Moderation + Từ vựng cấm ─
+    // Migration 029 có thể không được apply đầy đủ trên production do checksum
+    // mismatch, partial deploy, hoặc manual rollback. Khi đó:
+    //   - `INSERT INTO forbidden_words ...` fail với
+    //     "relation \"forbidden_words\" does not exist"
+    //   - `UPDATE comments SET is_pinned = ...` fail với
+    //     "column \"is_pinned\" does not exist"
+    //   - `UPDATE groups SET is_featured = ...` fail với
+    //     "column \"is_featured\" does not exist"
+    // Fix: chạy idempotent DDL trực tiếp trước khi sqlx migrations chạy.
+
+    // 15. Ensure `forbidden_words` table (v0.9.41 — Giai đoạn 45).
+    match sqlx::query(
+        "CREATE TABLE IF NOT EXISTS forbidden_words (
+            id              BIGSERIAL    PRIMARY KEY,
+            word            TEXT         NOT NULL UNIQUE,
+            action          VARCHAR(10)  NOT NULL DEFAULT 'block'
+                            CHECK (action IN ('block', 'flag')),
+            category        VARCHAR(20)  NOT NULL DEFAULT 'other'
+                            CHECK (category IN ('profanity', 'spam', 'politics', 'religious', 'scam', 'other')),
+            reason          TEXT,
+            is_system       BOOLEAN      NOT NULL DEFAULT false,
+            is_active       BOOLEAN      NOT NULL DEFAULT true,
+            created_by      UUID         REFERENCES users(id) ON DELETE SET NULL,
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ forbidden_words table ensured (v0.9.41 — admin moderation)"),
+        Err(e) => log::error!("  ❌ Failed to ensure forbidden_words: {e}"),
+    }
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_forbidden_words_active ON forbidden_words(is_active) WHERE is_active = true"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_forbidden_words_category ON forbidden_words(category)"
+    ).execute(pool).await;
+
+    // Seed system forbidden words (idempotent — ON CONFLICT DO NOTHING)
+    let _ = sqlx::query(
+        "INSERT INTO forbidden_words (word, action, category, reason, is_system) VALUES
+            ('địt',       'block', 'profanity', 'Từ tục tĩu — tự động cấm', true),
+            ('lồn',       'block', 'profanity', 'Từ tục tĩu — tự động cấm', true),
+            ('cặc',       'block', 'profanity', 'Từ tục tĩu — tự động cấm', true),
+            ('buồi',      'block', 'profanity', 'Từ tục tĩu — tự động cấm', true),
+            ('mẹ mày',    'block', 'profanity', 'Cụm từ xúc phạm — tự động cấm', true),
+            ('đĩ',        'block', 'profanity', 'Từ tục tĩu — tự động cấm', true),
+            ('chó chết',  'block', 'profanity', 'Cụm từ xúc phạm — tự động cấm', true),
+            ('scam',      'flag',  'scam',      'Keyword lừa đảo — flag để admin review', true),
+            ('lừa đảo',   'flag',  'scam',      'Keyword lừa đảo — flag để admin review', true)
+         ON CONFLICT (word) DO NOTHING"
+    ).execute(pool).await;
+
+    // 16. Ensure new columns on `comments` (v0.9.41 — Giai đoạn 45).
+    let _ = sqlx::query(
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT false"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'
+         CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'))"
+    ).execute(pool).await;
+    // Add CHECK constraint idempotently (separate DO $$ because ADD COLUMN IF NOT EXISTS
+    // không supports adding CHECK constraint inline idempotently if column already exists)
+    let _ = sqlx::query(
+        "DO $$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'comments_moderation_status_check'
+            ) THEN
+                ALTER TABLE comments
+                ADD CONSTRAINT comments_moderation_status_check
+                CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'));
+            END IF;
+        END $$"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS moderated_by UUID REFERENCES users(id) ON DELETE SET NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE comments ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_comments_pinned ON comments(topic_id, is_pinned) WHERE is_pinned = true"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_comments_moderation ON comments(moderation_status) WHERE moderation_status != 'approved'"
+    ).execute(pool).await;
+
+    // 17. Ensure new columns on `groups` (v0.9.41 — Giai đoạn 45).
+    let _ = sqlx::query(
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'
+         CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'))"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "DO $$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'groups_moderation_status_check'
+            ) THEN
+                ALTER TABLE groups
+                ADD CONSTRAINT groups_moderation_status_check
+                CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'));
+            END IF;
+        END $$"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS moderated_by UUID REFERENCES users(id) ON DELETE SET NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE groups ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_groups_featured ON groups(is_featured, created_at DESC) WHERE is_featured = true"
+    ).execute(pool).await;
+
+    // 18. Ensure new columns on `topics` (v0.9.41 — Giai đoạn 45).
+    let _ = sqlx::query(
+        "ALTER TABLE topics ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(20) NOT NULL DEFAULT 'approved'
+         CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'))"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "DO $$ BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint WHERE conname = 'topics_moderation_status_check'
+            ) THEN
+                ALTER TABLE topics
+                ADD CONSTRAINT topics_moderation_status_check
+                CHECK (moderation_status IN ('pending', 'approved', 'rejected', 'flagged'));
+            END IF;
+        END $$"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE topics ADD COLUMN IF NOT EXISTS moderated_by UUID REFERENCES users(id) ON DELETE SET NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE topics ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ"
     ).execute(pool).await;
 
     log::info!("🔒 Safety schema check hoàn tất");

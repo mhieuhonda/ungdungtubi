@@ -1,5 +1,5 @@
 //! Handlers cho trang Thương Thành — Giai đoạn 40 (v0.9.35).
-//! v0.9.40 — Giai đoạn 44: Rename "Chợ PvP" → "Chợ Đạo Hữu" + flexible categories
+//! v0.9.41 — Giai đoạn 44: Rename "Chợ PvP" → "Chợ Đạo Hữu" + flexible categories
 //!           + payment method K hoặc ngân hàng.
 //!
 //! Thương Thành là chợ/marketplace của Ứng Dụng Từ Bi — nơi đạo hữu
@@ -22,7 +22,7 @@
 //!   - GET /api/thuong-thanh/stats — Thống kê
 //!
 //! v0.9.35: Remove Game store — only App + PvP.
-//! v0.9.40: Rename PvP → Đạo Hữu. Cho phép user tạo danh mục mới và chọn
+//! v0.9.41: Rename PvP → Đạo Hữu. Cho phép user tạo danh mục mới và chọn
 //!          nhận tiền qua K hoặc chuyển khoản ngân hàng.
 
 use axum::{
@@ -44,7 +44,7 @@ use crate::models::thuong_thanh::{
 };
 
 // ─── Column list for shop_items ──────────────────────────────────────
-// v0.9.40: thêm category_id, payment_method, price_vnd, bank_info,
+// v0.9.41: thêm category_id, payment_method, price_vnd, bank_info,
 // is_featured, moderation_status.
 
 const ITEM_COLUMNS: &str = "id, store, category, name, description, price_k, icon, color, \
@@ -87,7 +87,7 @@ pub struct PvpTemplate {
     pub active_page: String,
     pub items: Vec<ShopItemWithSeller>,
     pub stats: ThuongThanhStats,
-    /// v0.9.40: danh mục để user filter.
+    /// v0.9.41: danh mục để user filter.
     pub categories: Vec<ShopCategory>,
 }
 
@@ -117,9 +117,9 @@ pub struct CartTemplate {
 pub struct CreateItemTemplate {
     pub user: Option<User>,
     pub active_page: String,
-    /// v0.9.40: danh sách danh mục để user chọn.
+    /// v0.9.41: danh sách danh mục để user chọn.
     pub categories: Vec<ShopCategory>,
-    /// v0.9.40: error message nếu validate fail.
+    /// v0.9.41: error message nếu validate fail.
     pub error: Option<String>,
 }
 
@@ -140,7 +140,7 @@ async fn get_stats(pool: &PgPool) -> ThuongThanhStats {
         .fetch_one(pool).await.unwrap_or(0);
     let app_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shop_items WHERE store = 'app' AND is_active = true")
         .fetch_one(pool).await.unwrap_or(0);
-    // v0.9.40: đếm cả 'pvp' (cũ) và 'dao_huu' (mới) — cùng là Chợ Đạo Hữu.
+    // v0.9.41: đếm cả 'pvp' (cũ) và 'dao_huu' (mới) — cùng là Chợ Đạo Hữu.
     let pvp_items: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM shop_items WHERE store IN ('pvp', 'dao_huu') AND is_active = true"
     ).fetch_one(pool).await.unwrap_or(0);
@@ -284,7 +284,7 @@ pub async fn store_app(
 }
 
 /// GET /thuong-thanh/pvp — Back-compat redirect → /thuong-thanh/cho-dao-huu.
-/// v0.9.40: Rename "Chợ PvP" → "Chợ Đạo Hữu". Route cũ redirect 301.
+/// v0.9.41: Rename "Chợ PvP" → "Chợ Đạo Hữu". Route cũ redirect 301.
 pub async fn store_pvp_redirect(
     State(_state): State<AppState>,
     _jar: CookieJar,
@@ -367,7 +367,7 @@ pub async fn item_detail(
 }
 
 /// GET /thuong-thanh/vat-pham/tao — Form đăng bán (Chợ Đạo Hữu).
-/// v0.9.40: kèm danh sách categories để user chọn hoặc tạo mới.
+/// v0.9.41: kèm danh sách categories để user chọn hoặc tạo mới.
 pub async fn create_item_form(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -396,7 +396,7 @@ pub async fn create_item_form(
 }
 
 /// POST /thuong-thanh/vat-pham/tao — Tạo vật phẩm (Chợ Đạo Hữu).
-/// v0.9.40: hỗ trợ chọn category có sẵn HOẶC tạo mới, payment K HOẶC bank.
+/// v0.9.41: hỗ trợ chọn category có sẵn HOẶC tạo mới, payment K HOẶC bank.
 pub async fn create_item(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -573,7 +573,7 @@ pub async fn cart_view(
 }
 
 /// POST /thuong-thanh/gio-hang/them — Thêm vào giỏ hàng.
-/// v0.9.40: nếu item là 'bank' payment, KHÔNG thêm vào giỏ — chuyển hướng
+/// v0.9.41: nếu item là 'bank' payment, KHÔNG thêm vào giỏ — chuyển hướng
 /// buyer tới trang chi tiết vật phẩm (bank transfer cần liên hệ seller).
 pub async fn cart_add(
     State(state): State<AppState>,
@@ -643,7 +643,7 @@ pub async fn cart_remove(
 }
 
 /// POST /thuong-thanh/gio-hang/thanh-toan — Thanh toán giỏ hàng (giao dịch K).
-/// v0.9.40: chỉ áp dụng cho K-payment items. Bank-payment items không qua giỏ.
+/// v0.9.41: chỉ áp dụng cho K-payment items. Bank-payment items không qua giỏ.
 pub async fn cart_checkout(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -705,7 +705,7 @@ pub async fn cart_checkout(
     // Process each cart item
     for ci in &cart_items {
         let is_dao_huu = ci.item_store == "pvp" || ci.item_store == "dao_huu";
-        // v0.9.40: giảm fee từ 20% → 10% cho Chợ Đạo Hữu (PvP cũ vẫn 20%).
+        // v0.9.41: giảm fee từ 20% → 10% cho Chợ Đạo Hữu (PvP cũ vẫn 20%).
         let fee_k = if is_dao_huu {
             if ci.item_store == "dao_huu" {
                 (ci.total_k() as f64 * 0.10).round() as i32
@@ -722,7 +722,7 @@ pub async fn cart_checkout(
         .bind(ci.item_id)
         .fetch_optional(&mut *tx).await.unwrap_or(None);
 
-        // Tạo transaction — v0.9.40: thêm payment_method = 'k'
+        // Tạo transaction — v0.9.41: thêm payment_method = 'k'
         let _ = sqlx::query(
             "INSERT INTO transactions (tx_type, buyer_id, seller_id, item_id, quantity, amount_k, fee_k, status, payment_method) \
              VALUES ('purchase', $1, $2, $3, $4, $5, $6, 'completed', 'k')"

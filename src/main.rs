@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.40 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷");
+    log::info!("📦 Phiên bản: v0.9.41 — Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -279,7 +279,7 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         // Routes — Thương Thành (v0.9.35 — Giai đoạn 40: App + PvP, Game removed)
-        // v0.9.40 — Giai đoạn 44: Rename "Chợ PvP" → "Chợ Đạo Hữu" + flexible categories + K/bank payment
+        // v0.9.41 — Giai đoạn 44: Rename "Chợ PvP" → "Chợ Đạo Hữu" + flexible categories + K/bank payment
         // CRUD vật phẩm · Giỏ hàng · Giao dịch K · Bank transfer
         .route("/thuong-thanh", get(handlers::thuong_thanh::thuong_thanh_index))
         .route("/thuong-thanh/cua-hang-app", get(handlers::thuong_thanh::store_app))
@@ -335,11 +335,28 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Trước đây các nav tile trong admin dashboard trỏ tới user pages (/cong-dong, /kinh-sach, ...)
         // khiến user click vào rồi bị redirect ra khỏi admin context.
         // Giờ tạo các route admin riêng cho các module chưa có UI quản trị đầy đủ.
-        .route("/admin/cong-dong/nhom", get(handlers::admin::admin_groups_placeholder))
+        // v0.9.41 — Giai đoạn 45: /admin/binh-luan + /admin/cong-dong/nhom giờ là moderation đầy đủ.
+        .route("/admin/cong-dong/nhom", get(handlers::admin::admin_nhom_list))
         .route("/admin/kinh-sach", get(handlers::admin::admin_kinh_sach_placeholder))
-        .route("/admin/binh-luan", get(handlers::admin::admin_binh_luan_placeholder))
+        .route("/admin/binh-luan", get(handlers::admin::admin_binh_luan_list))
         .route("/admin/quy-tu-bi", get(handlers::admin::admin_quy_tu_bi_placeholder))
-        // v0.9.40 — Giai đoạn 44: Admin quản lý Thương Thành hoàn thiện
+        // v0.9.41 — Giai đoạn 45: Quản lý Bình luận — moderation đầy đủ
+        .route("/admin/binh-luan/{comment_id}/an", post(handlers::admin::admin_binh_luan_hide))
+        .route("/admin/binh-luan/{comment_id}/hien", post(handlers::admin::admin_binh_luan_show))
+        .route("/admin/binh-luan/{comment_id}/xoa", post(handlers::admin::admin_binh_luan_delete))
+        .route("/admin/binh-luan/{comment_id}/ghim", post(handlers::admin::admin_binh_luan_toggle_pin))
+        .route("/admin/binh-luan/{comment_id}/khoa", post(handlers::admin::admin_binh_luan_toggle_lock))
+        // v0.9.41 — Giai đoạn 45: Quản lý Nhóm Cộng Đồng — moderation đầy đủ
+        .route("/admin/cong-dong/nhom/{group_id}/khoa", post(handlers::admin::admin_nhom_toggle_lock))
+        .route("/admin/cong-dong/nhom/{group_id}/dac-biet", post(handlers::admin::admin_nhom_toggle_featured))
+        .route("/admin/cong-dong/nhom/{group_id}/xoa", post(handlers::admin::admin_nhom_delete))
+        // v0.9.41 — Giai đoạn 45: Từ vựng cấm — full CRUD
+        .route("/admin/tu-vung-cam", get(handlers::admin::admin_tu_vung_cam_list))
+        .route("/admin/tu-vung-cam/tao", post(handlers::admin::admin_tu_vung_cam_create))
+        .route("/admin/tu-vung-cam/{word_id}/bat", post(handlers::admin::admin_tu_vung_cam_enable))
+        .route("/admin/tu-vung-cam/{word_id}/tat", post(handlers::admin::admin_tu_vung_cam_disable))
+        .route("/admin/tu-vung-cam/{word_id}/xoa", post(handlers::admin::admin_tu_vung_cam_delete))
+        // v0.9.41 — Giai đoạn 44: Admin quản lý Thương Thành hoàn thiện
         .route("/admin/thuong-thanh", get(handlers::admin::admin_thuong_thanh_list))
         .route("/admin/thuong-thanh/danh-muc", get(handlers::admin::admin_thuong_thanh_categories))
         .route("/admin/thuong-thanh/{item_id}/xoa", post(handlers::admin::admin_thuong_thanh_delete))
@@ -718,49 +735,87 @@ const HEALTH_FEATURES: &[&str] = &[
     "dockerfile-tzdata-package-v0.9.39",
     "migration-027-user-last_seen_at-v0.9.39",
     "migration-027-seed-last_seen_at-from-sessions-v0.9.39",
-    // ─── v0.9.40 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank
-    "cho-dao-huu-rename-from-pvp-v0.9.40",
-    "pvp-route-redirect-to-cho-dao-huu-v0.9.40",
-    "shop-categories-table-v0.9.40",
-    "shop-categories-system-seed-12-v0.9.40",
-    "shop-categories-user-create-v0.9.40",
-    "shop-categories-user-needs-approval-v0.9.40",
-    "shop-items-payment-method-k-or-bank-v0.9.40",
-    "shop-items-price-vnd-column-v0.9.40",
-    "shop-items-bank-info-jsonb-v0.9.40",
-    "shop-items-is-featured-column-v0.9.40",
-    "shop-items-moderation-status-v0.9.40",
-    "shop-items-category-id-link-v0.9.40",
-    "create-item-form-categories-dropdown-v0.9.40",
-    "create-item-form-new-category-toggle-v0.9.40",
-    "create-item-form-payment-method-toggle-v0.9.40",
-    "create-item-form-bank-info-fields-v0.9.40",
-    "create-item-form-qr-image-url-v0.9.40",
-    "create-item-validation-bank-info-v0.9.40",
-    "item-detail-show-bank-info-v0.9.40",
-    "item-detail-show-qr-image-v0.9.40",
-    "cart-block-bank-payment-items-v0.9.40",
-    "cart-redirect-bank-to-item-detail-v0.9.40",
-    "dao-huu-fee-reduced-20-to-10-percent-v0.9.40",
-    "slugify-vi-for-categories-v0.9.40",
-    "admin-thuong-thanh-list-page-v0.9.40",
-    "admin-thuong-thanh-delete-item-v0.9.40",
-    "admin-thuong-thanh-toggle-featured-v0.9.40",
-    "admin-thuong-thanh-approve-item-v0.9.40",
-    "admin-thuong-thanh-reject-item-v0.9.40",
-    "admin-thuong-thanh-categories-page-v0.9.40",
-    "admin-thuong-thanh-category-create-v0.9.40",
-    "admin-thuong-thanh-category-approve-v0.9.40",
-    "admin-thuong-thanh-category-delete-v0.9.40",
-    "admin-thuong-thanh-audit-log-v0.9.40",
-    "transactions-payment-method-column-v0.9.40",
-    "transactions-price-vnd-column-v0.9.40",
-    "transactions-bank-info-snapshot-v0.9.40",
-    "transactions-buyer-contact-column-v0.9.40",
-    "migration-028-cho-dao-huu-marketplace-v0.9.40",
-    "safety-schema-shop-categories-v0.9.40",
-    "safety-schema-shop-items-new-columns-v0.9.40",
-    "safety-schema-transactions-new-columns-v0.9.40",
+    // ─── v0.9.41 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank
+    "cho-dao-huu-rename-from-pvp-v0.9.41",
+    "pvp-route-redirect-to-cho-dao-huu-v0.9.41",
+    "shop-categories-table-v0.9.41",
+    "shop-categories-system-seed-12-v0.9.41",
+    "shop-categories-user-create-v0.9.41",
+    "shop-categories-user-needs-approval-v0.9.41",
+    "shop-items-payment-method-k-or-bank-v0.9.41",
+    "shop-items-price-vnd-column-v0.9.41",
+    "shop-items-bank-info-jsonb-v0.9.41",
+    "shop-items-is-featured-column-v0.9.41",
+    "shop-items-moderation-status-v0.9.41",
+    "shop-items-category-id-link-v0.9.41",
+    "create-item-form-categories-dropdown-v0.9.41",
+    "create-item-form-new-category-toggle-v0.9.41",
+    "create-item-form-payment-method-toggle-v0.9.41",
+    "create-item-form-bank-info-fields-v0.9.41",
+    "create-item-form-qr-image-url-v0.9.41",
+    "create-item-validation-bank-info-v0.9.41",
+    "item-detail-show-bank-info-v0.9.41",
+    "item-detail-show-qr-image-v0.9.41",
+    "cart-block-bank-payment-items-v0.9.41",
+    "cart-redirect-bank-to-item-detail-v0.9.41",
+    "dao-huu-fee-reduced-20-to-10-percent-v0.9.41",
+    "slugify-vi-for-categories-v0.9.41",
+    "admin-thuong-thanh-list-page-v0.9.41",
+    "admin-thuong-thanh-delete-item-v0.9.41",
+    "admin-thuong-thanh-toggle-featured-v0.9.41",
+    "admin-thuong-thanh-approve-item-v0.9.41",
+    "admin-thuong-thanh-reject-item-v0.9.41",
+    "admin-thuong-thanh-categories-page-v0.9.41",
+    "admin-thuong-thanh-category-create-v0.9.41",
+    "admin-thuong-thanh-category-approve-v0.9.41",
+    "admin-thuong-thanh-category-delete-v0.9.41",
+    "admin-thuong-thanh-audit-log-v0.9.41",
+    "transactions-payment-method-column-v0.9.41",
+    "transactions-price-vnd-column-v0.9.41",
+    "transactions-bank-info-snapshot-v0.9.41",
+    "transactions-buyer-contact-column-v0.9.41",
+    "migration-028-cho-dao-huu-marketplace-v0.9.41",
+    "safety-schema-shop-categories-v0.9.41",
+    "safety-schema-shop-items-new-columns-v0.9.41",
+    "safety-schema-transactions-new-columns-v0.9.41",
+    // ─── v0.9.41 — Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix
+    "admin-binh-luan-full-moderation-v0.9.41",
+    "admin-binh-luan-hide-show-delete-v0.9.41",
+    "admin-binh-luan-toggle-pin-v0.9.41",
+    "admin-binh-luan-toggle-lock-v0.9.41",
+    "admin-binh-luan-fix-uuid-type-mismatch-v0.9.41",
+    "admin-nhom-full-moderation-v0.9.41",
+    "admin-nhom-toggle-lock-v0.9.41",
+    "admin-nhom-toggle-featured-v0.9.41",
+    "admin-nhom-soft-delete-v0.9.41",
+    "admin-tu-vung-cam-module-v0.9.41",
+    "admin-tu-vung-cam-crud-v0.9.41",
+    "admin-tu-vung-cam-block-and-flag-actions-v0.9.41",
+    "admin-tu-vung-cam-categories-v0.9.41",
+    "admin-tu-vung-cam-system-seed-9-words-v0.9.41",
+    "forbidden-words-table-v0.9.41",
+    "forbidden-words-check-helper-v0.9.41",
+    "comments-is-pinned-column-v0.9.41",
+    "comments-is-locked-column-v0.9.41",
+    "comments-moderation-status-v0.9.41",
+    "comments-moderated-by-at-v0.9.41",
+    "groups-is-featured-column-v0.9.41",
+    "groups-moderation-status-v0.9.41",
+    "groups-moderated-by-at-v0.9.41",
+    "topics-moderation-status-v0.9.41",
+    "topics-moderated-by-at-v0.9.41",
+    "heartbeat-fire-on-dom-ready-v0.9.41",
+    "heartbeat-interval-2min-v0.9.41",
+    "heartbeat-fire-on-tab-visible-v0.9.41",
+    "mobile-menu-2-column-grid-v0.9.41",
+    "mobile-menu-compact-padding-v0.9.41",
+    "music-submit-error-classification-v0.9.41",
+    "music-submit-error-detail-display-v0.9.41",
+    "migration-029-admin-moderation-v0.9.41",
+    "safety-schema-forbidden-words-v0.9.41",
+    "safety-schema-comments-new-columns-v0.9.41",
+    "safety-schema-groups-new-columns-v0.9.41",
+    "safety-schema-topics-new-columns-v0.9.41",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -779,7 +834,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.40",
+            "version": "0.9.41",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -809,11 +864,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.40",
+        "version": "0.9.41",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 44,
-        "phase_name": "Giai đoạn 44 — Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷",
+        "phase": 45,
+        "phase_name": "Giai đoạn 45 — Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

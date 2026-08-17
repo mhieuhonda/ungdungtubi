@@ -4,7 +4,29 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.40 — Giai đoạn 44
+## 📦 Phiên bản hiện tại: v0.9.41 — Giai đoạn 45
+
+**Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷**
+
+Bản phát hành này hoàn thiện **3 module admin còn sót** từ các giai đoạn trước, fix **4 bug user báo cáo**, và cải thiện UX mobile menu:
+
+1. **Hoàn thiện Quản lý Bình luận** — trước v0.9.41, trang `/admin/binh-luan` chỉ hiển thị placeholder "Module đang hoàn thiện" + read-only list (và list còn bị lỗi type mismatch UUID vs i64 → luôn rỗng). v0.9.41 thay bằng moderation UI đầy đủ: ẩn / hiện / xóa / ghim / khoá nhánh trả lời. Fix lỗi type mismatch (UUID thay vì i64).
+
+2. **Hoàn thiện Quản lý Nhóm Cộng Đồng** — tương tự bình luận, `/admin/cong-dong/nhom` chỉ là placeholder. v0.9.41 thay bằng moderation đầy đủ: khoá / mở khoá nhóm (is_active), đặt / bỏ đặc biệt (is_featured), xóa (soft delete).
+
+3. **Hoàn thiện module Từ vựng cấm** — trước v0.9.41, nút "Từ vựng cấm" trong admin dashboard chỉ là anchor `#tu-vung-cam` (không có trang). v0.9.41 thêm `/admin/tu-vung-cam` — CRUD đầy đủ: tạo / bật / tắt / xóa từ cấm. Phân loại (profanity / spam / politics / religious / scam / other) + action (block / flag). Seed 9 từ cấm hệ thống mặc định.
+
+4. **Fix bug "hoạt động 6 giờ trước dù đang online"** — trước v0.9.41, heartbeat client setInterval 10 phút, không fire ngay khi user login → `last_seen_at` rỗng cho đến lần tick đầu tiên (sau 10 phút). Admin stats đếm `WHERE last_seen_at > NOW() - INTERVAL '5 min'` → user vừa login không nằm trong top active. v0.9.41: fire heartbeat NGAY khi DOM ready + giảm interval xuống 2 phút + fire khi tab visible trở lại sau 1 phút idle.
+
+5. **Fix lỗi "không thể lưu bài hát vào cơ sở dữ liệu"** — trước v0.9.41, error message chỉ nói chung chung, không có cách debug. v0.9.41: phân loại lỗi (ColumnNotFound / Database / Decode), hiển thị error chi tiết cho user (để report admin), log đầy đủ user_id + title + category + audio_file_id để admin trace.
+
+6. **Rút gọn mobile menu thêm** — trước v0.9.41, mobile drawer dùng vertical list với padding lớn (py-2.5, gap-3, text-xl icon) → 27+ items vẫn chiếm nhiều chỗ. v0.9.41: chuyển sub-items sang **2-column grid** (compact gấp đôi), giảm padding (py-1.5, gap-2, text-base icon, text-xs font). 4 nút quick-access thu nhỏ (text-lg, text-[9px] label).
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0941--2026-08-17--giai-doạn-45-admin-moderation-hoàn-thiện--từ-vựng-cấm--heartbeat-fix--mobile-menu-compact--music-submit-error-log-).
+
+---
+
+## 📦 Phiên bản trước: v0.9.40 — Giai đoạn 44
 
 **Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷**
 

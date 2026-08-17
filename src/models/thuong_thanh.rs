@@ -1,13 +1,13 @@
 //! Models cho Thương Thành — Giai đoạn 40 (v0.9.35).
-//! v0.9.40 — Giai đoạn 44: Chợ Đạo Hữu (rename PvP → Đạo Hữu, thêm payment_method bank + category_id).
+//! v0.9.41 — Giai đoạn 44: Chợ Đạo Hữu (rename PvP → Đạo Hữu, thêm payment_method bank + category_id).
 //!
 //! Theo `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục V:
 //!   * 2 cửa hàng: Cửa Hàng Ứng Dụng (app), Chợ Đạo Hữu (dao_huu — trước là pvp)
 //!   * CRUD vật phẩm — tạo/xem/sửa/xoá
 //!   * Giỏ hàng — thêm/xoá/thanh toán
 //!   * Giao dịch K — mua/bán/chuyển/refund
-//!   * v0.9.40: user có thể chọn nhận K hoặc chuyển khoản ngân hàng khi đăng bán
-//!   * v0.9.40: user có thể chọn danh mục có sẵn hoặc tạo mới khi đăng bán
+//!   * v0.9.41: user có thể chọn nhận K hoặc chuyển khoản ngân hàng khi đăng bán
+//!   * v0.9.41: user có thể chọn danh mục có sẵn hoặc tạo mới khi đăng bán
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ use uuid::Uuid;
 pub enum ShopStore {
     /// Cửa Hàng Ứng Dụng — vật phẩm hệ thống (thẻ, phiếu, danh hiệu)
     App,
-    /// Chợ Đạo Hữu — người dùng tự đăng bán (v0.9.40 rename từ PvP).
+    /// Chợ Đạo Hữu — người dùng tự đăng bán (v0.9.41 rename từ PvP).
     /// Store value trong DB vẫn có thể là 'pvp' (data cũ) hoặc 'dao_huu' (mới).
     DaoHuu,
 }
@@ -52,7 +52,7 @@ impl ShopStore {
     pub fn from_str(s: &str) -> Self {
         match s {
             "app" => Self::App,
-            // v0.9.40: 'pvp' (cũ) và 'dao_huu' (mới) đều map về DaoHuu — cùng 1 marketplace.
+            // v0.9.41: 'pvp' (cũ) và 'dao_huu' (mới) đều map về DaoHuu — cùng 1 marketplace.
             "pvp" | "dao_huu" => Self::DaoHuu,
             _ => Self::App,
         }
@@ -115,7 +115,7 @@ impl TxType {
 
 // ─── DB Models ────────────────────────────────────────────────────────
 
-/// Một danh mục Thương Thành (v0.9.40 — Giai đoạn 44).
+/// Một danh mục Thương Thành (v0.9.41 — Giai đoạn 44).
 /// Admin tạo (is_system = true) hoặc user tự tạo khi đăng bán.
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct ShopCategory {
@@ -157,22 +157,22 @@ pub struct ShopItem {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    /// v0.9.40 — link tới shop_categories(id). NULL cho item cũ dùng `category` TEXT.
+    /// v0.9.41 — link tới shop_categories(id). NULL cho item cũ dùng `category` TEXT.
     #[sqlx(default)]
     pub category_id: Option<i64>,
-    /// v0.9.40 — 'k' (nhận K) hoặc 'bank' (nhận chuyển khoản ngân hàng).
+    /// v0.9.41 — 'k' (nhận K) hoặc 'bank' (nhận chuyển khoản ngân hàng).
     #[sqlx(default)]
     pub payment_method: String,
-    /// v0.9.40 — giá VNĐ khi payment_method = 'bank'.
+    /// v0.9.41 — giá VNĐ khi payment_method = 'bank'.
     #[sqlx(default)]
     pub price_vnd: Option<i64>,
-    /// v0.9.40 — JSONB {bank_name, account_number, account_holder, qr_image_url}.
+    /// v0.9.41 — JSONB {bank_name, account_number, account_holder, qr_image_url}.
     #[sqlx(default)]
     pub bank_info: Option<serde_json::Value>,
-    /// v0.9.40 — admin có thể set nổi bật.
+    /// v0.9.41 — admin có thể set nổi bật.
     #[sqlx(default)]
     pub is_featured: bool,
-    /// v0.9.40 — 'pending' | 'approved' | 'rejected' | 'removed'.
+    /// v0.9.41 — 'pending' | 'approved' | 'rejected' | 'removed'.
     #[sqlx(default)]
     pub moderation_status: String,
 }
@@ -184,7 +184,7 @@ impl ShopItem {
     }
 
     /// Hiển thị giá K (nếu payment_method = 'k') hoặc giá VNĐ (nếu 'bank').
-    /// v0.9.40: hỗ trợ 2 loại payment.
+    /// v0.9.41: hỗ trợ 2 loại payment.
     pub fn price_display(&self) -> String {
         if self.payment_method == "bank" {
             if let Some(vnd) = self.price_vnd {
@@ -257,7 +257,7 @@ impl ShopItem {
 }
 
 /// Vật phẩm kèm tên người bán (Chợ Đạo Hữu).
-/// v0.9.40: rename từ PvP → Đạo Hữu, thêm các trường payment_method, bank_info.
+/// v0.9.41: rename từ PvP → Đạo Hữu, thêm các trường payment_method, bank_info.
 #[derive(Debug, Clone, FromRow, Serialize)]
 pub struct ShopItemWithSeller {
     pub id: i64,
@@ -283,31 +283,31 @@ pub struct ShopItemWithSeller {
     pub seller_name: Option<String>,
     /// avatar_url từ users
     pub seller_avatar: Option<String>,
-    /// v0.9.40 — link tới shop_categories(id).
+    /// v0.9.41 — link tới shop_categories(id).
     #[sqlx(default)]
     pub category_id: Option<i64>,
-    /// v0.9.40 — 'k' hoặc 'bank'.
+    /// v0.9.41 — 'k' hoặc 'bank'.
     #[sqlx(default)]
     pub payment_method: String,
-    /// v0.9.40 — giá VNĐ khi payment_method = 'bank'.
+    /// v0.9.41 — giá VNĐ khi payment_method = 'bank'.
     #[sqlx(default)]
     pub price_vnd: Option<i64>,
-    /// v0.9.40 — JSONB {bank_name, account_number, account_holder, qr_image_url}.
+    /// v0.9.41 — JSONB {bank_name, account_number, account_holder, qr_image_url}.
     #[sqlx(default)]
     pub bank_info: Option<serde_json::Value>,
-    /// v0.9.40 — nổi bật do admin set.
+    /// v0.9.41 — nổi bật do admin set.
     #[sqlx(default)]
     pub is_featured: bool,
-    /// v0.9.40 — 'pending' | 'approved' | 'rejected' | 'removed'.
+    /// v0.9.41 — 'pending' | 'approved' | 'rejected' | 'removed'.
     #[sqlx(default)]
     pub moderation_status: String,
-    /// v0.9.40 — tên danh mục (JOIN shop_categories).
+    /// v0.9.41 — tên danh mục (JOIN shop_categories).
     #[sqlx(default)]
     pub category_name: Option<String>,
-    /// v0.9.40 — slug danh mục (JOIN shop_categories).
+    /// v0.9.41 — slug danh mục (JOIN shop_categories).
     #[sqlx(default)]
     pub category_slug: Option<String>,
-    /// v0.9.40 — icon danh mục (JOIN shop_categories).
+    /// v0.9.41 — icon danh mục (JOIN shop_categories).
     #[sqlx(default)]
     pub category_icon: Option<String>,
 }
@@ -366,7 +366,7 @@ impl ShopItemWithSeller {
     }
 
     pub fn category_label(&self) -> String {
-        // v0.9.40: ưu tiên category_name (từ JOIN shop_categories), fallback về TEXT map.
+        // v0.9.41: ưu tiên category_name (từ JOIN shop_categories), fallback về TEXT map.
         if let Some(name) = &self.category_name {
             return name.clone();
         }
@@ -529,7 +529,7 @@ impl TransactionWithUsers {
 
 // ─── Form Structs ─────────────────────────────────────────────────────
 
-/// Thông tin ngân hàng cho payment_method = 'bank' (v0.9.40 — Giai đoạn 44).
+/// Thông tin ngân hàng cho payment_method = 'bank' (v0.9.41 — Giai đoạn 44).
 /// Lưu vào shop_items.bank_info dưới dạng JSONB.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BankInfo {
@@ -594,7 +594,7 @@ pub fn format_vnd(amount: i64) -> String {
     out
 }
 
-/// Form tạo vật phẩm (Chợ Đạo Hữu — v0.9.40).
+/// Form tạo vật phẩm (Chợ Đạo Hữu — v0.9.41).
 /// User có thể chọn category có sẵn (category_id) hoặc tạo mới (new_category_name).
 /// User có thể chọn nhận K (payment_method = 'k') hoặc ngân hàng ('bank').
 #[derive(Debug, Deserialize)]

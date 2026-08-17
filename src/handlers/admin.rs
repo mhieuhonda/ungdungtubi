@@ -1490,13 +1490,13 @@ async fn fetch_admin_funds_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminFun
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// v0.9.40 — Giai đoạn 44: Admin Thương Thành hoàn thiện
+// v0.9.41 — Giai đoạn 44: Admin Thương Thành hoàn thiện
 // ════════════════════════════════════════════════════════════════════════════
 //
-// Trước v0.9.40, admin không có UI quản lý Thương Thành — không thể duyệt, xóa,
+// Trước v0.9.41, admin không có UI quản lý Thương Thành — không thể duyệt, xóa,
 // hoặc feature sản phẩm do user đăng. Module chỉ có ở mặt user. User report
 // không có cách kiểm duyệt sản phẩm đăng bán (đặc biệt khi user chọn bank payment
-// với thông tin ngân hàng của họ). v0.9.40 thêm:
+// với thông tin ngân hàng của họ). v0.9.41 thêm:
 //
 //   - GET  /admin/thuong-thanh — List all shop_items (App + Đạo Hữu), filter
 //                                  theo store + moderation_status, kèm actions.
@@ -1560,7 +1560,7 @@ pub struct AdminThuongThanhTemplate {
     pub items: Vec<AdminShopItemRow>,
     pub error: Option<String>,
     pub success: Option<String>,
-    /// v0.9.40: precomputed counts cho template (askama không hỗ trợ .iter().filter()).
+    /// v0.9.41: precomputed counts cho template (askama không hỗ trợ .iter().filter()).
     pub total_active: usize,
     pub total_featured: usize,
     pub total_pending: usize,
@@ -2098,4 +2098,783 @@ async fn render_admin_categories_result(
     });
 
     Html(html).into_response()
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// v0.9.41 — Giai đoạn 45: Admin Moderation hoàn thiện + Từ vựng cấm
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Trước v0.9.41, 3 module admin sau vẫn là placeholder (read-only list):
+//   - GET /admin/binh-luan — Quản lý Bình luận
+//   - GET /admin/cong-dong/nhom — Quản lý Nhóm Cộng Đồng
+//   - GET /admin/tu-vung-cam — Từ vựng cấm (chỉ anchor, không có page)
+//
+// User report: "Module Quản lý Bình luận hiện đang ở giai đoạn hoàn thiện.
+// Phiên bản v0.9.32 hiển thị danh sách read-only bên dưới..." dù đã qua rất
+// nhiều giai đoạn. v0.9.41 thay placeholder bằng module moderation đầy đủ:
+//
+// Quản lý Bình luận:
+//   - GET  /admin/binh-luan — List 100 comments mới nhất với moderation_status
+//   - POST /admin/binh-luan/{id}/an — Ẩn (is_active=false)
+//   - POST /admin/binh-luan/{id}/hien — Hiện lại (is_active=true)
+//   - POST /admin/binh-luan/{id}/xoa — Xóa hard (DELETE)
+//   - POST /admin/binh-luan/{id}/ghim — Toggle is_pinned
+//   - POST /admin/binh-luan/{id}/khoa — Toggle is_locked
+//
+// Quản lý Nhóm Cộng Đồng:
+//   - GET  /admin/cong-dong/nhom — List 100 nhóm với moderation_status
+//   - POST /admin/cong-dong/nhom/{id}/khoa — Toggle is_active (lock/unlock)
+//   - POST /admin/cong-dong/nhom/{id}/dac-biet — Toggle is_featured
+//   - POST /admin/cong-dong/nhom/{id}/xoa — Xóa (soft delete: is_active=false)
+//
+// Từ vựng cấm:
+//   - GET  /admin/tu-vung-cam — List forbidden_words
+//   - POST /admin/tu-vung-cam/tao — Tạo forbidden word mới
+//   - POST /admin/tu-vung-cam/{id}/bat — Bật (is_active=true)
+//   - POST /admin/tu-vung-cam/{id}/tat — Tắt (is_active=false)
+//   - POST /admin/tu-vung-cam/{id}/xoa — Xóa (chỉ cho non-system)
+
+// ─── Row structs ───────────────────────────────────────────────────────────
+
+/// Row data cho danh sách bình luận trong trang moderation.
+/// v0.9.41: Sửa lỗi type mismatch — `id` và `topic_id` đều là UUID (không phải i64).
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminCommentModerationRow {
+    pub id: Uuid,
+    pub body: String,
+    pub author_id: Uuid,
+    pub author_name: String,
+    pub author_avatar: Option<String>,
+    pub author_role: String,
+    pub topic_id: Uuid,
+    pub topic_title: String,
+    pub group_id: Uuid,
+    pub group_name: String,
+    pub group_slug: String,
+    pub is_active: bool,
+    pub is_pinned: bool,
+    pub is_locked: bool,
+    pub moderation_status: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách nhóm trong trang moderation.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminGroupModerationRow {
+    pub id: Uuid,
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    pub visibility: String,
+    pub is_active: bool,
+    pub is_featured: bool,
+    pub moderation_status: String,
+    pub owner_name: String,
+    pub owner_avatar: Option<String>,
+    pub member_count: i64,
+    pub topic_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách forbidden_words.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct ForbiddenWordRow {
+    pub id: i64,
+    pub word: String,
+    pub action: String,
+    pub category: String,
+    pub reason: Option<String>,
+    pub is_system: bool,
+    pub is_active: bool,
+    pub created_by_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+// ─── Templates ─────────────────────────────────────────────────────────────
+
+/// Template cho /admin/binh-luan — full moderation UI.
+#[derive(Template)]
+#[template(path = "admin/binh-luan/index.html")]
+pub struct AdminBinhLuanTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+    pub comments: Vec<AdminCommentModerationRow>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+    /// Precomputed counts cho template.
+    pub total_visible: usize,
+    pub total_hidden: usize,
+    pub total_pinned: usize,
+    pub total_flagged: usize,
+}
+
+/// Template cho /admin/cong-dong/nhom — full moderation UI.
+#[derive(Template)]
+#[template(path = "admin/cong-dong/nhom.html")]
+pub struct AdminNhomTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+    pub groups: Vec<AdminGroupModerationRow>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+    pub total_active: usize,
+    pub total_locked: usize,
+    pub total_featured: usize,
+}
+
+/// Template cho /admin/tu-vung-cam — manage forbidden words.
+#[derive(Template)]
+#[template(path = "admin/tu-vung-cam/index.html")]
+pub struct AdminTuVungCamTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+    pub words: Vec<ForbiddenWordRow>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+    pub total_active: usize,
+    pub total_inactive: usize,
+    pub total_system: usize,
+}
+
+// ─── Quản lý Bình luận — handlers ──────────────────────────────────────────
+
+/// GET /admin/binh-luan — Full moderation UI (replace placeholder).
+pub async fn admin_binh_luan_list(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let comments = fetch_admin_comments_moderation(&state.pool, 100).await;
+    let total_visible = comments.iter().filter(|c| c.is_active).count();
+    let total_hidden = comments.iter().filter(|c| !c.is_active).count();
+    let total_pinned = comments.iter().filter(|c| c.is_pinned).count();
+    let total_flagged = comments.iter().filter(|c| c.moderation_status == "flagged").count();
+
+    let html = AdminBinhLuanTemplate {
+        user: Some(user),
+        stats,
+        comments,
+        error: None,
+        success: None,
+        total_visible,
+        total_hidden,
+        total_pinned,
+        total_flagged,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin binh luan list): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// POST /admin/binh-luan/{id}/an — Ẩn bình luận (is_active=false).
+pub async fn admin_binh_luan_hide(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(comment_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE comments SET is_active = false, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(comment_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("👁️ Admin {} ẩn bình luận #{}", user.display_name, comment_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi ẩn bình luận #{comment_id}: {e}"),
+    }
+    Redirect::to("/admin/binh-luan").into_response()
+}
+
+/// POST /admin/binh-luan/{id}/hien — Hiện lại bình luận (is_active=true).
+pub async fn admin_binh_luan_show(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(comment_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE comments SET is_active = true, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(comment_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("👁️ Admin {} hiện bình luận #{}", user.display_name, comment_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi hiện bình luận #{comment_id}: {e}"),
+    }
+    Redirect::to("/admin/binh-luan").into_response()
+}
+
+/// POST /admin/binh-luan/{id}/xoa — Xóa hard bình luận.
+pub async fn admin_binh_luan_delete(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(comment_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    // Lấy topic_id trước khi xóa để update counter
+    let topic_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT topic_id FROM comments WHERE id = $1"
+    )
+    .bind(comment_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    match sqlx::query("DELETE FROM comments WHERE id = $1")
+        .bind(comment_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            // Update comment_count trigger should handle this, nhưng gọi thêm cho chắc.
+            if let Some(tid) = topic_id {
+                let _ = sqlx::query(
+                    "UPDATE topics SET comment_count = GREATEST(comment_count - 1, 0), updated_at = NOW() WHERE id = $1"
+                )
+                .bind(tid)
+                .execute(&state.pool)
+                .await;
+            }
+            log::info!("🗑️ Admin {} xóa bình luận #{}", user.display_name, comment_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi xóa bình luận #{comment_id}: {e}"),
+    }
+    Redirect::to("/admin/binh-luan").into_response()
+}
+
+/// POST /admin/binh-luan/{id}/ghim — Toggle is_pinned.
+pub async fn admin_binh_luan_toggle_pin(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(comment_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE comments SET is_pinned = NOT is_pinned, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(comment_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("📌 Admin {} toggle pin bình luận #{}", user.display_name, comment_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi toggle pin bình luận #{comment_id}: {e}"),
+    }
+    Redirect::to("/admin/binh-luan").into_response()
+}
+
+/// POST /admin/binh-luan/{id}/khoa — Toggle is_locked (khoá nhánh trả lời).
+pub async fn admin_binh_luan_toggle_lock(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(comment_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE comments SET is_locked = NOT is_locked, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(comment_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("🔒 Admin {} toggle lock bình luận #{}", user.display_name, comment_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi toggle lock bình luận #{comment_id}: {e}"),
+    }
+    Redirect::to("/admin/binh-luan").into_response()
+}
+
+/// Fetch comments cho moderation list — JOIN users + topics + groups.
+/// v0.9.41: Sửa lỗi type mismatch (UUID thay vì i64) + thêm fields mới.
+async fn fetch_admin_comments_moderation(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminCommentModerationRow> {
+    sqlx::query_as::<_, AdminCommentModerationRow>(
+        "SELECT c.id, c.body, c.author_id, u.display_name AS author_name, u.avatar_url AS author_avatar,
+                u.role AS author_role, c.topic_id, t.title AS topic_title,
+                g.id AS group_id, g.name AS group_name, g.slug AS group_slug,
+                c.is_active, c.is_pinned, c.is_locked, c.moderation_status, c.created_at
+         FROM comments c
+         JOIN users u ON u.id = c.author_id
+         JOIN topics t ON t.id = c.topic_id
+         JOIN groups g ON g.id = t.group_id
+         ORDER BY c.is_pinned DESC, c.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin comments moderation: {e}");
+        vec![]
+    })
+}
+
+// ─── Quản lý Nhóm Cộng Đồng — handlers ─────────────────────────────────────
+
+/// GET /admin/cong-dong/nhom — Full moderation UI (replace placeholder).
+pub async fn admin_nhom_list(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let groups = fetch_admin_groups_moderation(&state.pool, 100).await;
+    let total_active = groups.iter().filter(|g| g.is_active).count();
+    let total_locked = groups.iter().filter(|g| !g.is_active).count();
+    let total_featured = groups.iter().filter(|g| g.is_featured).count();
+
+    let html = AdminNhomTemplate {
+        user: Some(user),
+        stats,
+        groups,
+        error: None,
+        success: None,
+        total_active,
+        total_locked,
+        total_featured,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin nhom list): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// POST /admin/cong-dong/nhom/{id}/khoa — Toggle is_active (lock/unlock nhóm).
+pub async fn admin_nhom_toggle_lock(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(group_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE groups SET is_active = NOT is_active, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(group_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("🔒 Admin {} toggle lock nhóm #{}", user.display_name, group_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi toggle lock nhóm #{group_id}: {e}"),
+    }
+    Redirect::to("/admin/cong-dong/nhom").into_response()
+}
+
+/// POST /admin/cong-dong/nhom/{id}/dac-biet — Toggle is_featured.
+pub async fn admin_nhom_toggle_featured(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(group_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE groups SET is_featured = NOT is_featured, moderated_by = $2, moderated_at = NOW(), updated_at = NOW() \
+         WHERE id = $1"
+    )
+    .bind(group_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("⭐ Admin {} toggle featured nhóm #{}", user.display_name, group_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi toggle featured nhóm #{group_id}: {e}"),
+    }
+    Redirect::to("/admin/cong-dong/nhom").into_response()
+}
+
+/// POST /admin/cong-dong/nhom/{id}/xoa — Xóa nhóm (soft delete: is_active=false, moderation_status='removed').
+pub async fn admin_nhom_delete(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(group_id): Path<Uuid>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query(
+        "UPDATE groups SET is_active = false, moderation_status = 'rejected', \
+         moderated_by = $2, moderated_at = NOW(), updated_at = NOW() WHERE id = $1"
+    )
+    .bind(group_id)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("🗑️ Admin {} xóa (ẩn) nhóm #{}", user.display_name, group_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi xóa nhóm #{group_id}: {e}"),
+    }
+    Redirect::to("/admin/cong-dong/nhom").into_response()
+}
+
+/// Fetch groups cho moderation list — JOIN users để lấy owner.
+/// v0.9.41: Sửa lỗi type mismatch + thêm fields mới (is_featured, moderation_status, owner_name).
+async fn fetch_admin_groups_moderation(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminGroupModerationRow> {
+    sqlx::query_as::<_, AdminGroupModerationRow>(
+        "SELECT g.id, g.name, g.slug, g.description, g.visibility, g.is_active, g.is_featured,
+                g.moderation_status,
+                u.display_name AS owner_name, u.avatar_url AS owner_avatar,
+                (SELECT COUNT(*)::BIGINT FROM group_members gm WHERE gm.group_id = g.id) AS member_count,
+                (SELECT COUNT(*)::BIGINT FROM topics t WHERE t.group_id = g.id) AS topic_count,
+                g.created_at
+         FROM groups g
+         JOIN users u ON u.id = g.owner_id
+         ORDER BY g.is_featured DESC, g.created_at DESC
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin groups moderation: {e}");
+        vec![]
+    })
+}
+
+// ─── Từ vựng cấm — handlers ────────────────────────────────────────────────
+
+/// Form tạo forbidden word mới.
+#[derive(Debug, Deserialize)]
+pub struct ForbiddenWordForm {
+    pub word: String,
+    pub action: String,
+    pub category: String,
+    pub reason: Option<String>,
+}
+
+/// GET /admin/tu-vung-cam — List forbidden words.
+pub async fn admin_tu_vung_cam_list(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let words = fetch_forbidden_words(&state.pool).await;
+    let total_active = words.iter().filter(|w| w.is_active).count();
+    let total_inactive = words.iter().filter(|w| !w.is_active).count();
+    let total_system = words.iter().filter(|w| w.is_system).count();
+
+    let html = AdminTuVungCamTemplate {
+        user: Some(user),
+        stats,
+        words,
+        error: None,
+        success: None,
+        total_active,
+        total_inactive,
+        total_system,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin tu vung cam list): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// POST /admin/tu-vung-cam/tao — Tạo forbidden word mới.
+pub async fn admin_tu_vung_cam_create(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<ForbiddenWordForm>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+
+    // Validate
+    let word = form.word.trim().to_lowercase();
+    if word.is_empty() {
+        return render_tu_vung_cam_result(
+            &state.pool, &user, Some("Từ cấm không được để trống."), None
+        ).await;
+    }
+    if word.chars().count() > 100 {
+        return render_tu_vung_cam_result(
+            &state.pool, &user, Some("Từ cấm tối đa 100 ký tự."), None
+        ).await;
+    }
+    if !["block", "flag"].contains(&form.action.as_str()) {
+        return render_tu_vung_cam_result(
+            &state.pool, &user, Some("Action phải là 'block' hoặc 'flag'."), None
+        ).await;
+    }
+    if !["profanity", "spam", "politics", "religious", "scam", "other"].contains(&form.category.as_str()) {
+        return render_tu_vung_cam_result(
+            &state.pool, &user, Some("Category không hợp lệ."), None
+        ).await;
+    }
+    let reason = form.reason.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+
+    match sqlx::query(
+        "INSERT INTO forbidden_words (word, action, category, reason, is_system, is_active, created_by) \
+         VALUES ($1, $2, $3, $4, false, true, $5) \
+         ON CONFLICT (word) DO UPDATE SET is_active = true, updated_at = NOW()"
+    )
+    .bind(&word)
+    .bind(&form.action)
+    .bind(&form.category)
+    .bind(reason)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(_) => {
+            log::info!("🚫 Admin {} thêm từ cấm '{}'", user.display_name, word);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi thêm từ cấm '{word}': {e}");
+            return render_tu_vung_cam_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+    render_tu_vung_cam_result(
+        &state.pool, &user, None, Some(&format!("Đã thêm từ cấm '{word}'."))
+    ).await
+}
+
+/// POST /admin/tu-vung-cam/{id}/bat — Bật (is_active=true).
+pub async fn admin_tu_vung_cam_enable(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(word_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query("UPDATE forbidden_words SET is_active = true, updated_at = NOW() WHERE id = $1")
+        .bind(word_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("✅ Admin {} bật từ cấm #{}", user.display_name, word_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi bật từ cấm #{word_id}: {e}"),
+    }
+    Redirect::to("/admin/tu-vung-cam").into_response()
+}
+
+/// POST /admin/tu-vung-cam/{id}/tat — Tắt (is_active=false).
+pub async fn admin_tu_vung_cam_disable(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(word_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_staff() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query("UPDATE forbidden_words SET is_active = false, updated_at = NOW() WHERE id = $1")
+        .bind(word_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("⚪ Admin {} tắt từ cấm #{}", user.display_name, word_id);
+        }
+        Ok(_) => {}
+        Err(e) => log::error!("❌ Lỗi tắt từ cấm #{word_id}: {e}"),
+    }
+    Redirect::to("/admin/tu-vung-cam").into_response()
+}
+
+/// POST /admin/tu-vung-cam/{id}/xoa — Xóa (chỉ cho non-system).
+pub async fn admin_tu_vung_cam_delete(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(word_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+    match sqlx::query("DELETE FROM forbidden_words WHERE id = $1 AND is_system = false")
+        .bind(word_id)
+        .execute(&state.pool)
+        .await
+    {
+        Ok(r) if r.rows_affected() > 0 => {
+            log::info!("🗑️ Admin {} xóa từ cấm #{}", user.display_name, word_id);
+        }
+        Ok(_) => {
+            // System word — không xóa được
+            return render_tu_vung_cam_result(
+                &state.pool, &user, Some("Không thể xóa từ cấm hệ thống. Bạn có thể tắt nó."), None
+            ).await;
+        }
+        Err(e) => log::error!("❌ Lỗi xóa từ cấm #{word_id}: {e}"),
+    }
+    Redirect::to("/admin/tu-vung-cam").into_response()
+}
+
+/// Fetch all forbidden_words (kèm creator_name JOIN).
+async fn fetch_forbidden_words(pool: &sqlx::PgPool) -> Vec<ForbiddenWordRow> {
+    sqlx::query_as::<_, ForbiddenWordRow>(
+        "SELECT fw.id, fw.word, fw.action, fw.category, fw.reason, fw.is_system, fw.is_active,
+                u.display_name AS created_by_name, fw.created_at
+         FROM forbidden_words fw
+         LEFT JOIN users u ON u.id = fw.created_by
+         ORDER BY fw.is_active DESC, fw.is_system DESC, fw.created_at DESC"
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch forbidden words: {e}");
+        vec![]
+    })
+}
+
+/// Render admin tu vung cam page with result message.
+async fn render_tu_vung_cam_result(
+    pool: &sqlx::PgPool,
+    actor: &User,
+    error: Option<&str>,
+    success: Option<&str>,
+) -> Response {
+    let stats = fetch_admin_stats_or_default(pool).await;
+    let words = fetch_forbidden_words(pool).await;
+    let total_active = words.iter().filter(|w| w.is_active).count();
+    let total_inactive = words.iter().filter(|w| !w.is_active).count();
+    let total_system = words.iter().filter(|w| w.is_system).count();
+
+    let html = AdminTuVungCamTemplate {
+        user: Some(actor.clone()),
+        stats,
+        words,
+        error: error.map(String::from),
+        success: success.map(String::from),
+        total_active,
+        total_inactive,
+        total_system,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin tu vung cam result): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+    Html(html).into_response()
+}
+
+/// Helper: kiểm tra content có chứa từ cấm không.
+/// Trả về Some(word) nếu có — caller quyết định block hay flag.
+///
+/// Logic:
+///   - Load tất cả forbidden_words active.
+///   - Lowercase content + lowercase word + ILIKE match.
+///   - Trả về word đầu tiên tìm được (block hoặc flag).
+pub async fn check_forbidden_words(pool: &sqlx::PgPool, content: &str) -> Option<(String, String)> {
+    let words: Vec<(String, String)> = sqlx::query_as(
+        "SELECT word, action FROM forbidden_words WHERE is_active = true"
+    )
+    .fetch_all(pool)
+    .await
+    .ok()
+    .unwrap_or_default();
+
+    let content_lower = content.to_lowercase();
+    for (word, action) in &words {
+        if content_lower.contains(word.as_str()) {
+            return Some((word.clone(), action.clone()));
+        }
+    }
+    None
 }

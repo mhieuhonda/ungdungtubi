@@ -43,14 +43,42 @@ const PrayerCounter = {
 };
 
 // ====================================================================
-// Session heartbeat (keep session alive)
-// v0.9.29: Tăng interval từ 5 phút → 10 phút để giảm tải server.
+// Session heartbeat (keep session alive + update last_seen_at)
+// v0.9.41 — Giai đoạn 45 FIX:
+//   - Trước v0.9.41: setInterval 10 phút → user vừa login vẫn báo
+//     "hoạt động 6 giờ trước" vì last_seen_at chưa được update (chờ 10 phút
+//     mới tick lần đầu). Admin stats đếm WHERE last_seen_at > NOW() - 5 min
+//     → user không nằm trong top "active 5 phút" → hiện "X giờ trước".
+//   - Fix v0.9.41: fire heartbeat NGAY khi DOM ready (không chờ 10 phút),
+//     giảm interval xuống 2 phút (đảm bảo user luôn trong cửa sổ 5 phút
+//     "đang hoạt động" khi đang browse web).
 // ====================================================================
 
 function sessionHeartbeat() {
+    // Fire ngay lập tức khi user login — update last_seen_at = NOW()
+    // (trước v0.9.41: phải chờ 10 phút mới tick lần đầu → user báo "6 giờ trước")
+    fetch('/api/heartbeat', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+
+    // Interval 2 phút (120000ms) — đảm bảo user active luôn trong cửa sổ 5 phút
+    // "đang hoạt động" của admin stats. Trước v0.9.41: 10 phút → có khoảng
+    // 5 phút user vẫn active nhưng admin thấy "không online".
     setInterval(() => {
         fetch('/api/heartbeat', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
-    }, 10 * 60 * 1000);
+    }, 2 * 60 * 1000);
+
+    // Fire khi user tương tác sau khi tab hidden > 1 phút (resume session)
+    let lastActive = Date.now();
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            const idleMs = Date.now() - lastActive;
+            if (idleMs > 60 * 1000) {
+                fetch('/api/heartbeat', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+            }
+            lastActive = Date.now();
+        }
+    });
+    document.addEventListener('click', () => { lastActive = Date.now(); });
+    document.addEventListener('keydown', () => { lastActive = Date.now(); });
 }
 
 // ====================================================================

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="vi" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f766e">
+    <title>Quản Lý Bình Luận — Ứng Dụng Từ Bi v0.9.41</title>
+    <!-- v0.9.41 — Giai đoạn 45: Full moderation UI (replace placeholder) -->
+    <script>
+        (function() {
+            try {
+                var c = document.cookie.match(/(?:^|;\s*)theme=([^;]+)/);
+                var t = c ? c[1] : localStorage.getItem('tubi_theme');
+                if (!t) t = 'lotus';
+                if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'tubi': { 50:'#f0fdf4',100:'#dcfce7',200:'#bbf7d0',300:'#86efac',400:'#4ade80',500:'#22c55e',600:'#16a34a',700:'#15803d',800:'#166534',900:'#14532d',950:'#052e16' },
+                        'lotus': { 50:'#fffbeb',100:'#fef3c7',200:'#fde68a',300:'#fcd34d',400:'#fbbf24',500:'#f59e0b',600:'#d97706',700:'#b45309',800:'#92400e',900:'#78350f' },
+                        'ink': '#0f172a', 'paper': '#fafaf9',
+                    },
+                    fontFamily: { sans: ['Inter','Be Vietnam Pro','system-ui','sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <link rel="icon" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { font-family: 'Inter', 'Be Vietnam Pro', system-ui, sans-serif; }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
+</head>
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-slate-100 min-h-screen flex flex-col transition-colors">
+
+    <!-- Top Bar -->
+    <header class="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-40 backdrop-blur">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-14">
+                <div class="flex items-center gap-3 min-w-0">
+                    {% if let Some(u) = user %}
+                    <a href="{{ u.admin_dashboard_path() }}" class="text-gray-500 dark:text-slate-400 hover:text-tubi-700 dark:hover:text-tubi-300 transition shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                        </svg>
+                    </a>
+                    {% endif %}
+                    <span class="text-2xl shrink-0">💬</span>
+                    <div class="min-w-0">
+                        <h1 class="text-sm sm:text-base font-bold text-ink dark:text-slate-100 truncate">Quản Lý Bình Luận</h1>
+                        <p class="text-[11px] text-gray-500 dark:text-slate-400 truncate hidden sm:block">Ẩn · Hiện · Xóa · Ghim · Khoá nhánh trả lời</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% if let Some(u) = user %}
+                    <span class="hidden sm:inline-flex px-2 py-1 rounded-md text-[11px] font-semibold text-white" style="background-color: {{ u.role_color() }}">
+                        {{ u.role_icon() }} {{ u.role_display() }}
+                    </span>
+                    {% endif %}
+                    <a href="/" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 transition">
+                        🏠 <span class="hidden sm:inline">Trang chủ</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 main-with-bottom-nav">
+
+        <!-- Thông báo kết quả -->
+        {% if let Some(err) = error.as_deref() %}
+        <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-xl px-4 py-3 text-sm">
+            ⚠️ {{ err }}
+        </div>
+        {% endif %}
+        {% if let Some(ok) = success.as_deref() %}
+        <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 rounded-xl px-4 py-3 text-sm">
+            ✅ {{ ok }}
+        </div>
+        {% endif %}
+
+        <!-- Banner: v0.9.41 — Đã hoàn thiện moderation -->
+        <section class="bg-gradient-to-br from-tubi-50 to-lotus-50 dark:from-slate-800 dark:to-slate-800 border border-tubi-200 dark:border-slate-700 rounded-2xl p-4 sm:p-5">
+            <div class="flex items-start gap-3">
+                <span class="text-3xl shrink-0">🪷</span>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-sm sm:text-base font-bold text-tubi-800 dark:text-tubi-300 mb-1">Module đã hoàn thiện — v0.9.41</h2>
+                    <p class="text-xs sm:text-sm text-gray-700 dark:text-slate-300 leading-relaxed">
+                        Module Quản Lý Bình Luận đã có đầy đủ tính năng kiểm duyệt: ẩn / hiện / xóa / ghim / khoá nhánh trả lời.
+                        Bình luận vi phạm có thể ẩn (giữ lịch sử) hoặc xóa cứng. Ghim để hiển thị đầu topic. Khoá để không cho trả lời nhánh đó.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stats -->
+        <section>
+            <h2 class="text-base sm:text-lg font-bold mb-3 flex items-center gap-2">
+                <span>📊</span><span>Tổng quan</span>
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Tổng bình luận</div>
+                    <div class="text-xl sm:text-2xl font-bold text-tubi-700 dark:text-tubi-300">{{ comments.len() }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Đang hiện</div>
+                    <div class="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">{{ total_visible }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Đã ẩn</div>
+                    <div class="text-xl sm:text-2xl font-bold text-amber-600 dark:text-amber-400">{{ total_hidden }}</div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-slate-700 shadow-sm">
+                    <div class="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 mb-1">Đã ghim</div>
+                    <div class="text-xl sm:text-2xl font-bold text-violet-600 dark:text-violet-400">{{ total_pinned }}</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Comments list -->
+        <section>
+            <h2 class="text-base sm:text-lg font-bold mb-3 flex items-center gap-2">
+                <span>📋</span><span>Danh sách bình luận ({{ comments.len() }})</span>
+            </h2>
+
+            {% if comments.is_empty() %}
+            <div class="text-center py-12 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-gray-300 dark:border-slate-700">
+                <div class="text-4xl mb-2">💬</div>
+                <p class="text-sm text-gray-500 dark:text-slate-400">Chưa có bình luận nào trong hệ thống.</p>
+            </div>
+            {% else %}
+            <div class="space-y-3">
+                {% for c in comments %}
+                <article class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:shadow-md transition-all duration-150 p-3 sm:p-4">
+                    <!-- Header: author + status -->
+                    <header class="flex items-start justify-between gap-3 mb-2">
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm bg-tubi-100 dark:bg-slate-700 text-tubi-700 dark:text-tubi-300">
+                                {{ c.author_name.chars().next().unwrap_or('🪷') }}
+                            </div>
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="font-semibold text-sm text-gray-900 dark:text-slate-100 truncate">{{ c.author_name }}</span>
+                                    {% if c.is_pinned %}<span class="text-[10px] bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 px-1.5 py-0.5 rounded-full font-semibold">📌 Ghim</span>{% endif %}
+                                    {% if c.is_locked %}<span class="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded-full font-semibold">🔒 Khoá</span>{% endif %}
+                                    {% if !c.is_active %}<span class="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-full font-semibold">🚫 Ẩn</span>{% endif %}
+                                    {% if c.moderation_status == "flagged" %}<span class="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded-full font-semibold">🚩 Flagged</span>{% endif %}
+                                </div>
+                                <a href="/cong-dong/chu-de/{{ c.topic_id }}" class="text-[11px] text-gray-500 dark:text-slate-400 truncate hover:text-tubi-700 dark:hover:text-tubi-300 block">
+                                    ↪ {{ c.topic_title }} · 🏛️ {{ c.group_name }}
+                                </a>
+                            </div>
+                        </div>
+                        <time class="text-[10px] text-gray-400 dark:text-slate-500 shrink-0">{{ c.created_at.format("%d/%m %H:%M") }}</time>
+                    </header>
+
+                    <!-- Body -->
+                    <p class="text-sm text-gray-700 dark:text-slate-200 line-clamp-3 mb-3 pl-10 sm:pl-11">{{ c.body }}</p>
+
+                    <!-- Actions -->
+                    <footer class="flex items-center gap-2 flex-wrap pl-10 sm:pl-11">
+                        {% if c.is_active %}
+                        <form method="POST" action="/admin/binh-luan/{{ c.id }}/an" class="inline">
+                            <button type="submit" class="text-xs px-2.5 py-1 rounded-md bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-semibold transition">
+                                👁️ Ẩn
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="/admin/binh-luan/{{ c.id }}/hien" class="inline">
+                            <button type="submit" class="text-xs px-2.5 py-1 rounded-md bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800 font-semibold transition">
+                                ✅ Hiện
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        <form method="POST" action="/admin/binh-luan/{{ c.id }}/ghim" class="inline">
+                            <button type="submit" class="text-xs px-2.5 py-1 rounded-md {% if c.is_pinned %}bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border-violet-300 dark:border-violet-800{% else %}bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 border-gray-200 dark:border-slate-600{% endif %} border font-semibold transition">
+                                📌 {% if c.is_pinned %}Bỏ ghim{% else %}Ghim{% endif %}
+                            </button>
+                        </form>
+
+                        <form method="POST" action="/admin/binh-luan/{{ c.id }}/khoa" class="inline">
+                            <button type="submit" class="text-xs px-2.5 py-1 rounded-md {% if c.is_locked %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-300 dark:border-red-800{% else %}bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 border-gray-200 dark:border-slate-600{% endif %} border font-semibold transition">
+                                🔒 {% if c.is_locked %}Mở khoá{% else %}Khoá{% endif %}
+                            </button>
+                        </form>
+
+                        <form method="POST" action="/admin/binh-luan/{{ c.id }}/xoa" class="inline"
+                              onsubmit="return confirm('⚠️ Xóa cứng bình luận này? Hành động không thể hoàn tác.');">
+                            <button type="submit" class="text-xs px-2.5 py-1 rounded-md bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 font-semibold transition">
+                                🗑️ Xóa
+                            </button>
+                        </form>
+                    </footer>
+                </article>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <!-- Back -->
+        <div class="flex justify-center pt-4">
+            {% if let Some(u) = user %}
+            <a href="{{ u.admin_dashboard_path() }}" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-tubi-700 hover:bg-tubi-800 text-white text-sm font-semibold transition shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                Trở về {{ u.role_display() }}
+            </a>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 text-center text-xs text-gray-500 dark:text-slate-400">
+            🪷 Ứng Dụng Từ Bi v0.9.41 · Quản Lý Bình Luận · Giai đoạn 45 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

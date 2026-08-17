@@ -311,226 +311,237 @@
              @keydown.escape.window="mobileMenu = false"
              class="mobile-menu-drawer md:hidden bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
 
-            <!-- 4 nút chính ở trên cùng (Trang Chủ + 4 chuyên mục) -->
-            <div class="grid grid-cols-4 gap-1 p-2 border-b border-gray-100 dark:border-slate-700">
-                <a href="/" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-2 px-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl leading-none">🏠</span>
-                    <span class="text-[10px] mt-1 font-medium text-center">Trang Chủ</span>
+            <!-- 4 nút chính ở trên cùng (Trang Chủ + 3 chuyên mục) -->
+            <div class="grid grid-cols-4 gap-0.5 p-1.5 border-b border-gray-100 dark:border-slate-700">
+                <a href="/" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-lg leading-none">🏠</span>
+                    <span class="text-[9px] mt-0.5 font-medium text-center">Trang Chủ</span>
                 </a>
-                <a href="/khong-gian" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-2 px-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl leading-none">🌍</span>
-                    <span class="text-[10px] mt-1 font-medium text-center">Không Gian</span>
+                <a href="/khong-gian" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-lg leading-none">🌍</span>
+                    <span class="text-[9px] mt-0.5 font-medium text-center">Không Gian</span>
                 </a>
-                <a href="/cong-dong" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-2 px-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl leading-none">👥</span>
-                    <span class="text-[10px] mt-1 font-medium text-center">Cộng Đồng</span>
+                <a href="/cong-dong" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-lg leading-none">👥</span>
+                    <span class="text-[9px] mt-0.5 font-medium text-center">Cộng Đồng</span>
                 </a>
-                <a href="/kinh-sach" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-2 px-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl leading-none">📚</span>
-                    <span class="text-[10px] mt-1 font-medium text-center">Kinh Sách</span>
+                <a href="/kinh-sach" @click="mobileMenu = false" class="flex flex-col items-center justify-center py-1.5 px-0.5 rounded-md hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-lg leading-none">📚</span>
+                    <span class="text-[9px] mt-0.5 font-medium text-center">Kinh Sách</span>
                 </a>
             </div>
 
-            <div class="px-2 py-1">
+            <div class="px-1.5 py-0.5">
                 <!-- Section: Không Gian -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'khong_gian' ? '' : 'khong_gian'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">🌍</span>
-                    <span class="text-sm font-medium flex-1 text-left">Không Gian</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'khong_gian' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🌍</span>
+                    <span class="text-xs font-medium flex-1 text-left">Không Gian</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'khong_gian' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'khong_gian'" x-collapse x-cloak class="pb-1">
-                    <a href="/khong-gian" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🧘</span>
-                        <span class="text-xs">Niệm Phật</span>
-                    </a>
-                    <a href="/khong-gian/nha-nhac" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🎵</span>
-                        <span class="text-xs">Nhà Nhạc</span>
-                    </a>
+                    <!-- v0.9.41: 2-column grid cho sub-items — compact hơn vertical list -->
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/khong-gian" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🧘</span>
+                            <span class="text-[11px]">Niệm Phật</span>
+                        </a>
+                        <a href="/khong-gian/nha-nhac" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🎵</span>
+                            <span class="text-[11px]">Nhà Nhạc</span>
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Section: Cộng Đồng -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'cong_dong' ? '' : 'cong_dong'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">👥</span>
-                    <span class="text-sm font-medium flex-1 text-left">Cộng Đồng</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'cong_dong' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">👥</span>
+                    <span class="text-xs font-medium flex-1 text-left">Cộng Đồng</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'cong_dong' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'cong_dong'" x-collapse x-cloak class="pb-1">
-                    <a href="/cong-dong" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">📋</span>
-                        <span class="text-xs">Tất Cả Nhóm</span>
-                    </a>
-                    <a href="/cong-dong/tao-nhom" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">➕</span>
-                        <span class="text-xs">Tạo Nhóm Mới</span>
-                    </a>
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/cong-dong" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">📋</span>
+                            <span class="text-[11px]">Tất Cả Nhóm</span>
+                        </a>
+                        <a href="/cong-dong/tao-nhom" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">➕</span>
+                            <span class="text-[11px]">Tạo Nhóm</span>
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Section: Bạn Bè -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'ban_be' ? '' : 'ban_be'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">👤</span>
-                    <span class="text-sm font-medium flex-1 text-left">Bạn Bè</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'ban_be' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">👤</span>
+                    <span class="text-xs font-medium flex-1 text-left">Bạn Bè</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'ban_be' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'ban_be'" x-collapse x-cloak class="pb-1">
-                    <a href="/ban-be" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">👥</span>
-                        <span class="text-xs">Danh Sách Bạn Bè</span>
-                    </a>
-                    <a href="/ban-be/tin-nhan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">💬</span>
-                        <span class="text-xs">Tin Nhắn</span>
-                    </a>
-                    <a href="/ban-be/thu" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">✉️</span>
-                        <span class="text-xs">Hộp Thư</span>
-                    </a>
-                    <a href="/ban-be/thong-bao" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🔔</span>
-                        <span class="text-xs">Thông Báo</span>
-                    </a>
-                    <a href="/ban-be/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🔍</span>
-                        <span class="text-xs">Tìm Bạn</span>
-                    </a>
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/ban-be" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">👥</span>
+                            <span class="text-[11px]">Bạn Bè</span>
+                        </a>
+                        <a href="/ban-be/tin-nhan" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">💬</span>
+                            <span class="text-[11px]">Tin Nhắn</span>
+                        </a>
+                        <a href="/ban-be/thu" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">✉️</span>
+                            <span class="text-[11px]">Hộp Thư</span>
+                        </a>
+                        <a href="/ban-be/thong-bao" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🔔</span>
+                            <span class="text-[11px]">Thông Báo</span>
+                        </a>
+                        <a href="/ban-be/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition col-span-2">
+                            <span class="text-sm">🔍</span>
+                            <span class="text-[11px]">Tìm Bạn</span>
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Section: Kinh Sách -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'kinh_sach' ? '' : 'kinh_sach'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">📚</span>
-                    <span class="text-sm font-medium flex-1 text-left">Kinh Sách</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'kinh_sach' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">📚</span>
+                    <span class="text-xs font-medium flex-1 text-left">Kinh Sách</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'kinh_sach' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'kinh_sach'" x-collapse x-cloak class="pb-1">
-                    <a href="/kinh-sach" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">📚</span>
-                        <span class="text-xs">Thư Viện</span>
-                    </a>
-                    <a href="/kinh-sach/thu-vien/phat-gia" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🪷</span>
-                        <span class="text-xs">Phật Gia</span>
-                    </a>
-                    <a href="/kinh-sach/thu-vien/dao-gia" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">☯️</span>
-                        <span class="text-xs">Đạo Gia</span>
-                    </a>
-                    <a href="/kinh-sach/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">📖</span>
-                        <span class="text-xs">Tìm Sách</span>
-                    </a>
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/kinh-sach" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">📚</span>
+                            <span class="text-[11px]">Thư Viện</span>
+                        </a>
+                        <a href="/kinh-sach/thu-vien/phat-gia" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Phật Gia</span>
+                        </a>
+                        <a href="/kinh-sach/thu-vien/dao-gia" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">☯️</span>
+                            <span class="text-[11px]">Đạo Gia</span>
+                        </a>
+                        <a href="/kinh-sach/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">📖</span>
+                            <span class="text-[11px]">Tìm Sách</span>
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Section: Khám Phá -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'kham_pha' ? '' : 'kham_pha'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">🧭</span>
-                    <span class="text-sm font-medium flex-1 text-left">Khám Phá</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'kham_pha' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">🧭</span>
+                    <span class="text-xs font-medium flex-1 text-left">Khám Phá</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'kham_pha' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'kham_pha'" x-collapse x-cloak class="pb-1">
-                    <a href="/gioi-thieu" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🪷</span>
-                        <span class="text-xs">Giới Thiệu</span>
-                        <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold bg-tubi-100 text-tubi-700">MỚI</span>
-                    </a>
-                    <a href="/tong-quan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🧭</span>
-                        <span class="text-xs">Tổng Quan</span>
-                    </a>
-                    <a href="/quy-tu-bi" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🪷</span>
-                        <span class="text-xs">Quỹ Từ Bi</span>
-                    </a>
-                    <a href="/bang-xep-hang" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🏆</span>
-                        <span class="text-xs">Bảng Xếp Hạng</span>
-                    </a>
-                    <a href="/thanh-tich" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🎖️</span>
-                        <span class="text-xs">Thành Tích</span>
-                    </a>
-                    <a href="/thuong-thanh" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🏪</span>
-                        <span class="text-xs">Thương Thành</span>
-                    </a>
-                    <a href="/doi-ngu-quan-li" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">👥</span>
-                        <span class="text-xs">Đội Ngũ Quản Lý</span>
-                    </a>
-                    <a href="/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🔎</span>
-                        <span class="text-xs">Tìm Kiếm</span>
-                    </a>
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/gioi-thieu" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Giới Thiệu</span>
+                            <span class="ml-auto px-1 rounded text-[8px] font-bold bg-tubi-100 text-tubi-700">MỚI</span>
+                        </a>
+                        <a href="/tong-quan" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🧭</span>
+                            <span class="text-[11px]">Tổng Quan</span>
+                        </a>
+                        <a href="/quy-tu-bi" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Quỹ Từ Bi</span>
+                        </a>
+                        <a href="/bang-xep-hang" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🏆</span>
+                            <span class="text-[11px]">BX Hạng</span>
+                        </a>
+                        <a href="/thanh-tich" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🎖️</span>
+                            <span class="text-[11px]">Thành Tích</span>
+                        </a>
+                        <a href="/thuong-thanh" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🏪</span>
+                            <span class="text-[11px]">Thương Thành</span>
+                        </a>
+                        <a href="/doi-ngu-quan-li" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">👥</span>
+                            <span class="text-[11px]">Đội Ngũ</span>
+                        </a>
+                        <a href="/tim-kiem" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🔎</span>
+                            <span class="text-[11px]">Tìm Kiếm</span>
+                        </a>
+                    </div>
                 </div>
 
                 {% if let Some(u) = user %}
                 <!-- Section: Tài Khoản (chỉ khi đã login) -->
                 <button @click="mobileMenuSection = mobileMenuSection === 'tai_khoan' ? '' : 'tai_khoan'"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                    <span class="text-xl">⚙️</span>
-                    <span class="text-sm font-medium flex-1 text-left">Tài Khoản</span>
-                    <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'tai_khoan' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                    <span class="text-base">⚙️</span>
+                    <span class="text-xs font-medium flex-1 text-left">Tài Khoản</span>
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-180': mobileMenuSection === 'tai_khoan' }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="mobileMenuSection === 'tai_khoan'" x-collapse x-cloak class="pb-1">
-                    <a href="/ca-nhan" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">🪷</span>
-                        <span class="text-xs">Hồ Sơ</span>
-                    </a>
-                    <a href="/cai-dat" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">⚙️</span>
-                        <span class="text-xs">Cài Đặt</span>
-                    </a>
-                    {% if u.is_staff() %}
-                    <a href="/admin" @click="mobileMenu = false" class="flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
-                        <span class="text-base">
-                            {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% elif u.is_mod() %}📜{% else %}⚙️{% endif %}
-                        </span>
-                        <span class="text-xs">Quản Trị</span>
-                        <span class="ml-auto px-2 py-0.5 rounded text-[10px] font-bold text-white"
-                              style="background-color: {{ u.role_color() }}">
-                            {{ u.role_display() }}
-                        </span>
-                    </a>
-                    {% endif %}
-                    <!-- Theme toggle trong section Tài Khoản -->
-                    <button @click="theme = theme === 'dark' ? 'lotus' : 'dark'; document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('tubi_theme', theme); fetch('/api/theme', { method: 'POST', body: new URLSearchParams({ theme: theme }), headers: {'Content-Type': 'application/x-www-form-urlencoded'} }).catch(()=>{})"
-                            class="w-full flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer">
-                        <span class="text-base" x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
-                        <span class="text-xs" x-text="theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"></span>
-                    </button>
-                    <!-- Đăng xuất -->
-                    <form action="/dang-xuat" method="POST" class="block">
-                        <button type="submit" class="w-full flex items-center gap-3 px-3 py-2 pl-9 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer transition">
-                            <span class="text-base">🚪</span>
-                            <span class="text-xs">Thoát</span>
+                    <div class="grid grid-cols-2 gap-0.5 px-1">
+                        <a href="/ca-nhan" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Hồ Sơ</span>
+                        </a>
+                        <a href="/cai-dat" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">⚙️</span>
+                            <span class="text-[11px]">Cài Đặt</span>
+                        </a>
+                        {% if u.is_staff() %}
+                        <a href="/admin" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition col-span-2">
+                            <span class="text-sm">
+                                {% if u.is_admin_ky_thuat() %}⚙️{% elif u.is_admin_cong_dong() %}🛡️{% elif u.is_admin_quan_li() %}👑{% elif u.is_mod() %}📜{% else %}⚙️{% endif %}
+                            </span>
+                            <span class="text-[11px]">Quản Trị</span>
+                            <span class="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold text-white"
+                                  style="background-color: {{ u.role_color() }}">
+                                {{ u.role_display() }}
+                            </span>
+                        </a>
+                        {% endif %}
+                        <button @click="theme = theme === 'dark' ? 'lotus' : 'dark'; document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('tubi_theme', theme); fetch('/api/theme', { method: 'POST', body: new URLSearchParams({ theme: theme }), headers: {'Content-Type': 'application/x-www-form-urlencoded'} }).catch(()=>{})"
+                                class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer text-left">
+                            <span class="text-sm" x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
+                            <span class="text-[11px]" x-text="theme === 'dark' ? 'Sáng' : 'Tối'"></span>
                         </button>
-                    </form>
+                        <form action="/dang-xuat" method="POST" class="block">
+                            <button type="submit" class="w-full flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition cursor-pointer text-left">
+                                <span class="text-sm">🚪</span>
+                                <span class="text-[11px]">Thoát</span>
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 {% else %}
                 <!-- Chưa login: Theme + Đăng nhập -->
                 <button @click="theme = theme === 'dark' ? 'lotus' : 'dark'; document.documentElement.classList.toggle('dark', theme === 'dark'); localStorage.setItem('tubi_theme', theme); fetch('/api/theme', { method: 'POST', body: new URLSearchParams({ theme: theme }), headers: {'Content-Type': 'application/x-www-form-urlencoded'} }).catch(()=>{})"
-                        class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer">
-                    <span class="text-xl" x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
-                    <span class="text-sm font-medium flex-1 text-left" x-text="theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"></span>
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition cursor-pointer">
+                    <span class="text-base" x-text="theme === 'dark' ? '☀️' : '🌙'"></span>
+                    <span class="text-xs font-medium flex-1 text-left" x-text="theme === 'dark' ? 'Chế độ sáng' : 'Chế độ tối'"></span>
                 </button>
-                <div class="pt-2 mt-1 border-t border-gray-200 dark:border-slate-700">
-                    <a href="/auth/google" class="block px-3 py-2.5 mt-1 rounded-lg bg-tubi-700 text-white text-center text-sm font-semibold">🪷 Đăng Nhập Bằng Google</a>
+                <div class="pt-1.5 mt-1 border-t border-gray-200 dark:border-slate-700">
+                    <a href="/auth/google" class="block px-2.5 py-2 my-1 rounded-md bg-tubi-700 text-white text-center text-xs font-semibold">🪷 Đăng Nhập Bằng Google</a>
                 </div>
                 {% endif %}
             </div>
@@ -647,7 +658,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.40 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.41 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>
