@@ -345,5 +345,118 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
          WHERE NOT EXISTS (SELECT 1 FROM user_settings WHERE user_id = users.id)"
     ).execute(pool).await;
 
+    // ─── v0.9.40 — Giai đoạn 44: Safety schema cho Chợ Đạo Hữu + Admin ──────
+    // Migration 028 có thể không được apply đầy đủ trên production do checksum
+    // mismatch, partial deploy, hoặc manual rollback. Khi đó:
+    //   - `INSERT INTO shop_categories ...` fail với
+    //     "relation \"shop_categories\" does not exist"
+    //   - `UPDATE shop_items SET payment_method = ...` fail với
+    //     "column \"payment_method\" does not exist"
+    //   - `INSERT INTO shop_items (..., payment_method, price_vnd, bank_info, ...)`
+    //     cũng fail.
+    // Fix: chạy idempotent DDL trực tiếp (CREATE TABLE IF NOT EXISTS,
+    // ALTER TABLE ... ADD COLUMN IF NOT EXISTS) trước khi sqlx migrations chạy.
+
+    // 12. Ensure `shop_categories` table (v0.9.40 — Giai đoạn 44).
+    match sqlx::query(
+        "CREATE TABLE IF NOT EXISTS shop_categories (
+            id              BIGSERIAL    PRIMARY KEY,
+            slug            TEXT         NOT NULL UNIQUE,
+            name_vi         TEXT         NOT NULL,
+            description     TEXT,
+            icon            TEXT         NOT NULL DEFAULT '📦',
+            color           TEXT         NOT NULL DEFAULT '#0F766E',
+            parent_id       BIGINT       REFERENCES shop_categories(id) ON DELETE SET NULL,
+            sort_order      INTEGER      NOT NULL DEFAULT 0,
+            is_system       BOOLEAN      NOT NULL DEFAULT false,
+            is_approved     BOOLEAN      NOT NULL DEFAULT true,
+            is_active       BOOLEAN      NOT NULL DEFAULT true,
+            created_by      UUID         REFERENCES users(id) ON DELETE SET NULL,
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await
+    {
+        Ok(_) => log::info!("  ✅ shop_categories table ensured (v0.9.40 — Chợ Đạo Hữu)"),
+        Err(e) => log::error!("  ❌ Failed to ensure shop_categories: {e}"),
+    }
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shop_categories_parent ON shop_categories(parent_id, sort_order) WHERE is_active = true"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shop_categories_active ON shop_categories(is_active, is_approved)"
+    ).execute(pool).await;
+
+    // Seed system categories (idempotent — ON CONFLICT DO NOTHING)
+    let _ = sqlx::query(
+        "INSERT INTO shop_categories (slug, name_vi, description, icon, color, sort_order, is_system, is_approved) VALUES
+            ('the-tu-hoc',     'Thẻ Tu Học',       'Các thẻ hỗ trợ tu học: Tự Tu, Cộng Tu, Exp.',                    '📿', '#2E7D32', 1,  true, true),
+            ('the-doi-ten',    'Thẻ Đổi Tên',      'Thẻ đổi tên, pháp danh, pháp hiệu.',                            '✏️', '#6A1B9A', 2,  true, true),
+            ('the-ho-tro',     'Thẻ Hỗ Trợ',       'Thẻ hỗ trợ cộng đồng, ủng hộ quỹ, hộp quà.',                    '🤝', '#C62828', 3,  true, true),
+            ('the-nhom',       'Thẻ Nhóm',         'Thẻ tạo nhóm, không gian nhóm, mời cộng tu.',                    '👥', '#3F51B5', 4,  true, true),
+            ('the-bau-chon',   'Thẻ Bầu Chọn',     'Thẻ tạo cuộc bầu chọn trong nhóm/cộng đồng.',                   '🗳️', '#673AB7', 5,  true, true),
+            ('vat-pham',       'Vật Phẩm',         'Vật phẩm chung: hoa hồng, ô vật phẩm, thẻ yêu cầu.',            '📦', '#795548', 6,  true, true),
+            ('cao-cap',        'Cao Cấp',          'Vật phẩm cao cấp: Phiếu Từ Bi, Thẻ Người Tốt, Thẻ Thiện Nhân.', '🪷', '#0F766E', 7,  true, true),
+            ('sach-phat-giao', 'Sách Phật Giáo',   'Sách điện tử, kinh sách do đạo hữu chia sẻ.',                   '📚', '#FF6F00', 8,  true, true),
+            ('do-tho',         'Đồ Thờ',           'Đồ thờ cúng: tượng Phật, hoa sen, đèn nến.',                    '🪔', '#FFD600', 9,  true, true),
+            ('dich-vu',        'Dịch Vụ',          'Dịch vụ Phật giáo: in kinh, tổ chức lễ, hướng dẫn tu.',         '🛎️', '#0288D1', 10, true, true),
+            ('thuc-pham-chay', 'Thực Phẩm Chay',   'Thực phẩm chay, đồ hữu cơ.',                                    '🥬', '#43A047', 11, true, true),
+            ('khac',           'Khác',             'Danh mục khác — không thuộc nhóm nào trên.',                     '🏷️', '#607D8B', 99, true, true)
+         ON CONFLICT (slug) DO NOTHING"
+    ).execute(pool).await;
+
+    // 13. Ensure new columns on shop_items (v0.9.40 — Giai đoạn 44).
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS category_id BIGINT REFERENCES shop_categories(id) ON DELETE SET NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'k'"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS price_vnd BIGINT"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS bank_info JSONB DEFAULT '{}'"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS is_featured BOOLEAN NOT NULL DEFAULT false"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS moderation_status TEXT NOT NULL DEFAULT 'approved'"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shop_items_moderation ON shop_items(moderation_status, created_at DESC) WHERE store IN ('pvp', 'dao_huu')"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shop_items_category_id ON shop_items(category_id) WHERE category_id IS NOT NULL"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shop_items_featured ON shop_items(is_featured, sort_order) WHERE is_active = true AND is_featured = true"
+    ).execute(pool).await;
+
+    // Backfill category_id cho shop_items cũ (text category → slug mapping)
+    let _ = sqlx::query(
+        "UPDATE shop_items si SET category_id = sc.id, updated_at = NOW()
+         FROM shop_categories sc
+         WHERE si.category_id IS NULL AND si.category IS NOT NULL
+           AND sc.slug = REPLACE(LOWER(si.category), '_', '-')"
+    ).execute(pool).await;
+
+    // 14. Ensure new columns on transactions (v0.9.40 — Giai đoạn 44).
+    let _ = sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'k'"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS price_vnd BIGINT"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bank_info JSONB DEFAULT '{}'"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS buyer_contact TEXT"
+    ).execute(pool).await;
+
     log::info!("🔒 Safety schema check hoàn tất");
 }

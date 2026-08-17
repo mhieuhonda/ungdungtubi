@@ -41,7 +41,7 @@
     </div>
     <div class="bg-white dark:bg-slate-800 rounded-xl p-4 border border-gray-100 dark:border-slate-700 text-center">
       <div class="text-2xl font-bold" style="color:#C62828">{{ stats.active_pvp_listings }}</div>
-      <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">PvP đang bán</div>
+      <div class="text-xs text-gray-500 dark:text-slate-400 mt-1">Đạo Hữu đang bán</div>
     </div>
   </div>
 
@@ -76,11 +76,11 @@
       {% endif %}
     </div>
 
-    <!-- Chợ PvP -->
+    <!-- Chợ Đạo Hữu (v0.9.40 rename từ PvP) -->
     <div>
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-bold text-gray-900 dark:text-slate-100 flex items-center gap-2">
-          <span>⚔️</span> Chợ PvP
+          <span>🤝</span> Chợ Đạo Hữu
         </h2>
         <div class="flex gap-2">
           {% if user.is_some() %}
@@ -88,7 +88,7 @@
             + Đăng bán
           </a>
           {% endif %}
-          <a href="/thuong-thanh/pvp" class="text-sm font-semibold hover:underline" style="color:#C62828">
+          <a href="/thuong-thanh/cho-dao-huu" class="text-sm font-semibold hover:underline" style="color:#C62828">
             Xem tất cả →
           </a>
         </div>
@@ -100,8 +100,16 @@
           <h3 class="font-bold text-sm mb-1 truncate" style="color:{{ item.color }}">{{ item.name }}</h3>
           <p class="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-2 mb-2">{{ item.description.as_deref().unwrap_or("") }}</p>
           <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-sm" style="color:#C62828">{{ item.price_k }} K</span>
-            <span class="text-[10px] text-gray-400 dark:text-slate-500">20% phí</span>
+            <span class="font-bold text-sm" style="color:#C62828">
+              {% if item.payment_method == "bank" %}
+                {% if let Some(vnd) = item.price_vnd %}{{ vnd }} ₫{% else %}Liên hệ{% endif %}
+              {% else %}
+                {{ item.price_k }} K
+              {% endif %}
+            </span>
+            <span class="text-[10px] text-gray-400 dark:text-slate-500">
+              {% if item.payment_method == "bank" %}🏦 Ngân hàng{% else %}10% phí{% endif %}
+            </span>
           </div>
           {% if let Some(name) = item.seller_name.as_deref() %}
           <div class="text-[10px] text-gray-400 dark:text-slate-500 truncate">bởi {{ name }}</div>
@@ -147,7 +155,7 @@
         <span class="text-xl">🛡️</span>
         <div>
           <h3 class="font-semibold text-gray-900 dark:text-slate-100">An toàn và minh bạch</h3>
-          <p class="text-sm text-gray-600 dark:text-slate-300">Giao dịch K được ghi lại đầy đủ. PvP thu 20% phí để duy trì hệ thống.</p>
+          <p class="text-sm text-gray-600 dark:text-slate-300">Giao dịch K được ghi lại đầy đủ. Chợ Đạo Hữu thu 10% phí để duy trì hệ thống. Giao dịch ngân hàng là thỏa thuận giữa hai cá nhân.</p>
         </div>
       </div>
     </div>

@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.39 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Fix + Mobile Menu Accordion 🪷");
+    log::info!("📦 Phiên bản: v0.9.40 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -279,10 +279,12 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Routes — Hệ Thống
         .route("/quy-tu-bi", get(handlers::quy_tu_bi))
         // Routes — Thương Thành (v0.9.35 — Giai đoạn 40: App + PvP, Game removed)
-        // CRUD vật phẩm · Giỏ hàng · Giao dịch K
+        // v0.9.40 — Giai đoạn 44: Rename "Chợ PvP" → "Chợ Đạo Hữu" + flexible categories + K/bank payment
+        // CRUD vật phẩm · Giỏ hàng · Giao dịch K · Bank transfer
         .route("/thuong-thanh", get(handlers::thuong_thanh::thuong_thanh_index))
         .route("/thuong-thanh/cua-hang-app", get(handlers::thuong_thanh::store_app))
-        .route("/thuong-thanh/pvp", get(handlers::thuong_thanh::store_pvp))
+        .route("/thuong-thanh/pvp", get(handlers::thuong_thanh::store_pvp_redirect))
+        .route("/thuong-thanh/cho-dao-huu", get(handlers::thuong_thanh::store_dao_huu))
         .route("/thuong-thanh/vat-pham/tao", get(handlers::thuong_thanh::create_item_form).post(handlers::thuong_thanh::create_item))
         .route("/thuong-thanh/vat-pham/{id}", get(handlers::thuong_thanh::item_detail))
         .route("/thuong-thanh/vat-pham/{id}/xoa", post(handlers::thuong_thanh::delete_item))
@@ -337,6 +339,16 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/kinh-sach", get(handlers::admin::admin_kinh_sach_placeholder))
         .route("/admin/binh-luan", get(handlers::admin::admin_binh_luan_placeholder))
         .route("/admin/quy-tu-bi", get(handlers::admin::admin_quy_tu_bi_placeholder))
+        // v0.9.40 — Giai đoạn 44: Admin quản lý Thương Thành hoàn thiện
+        .route("/admin/thuong-thanh", get(handlers::admin::admin_thuong_thanh_list))
+        .route("/admin/thuong-thanh/danh-muc", get(handlers::admin::admin_thuong_thanh_categories))
+        .route("/admin/thuong-thanh/{item_id}/xoa", post(handlers::admin::admin_thuong_thanh_delete))
+        .route("/admin/thuong-thanh/{item_id}/noi-bat", post(handlers::admin::admin_thuong_thanh_toggle_featured))
+        .route("/admin/thuong-thanh/{item_id}/duyet", post(handlers::admin::admin_thuong_thanh_approve))
+        .route("/admin/thuong-thanh/{item_id}/tu-choi", post(handlers::admin::admin_thuong_thanh_reject))
+        .route("/admin/thuong-thanh/danh-muc/tao", post(handlers::admin::admin_category_create))
+        .route("/admin/thuong-thanh/danh-muc/{cat_id}/xoa", post(handlers::admin::admin_category_delete))
+        .route("/admin/thuong-thanh/danh-muc/{cat_id}/duyet", post(handlers::admin::admin_category_approve))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -706,6 +718,49 @@ const HEALTH_FEATURES: &[&str] = &[
     "dockerfile-tzdata-package-v0.9.39",
     "migration-027-user-last_seen_at-v0.9.39",
     "migration-027-seed-last_seen_at-from-sessions-v0.9.39",
+    // ─── v0.9.40 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank
+    "cho-dao-huu-rename-from-pvp-v0.9.40",
+    "pvp-route-redirect-to-cho-dao-huu-v0.9.40",
+    "shop-categories-table-v0.9.40",
+    "shop-categories-system-seed-12-v0.9.40",
+    "shop-categories-user-create-v0.9.40",
+    "shop-categories-user-needs-approval-v0.9.40",
+    "shop-items-payment-method-k-or-bank-v0.9.40",
+    "shop-items-price-vnd-column-v0.9.40",
+    "shop-items-bank-info-jsonb-v0.9.40",
+    "shop-items-is-featured-column-v0.9.40",
+    "shop-items-moderation-status-v0.9.40",
+    "shop-items-category-id-link-v0.9.40",
+    "create-item-form-categories-dropdown-v0.9.40",
+    "create-item-form-new-category-toggle-v0.9.40",
+    "create-item-form-payment-method-toggle-v0.9.40",
+    "create-item-form-bank-info-fields-v0.9.40",
+    "create-item-form-qr-image-url-v0.9.40",
+    "create-item-validation-bank-info-v0.9.40",
+    "item-detail-show-bank-info-v0.9.40",
+    "item-detail-show-qr-image-v0.9.40",
+    "cart-block-bank-payment-items-v0.9.40",
+    "cart-redirect-bank-to-item-detail-v0.9.40",
+    "dao-huu-fee-reduced-20-to-10-percent-v0.9.40",
+    "slugify-vi-for-categories-v0.9.40",
+    "admin-thuong-thanh-list-page-v0.9.40",
+    "admin-thuong-thanh-delete-item-v0.9.40",
+    "admin-thuong-thanh-toggle-featured-v0.9.40",
+    "admin-thuong-thanh-approve-item-v0.9.40",
+    "admin-thuong-thanh-reject-item-v0.9.40",
+    "admin-thuong-thanh-categories-page-v0.9.40",
+    "admin-thuong-thanh-category-create-v0.9.40",
+    "admin-thuong-thanh-category-approve-v0.9.40",
+    "admin-thuong-thanh-category-delete-v0.9.40",
+    "admin-thuong-thanh-audit-log-v0.9.40",
+    "transactions-payment-method-column-v0.9.40",
+    "transactions-price-vnd-column-v0.9.40",
+    "transactions-bank-info-snapshot-v0.9.40",
+    "transactions-buyer-contact-column-v0.9.40",
+    "migration-028-cho-dao-huu-marketplace-v0.9.40",
+    "safety-schema-shop-categories-v0.9.40",
+    "safety-schema-shop-items-new-columns-v0.9.40",
+    "safety-schema-transactions-new-columns-v0.9.40",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -724,7 +779,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.39",
+            "version": "0.9.40",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -754,11 +809,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.39",
+        "version": "0.9.40",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 43,
-        "phase_name": "Giai đoạn 43 — Active User Sync + Settings Fix + Stats Fix + Mobile Menu Accordion 🪷",
+        "phase": 44,
+        "phase_name": "Giai đoạn 44 — Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,
@@ -777,6 +832,7 @@ async fn health_check_inner(state: &AppState) -> Response {
             "v0_9_37_note": "Giai đoạn 41 (phần 2) — Trang /gioi-thieu + fix orphan links (mobile drawer + admin music pending tile) + fix lỗi gửi bài (silent reject + empty group_name + stale counter) + nút đánh dấu đã đọc (per-item + mark-all) + fix 429 (tăng limit, sửa classify, HTML page, fetch wrapper)",
             "v0_9_38_note": "Giai đoạn 42 — Replace all web logos (favicon/header/footer/bottom-nav/home/login) với tubi.png (PNG thật, không còn emoji 🪷); fix bug 'Lỗi cập nhật logo nhóm' (safety schema cho groups.logo_upload_id); fix bug 'lỗi gửi bài' khi đăng nhạc (safety schema cho audio_files + user_music_submissions.source_type/audio_file_upload_id/audio_duration_seconds); cập nhật /gioi-thieu team info (Đỗ Văn Cường rút về hỗ trợ, Nguyễn Đình Minh Hiếu chuyển sang Admin Kỹ Thuật).",
             "v0_9_39_note": "Giai đoạn 43 — Fix 5 bug sync/stats/UI: (1) Active user sync — heartbeat handler giờ update users.last_seen_at mỗi 10 phút, admin stats active_users đếm WHERE last_seen_at > NOW()-5min (trước đây đếm is_active = 'không bị ban' → 5 active nhưng vào quản lý không thấy ai). (2) user_settings table safety schema — fix 'relation user_settings does not exist' khi lưu cài đặt. (3) Timezone streak/today_niem — set TZ=Asia/Ho_Chi_Minh trong Dockerfile, dùng chrono::Local thay Utc (trước đây user niệm phật 01:00 Saigon Aug 17 = 18:00 UTC Aug 16 → log_date = Aug 16 sai). (4) Mobile menu accordion — chia 27 items thành 6 section collapse/expand (trước đây tràn màn hình). (5) Migration 027 — users.last_seen_at column + seed từ MAX(sessions.created_at).",
+            "v0_9_40_note": "Giai đoạn 44 — Rename 'Chợ PvP' → 'Chợ Đạo Hữu' (game đã bị xóa hoàn toàn). User đăng bán có thể chọn danh mục có sẵn HOẶC tạo mới (cần admin duyệt). Chọn nhận tiền K (10% phí, giảm từ 20%) HOẶC chuyển khoản ngân hàng (tự điền bank_name/account_number/account_holder/QR URL). Migration 028: shop_categories table + cột mới shop_items (payment_method, price_vnd, bank_info, category_id, is_featured, moderation_status) + cột mới transactions (payment_method, price_vnd, bank_info, buyer_contact). Admin Thương Thành hoàn thiện: /admin/thuong-thanh (list + duyệt + xóa + featured), /admin/thuong-thanh/danh-muc (CRUD categories). Bank-payment items không qua giỏ hàng — buyer xem bank info trên trang chi tiết + liên hệ seller trực tiếp.",
             "v0_9_33_note": "Nha Nhac (Music House KG-03) — 5 categories, 4 playback modes, sleep timer, personal playlist + Logo emoji sharpened",
             "v0_9_32_note": "Admin Phat Trien Dashboard rieng (/admin/phat-trien) + Logo emoji 🪷 + Version sync",
             "v0_9_30_note": "Them role admin_phat_trien (Admin Phat Trien) - 4 admin ngang hang cap 3",

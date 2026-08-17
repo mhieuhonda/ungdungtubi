@@ -32,7 +32,7 @@
           {{ ci.item_price_k }} K × {{ ci.quantity }} = <span class="font-semibold" style="color:{{ ci.item_color }}">{{ ci.total_k() }} K</span>
         </p>
         <p class="text-[10px] text-gray-400 dark:text-slate-500 mt-0.5">
-          {% if ci.item_store == "app" %}Cửa Hàng Ứng Dụng{% else %}PvP (20% phí){% endif %}
+          {% if ci.item_store == "app" %}Cửa Hàng Ứng Dụng{% else %}Chợ Đạo Hữu (10% phí){% endif %}
         </p>
       </div>
       <form method="POST" action="/thuong-thanh/gio-hang/xoa/{{ ci.cart_id }}">

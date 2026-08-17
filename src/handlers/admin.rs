@@ -1488,3 +1488,614 @@ async fn fetch_admin_funds_list(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminFun
         vec![]
     })
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// v0.9.40 — Giai đoạn 44: Admin Thương Thành hoàn thiện
+// ════════════════════════════════════════════════════════════════════════════
+//
+// Trước v0.9.40, admin không có UI quản lý Thương Thành — không thể duyệt, xóa,
+// hoặc feature sản phẩm do user đăng. Module chỉ có ở mặt user. User report
+// không có cách kiểm duyệt sản phẩm đăng bán (đặc biệt khi user chọn bank payment
+// với thông tin ngân hàng của họ). v0.9.40 thêm:
+//
+//   - GET  /admin/thuong-thanh — List all shop_items (App + Đạo Hữu), filter
+//                                  theo store + moderation_status, kèm actions.
+//   - POST /admin/thuong-thanh/{id}/xoa — Admin xóa item (soft delete).
+//   - POST /admin/thuong-thanh/{id}/noi-bat — Toggle is_featured.
+//   - POST /admin/thuong-thanh/{id}/duyet — Approve (moderation_status='approved').
+//   - POST /admin/thuong-thanh/{id}/tu-choi — Reject (moderation_status='rejected').
+//   - GET  /admin/thuong-thanh/danh-muc — List + manage shop_categories.
+//   - POST /admin/thuong-thanh/danh-muc/tao — Tạo category mới (is_system=true).
+//   - POST /admin/thuong-thanh/danh-muc/{id}/duyet — Duyệt category do user tạo.
+//   - POST /admin/thuong-thanh/danh-muc/{id}/xoa — Xóa category.
+//
+// Permission: tất cả admin role (admin_ky_thuat, admin_quan_li, admin_cong_dong,
+// admin_phat_trien). Mod KHÔNG có quyền (chỉ moderation content, không phải shop).
+
+/// Row data cho danh sách shop_items trong admin.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminShopItemRow {
+    pub id: i64,
+    pub store: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub price_k: i32,
+    pub price_vnd: Option<i64>,
+    pub payment_method: String,
+    pub icon: String,
+    pub color: String,
+    pub seller_name: Option<String>,
+    pub category_name: Option<String>,
+    pub is_active: bool,
+    pub is_featured: bool,
+    pub moderation_status: String,
+    pub sold_count: i32,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Row data cho danh sách shop_categories trong admin.
+#[allow(dead_code)]
+#[derive(Debug, Clone, FromRow)]
+pub struct AdminShopCategoryRow {
+    pub id: i64,
+    pub slug: String,
+    pub name_vi: String,
+    pub icon: String,
+    pub color: String,
+    pub is_system: bool,
+    pub is_approved: bool,
+    pub is_active: bool,
+    pub creator_name: Option<String>,
+    pub item_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Template cho /admin/thuong-thanh.
+#[derive(Template)]
+#[template(path = "admin/thuong-thanh/index.html")]
+pub struct AdminThuongThanhTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+    pub items: Vec<AdminShopItemRow>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+    /// v0.9.40: precomputed counts cho template (askama không hỗ trợ .iter().filter()).
+    pub total_active: usize,
+    pub total_featured: usize,
+    pub total_pending: usize,
+}
+
+/// Template cho /admin/thuong-thanh/danh-muc.
+#[derive(Template)]
+#[template(path = "admin/thuong-thanh/danh-muc.html")]
+pub struct AdminThuongThanhCategoryTemplate {
+    pub user: Option<User>,
+    pub stats: AdminStats,
+    pub categories: Vec<AdminShopCategoryRow>,
+    pub error: Option<String>,
+    pub success: Option<String>,
+}
+
+/// GET /admin/thuong-thanh — List all shop items với moderation actions.
+pub async fn admin_thuong_thanh_list(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let items = fetch_admin_shop_items(&state.pool, 100).await;
+    let total_active = items.iter().filter(|i| i.is_active).count();
+    let total_featured = items.iter().filter(|i| i.is_featured).count();
+    let total_pending = items.iter().filter(|i| i.moderation_status == "pending").count();
+
+    let html = AdminThuongThanhTemplate {
+        user: Some(user),
+        stats,
+        items,
+        error: None,
+        success: None,
+        total_active,
+        total_featured,
+        total_pending,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin thuong thanh list): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// GET /admin/thuong-thanh/danh-muc — Manage shop_categories.
+pub async fn admin_thuong_thanh_categories(State(state): State<AppState>, jar: CookieJar) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    let stats = fetch_admin_stats_or_default(&state.pool).await;
+    let categories = fetch_admin_shop_categories(&state.pool).await;
+
+    let html = AdminThuongThanhCategoryTemplate {
+        user: Some(user),
+        stats,
+        categories,
+        error: None,
+        success: None,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin thuong thanh categories): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// POST /admin/thuong-thanh/{item_id}/xoa — Admin xóa vật phẩm (soft delete).
+pub async fn admin_thuong_thanh_delete(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(item_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query(
+        "UPDATE shop_items SET is_active = false, status = 'inactive', \
+         moderation_status = 'removed', updated_at = NOW() WHERE id = $1"
+    )
+    .bind(item_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) => {
+            if res.rows_affected() == 0 {
+                return render_admin_thuong_thanh_result(
+                    &state.pool, &user, Some("Không tìm thấy vật phẩm."), None
+                ).await;
+            }
+            // Audit log
+            let detail = format!("{{\"item_id\": {}}}", item_id);
+            let _ = sqlx::query(
+                "INSERT INTO audit_log (actor_id, action, category, details) VALUES ($1, 'delete_shop_item', 'admin', $2::jsonb)"
+            )
+            .bind(user.id)
+            .bind(&detail)
+            .execute(&state.pool)
+            .await;
+            log::info!("🗑️ Admin {} xóa vật phẩm #{}", user.display_name, item_id);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi xóa vật phẩm #{item_id}: {e}");
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_thuong_thanh_result(
+        &state.pool, &user, None, Some("Đã xóa vật phẩm.")
+    ).await
+}
+
+/// POST /admin/thuong-thanh/{item_id}/noi-bat — Toggle is_featured.
+pub async fn admin_thuong_thanh_toggle_featured(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(item_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query(
+        "UPDATE shop_items SET is_featured = NOT is_featured, updated_at = NOW() WHERE id = $1"
+    )
+    .bind(item_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) if res.rows_affected() > 0 => {
+            log::info!("⭐ Admin {} toggle featured vật phẩm #{}", user.display_name, item_id);
+        }
+        Ok(_) => {
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some("Không tìm thấy vật phẩm."), None
+            ).await;
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi toggle featured #{item_id}: {e}");
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_thuong_thanh_result(
+        &state.pool, &user, None, Some("Đã cập nhật trạng thái nổi bật.")
+    ).await
+}
+
+/// POST /admin/thuong-thanh/{item_id}/duyet — Approve item.
+pub async fn admin_thuong_thanh_approve(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(item_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query(
+        "UPDATE shop_items SET moderation_status = 'approved', is_active = true, updated_at = NOW() WHERE id = $1"
+    )
+    .bind(item_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) if res.rows_affected() > 0 => {
+            log::info!("✅ Admin {} duyệt vật phẩm #{}", user.display_name, item_id);
+        }
+        Ok(_) => {
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some("Không tìm thấy vật phẩm."), None
+            ).await;
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi duyệt vật phẩm #{item_id}: {e}");
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_thuong_thanh_result(
+        &state.pool, &user, None, Some("Đã duyệt vật phẩm.")
+    ).await
+}
+
+/// POST /admin/thuong-thanh/{item_id}/tu-choi — Reject item (ẩn khỏi public).
+pub async fn admin_thuong_thanh_reject(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(item_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query(
+        "UPDATE shop_items SET moderation_status = 'rejected', is_active = false, updated_at = NOW() WHERE id = $1"
+    )
+    .bind(item_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) if res.rows_affected() > 0 => {
+            log::info!("🚫 Admin {} từ chối vật phẩm #{}", user.display_name, item_id);
+        }
+        Ok(_) => {
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some("Không tìm thấy vật phẩm."), None
+            ).await;
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi từ chối vật phẩm #{item_id}: {e}");
+            return render_admin_thuong_thanh_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_thuong_thanh_result(
+        &state.pool, &user, None, Some("Đã từ chối vật phẩm (ẩn khỏi công khai).")
+    ).await
+}
+
+/// Form tạo category mới (admin).
+#[derive(Debug, Deserialize)]
+pub struct CategoryCreateForm {
+    pub name_vi: String,
+    pub slug: Option<String>,
+    pub icon: Option<String>,
+    pub color: Option<String>,
+    pub description: Option<String>,
+}
+
+/// POST /admin/thuong-thanh/danh-muc/tao — Tạo category (is_system = true).
+pub async fn admin_category_create(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Form(form): Form<CategoryCreateForm>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    if form.name_vi.trim().is_empty() {
+        return render_admin_categories_result(
+            &state.pool, &user, Some("Tên danh mục không được để trống."), None
+        ).await;
+    }
+
+    // Tạo slug từ name nếu user không cung cấp
+    let slug = form.slug.as_deref().unwrap_or("").trim();
+    let slug = if slug.is_empty() {
+        slugify_vi_admin(&form.name_vi)
+    } else {
+        slug.to_string()
+    };
+
+    let icon = form.icon.as_deref().unwrap_or("📦");
+    let color = form.color.as_deref().unwrap_or("#0F766E");
+
+    match sqlx::query(
+        "INSERT INTO shop_categories (slug, name_vi, description, icon, color, is_system, is_approved, is_active, created_by) \
+         VALUES ($1, $2, $3, $4, $5, true, true, true, $6) \
+         ON CONFLICT (slug) DO UPDATE SET name_vi = EXCLUDED.name_vi, is_active = true"
+    )
+    .bind(&slug)
+    .bind(form.name_vi.trim())
+    .bind(&form.description)
+    .bind(icon)
+    .bind(color)
+    .bind(user.id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(_) => {
+            log::info!("✅ Admin {} tạo danh mục '{}'", user.display_name, form.name_vi);
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi tạo danh mục: {e}");
+            return render_admin_categories_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_categories_result(
+        &state.pool, &user, None, Some("Đã tạo danh mục mới.")
+    ).await
+}
+
+/// POST /admin/thuong-thanh/danh-muc/{cat_id}/duyet — Duyệt category user-submitted.
+pub async fn admin_category_approve(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(cat_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    match sqlx::query(
+        "UPDATE shop_categories SET is_approved = true, is_active = true, updated_at = NOW() WHERE id = $1"
+    )
+    .bind(cat_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) if res.rows_affected() > 0 => {
+            log::info!("✅ Admin {} duyệt danh mục #{}", user.display_name, cat_id);
+        }
+        Ok(_) => {
+            return render_admin_categories_result(
+                &state.pool, &user, Some("Không tìm thấy danh mục."), None
+            ).await;
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi duyệt danh mục #{cat_id}: {e}");
+            return render_admin_categories_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_categories_result(
+        &state.pool, &user, None, Some("Đã duyệt danh mục.")
+    ).await
+}
+
+/// POST /admin/thuong-thanh/danh-muc/{cat_id}/xoa — Xóa category (soft delete).
+pub async fn admin_category_delete(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(cat_id): Path<i64>,
+) -> Response {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
+        return Redirect::to("/dang-nhap").into_response();
+    };
+    if !user.is_admin() {
+        return render_forbidden(&user);
+    }
+
+    // Không cho xóa system category nếu còn item — chỉ ẩn được
+    match sqlx::query(
+        "UPDATE shop_categories SET is_active = false, updated_at = NOW() WHERE id = $1"
+    )
+    .bind(cat_id)
+    .execute(&state.pool)
+    .await
+    {
+        Ok(res) if res.rows_affected() > 0 => {
+            log::info!("🗑️ Admin {} ẩn danh mục #{}", user.display_name, cat_id);
+        }
+        Ok(_) => {
+            return render_admin_categories_result(
+                &state.pool, &user, Some("Không tìm thấy danh mục."), None
+            ).await;
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi xóa danh mục #{cat_id}: {e}");
+            return render_admin_categories_result(
+                &state.pool, &user, Some(&format!("Lỗi database: {e}")), None
+            ).await;
+        }
+    }
+
+    render_admin_categories_result(
+        &state.pool, &user, None, Some("Đã ẩn danh mục (vô hiệu hóa).")
+    ).await
+}
+
+// ─── Helpers for admin thuong thanh pages ───────────────────────────────
+
+/// Tạo slug từ tên tiếng Việt (mirror của slugify_vi trong thuong_thanh handler).
+fn slugify_vi_admin(s: &str) -> String {
+    let normalized: String = s.chars().filter_map(|c| {
+        match c {
+            'à' | 'á' | 'ạ' | 'ả' | 'ã' | 'â' | 'ầ' | 'ấ' | 'ậ' | 'ẩ' | 'ẫ' | 'ă' | 'ằ' | 'ắ' | 'ặ' | 'ẳ' | 'ẵ' => Some('a'),
+            'À' | 'Á' | 'Ạ' | 'Ả' | 'Ã' | 'Â' | 'Ầ' | 'Ấ' | 'Ậ' | 'Ẩ' | 'Ẫ' | 'Ă' | 'Ằ' | 'Ắ' | 'Ặ' | 'Ẳ' | 'Ẵ' => Some('a'),
+            'è' | 'é' | 'ẹ' | 'ẻ' | 'ẽ' | 'ê' | 'ề' | 'ế' | 'ệ' | 'ể' | 'ễ' => Some('e'),
+            'È' | 'É' | 'Ẹ' | 'Ẻ' | 'Ẽ' | 'Ê' | 'Ề' | 'Ế' | 'Ệ' | 'Ể' | 'Ễ' => Some('e'),
+            'ì' | 'í' | 'ị' | 'ỉ' | 'ĩ' => Some('i'),
+            'Ì' | 'Í' | 'Ị' | 'Ỉ' | 'Ĩ' => Some('i'),
+            'ò' | 'ó' | 'ọ' | 'ỏ' | 'õ' | 'ô' | 'ồ' | 'ố' | 'ộ' | 'ổ' | 'ỗ' | 'ơ' | 'ờ' | 'ớ' | 'ợ' | 'ở' | 'ỡ' => Some('o'),
+            'Ò' | 'Ó' | 'Ọ' | 'Ỏ' | 'Õ' | 'Ô' | 'Ồ' | 'Ố' | 'Ộ' | 'Ổ' | 'Ỗ' | 'Ơ' | 'Ờ' | 'Ớ' | 'Ợ' | 'Ở' | 'Ỡ' => Some('o'),
+            'ù' | 'ú' | 'ụ' | 'ủ' | 'ũ' | 'ư' | 'ừ' | 'ứ' | 'ự' | 'ử' | 'ữ' => Some('u'),
+            'Ù' | 'Ú' | 'Ụ' | 'Ủ' | 'Ũ' | 'Ư' | 'Ừ' | 'Ứ' | 'Ự' | 'Ử' | 'Ữ' => Some('u'),
+            'ỳ' | 'ý' | 'ỵ' | 'ỷ' | 'ỹ' => Some('y'),
+            'Ỳ' | 'Ý' | 'Ỵ' | 'Ỷ' | 'Ỹ' => Some('y'),
+            'đ' => Some('d'),
+            'Đ' => Some('d'),
+            _ => Some(c),
+        }
+    }).collect();
+    normalized
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '-' || *c == ' ')
+        .map(|c| if c == ' ' { '-' } else { c })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
+
+/// Fetch 100 shop_items mới nhất (kèm seller_name + category_name).
+async fn fetch_admin_shop_items(pool: &sqlx::PgPool, limit: i64) -> Vec<AdminShopItemRow> {
+    sqlx::query_as::<_, AdminShopItemRow>(
+        "SELECT si.id, si.store, si.name, si.description, si.price_k, si.price_vnd, \
+                si.payment_method, si.icon, si.color, \
+                u.display_name AS seller_name, \
+                sc.name_vi AS category_name, \
+                si.is_active, si.is_featured, si.moderation_status, si.sold_count, si.created_at \
+         FROM shop_items si \
+         LEFT JOIN users u ON si.seller_id = u.id \
+         LEFT JOIN shop_categories sc ON si.category_id = sc.id \
+         ORDER BY si.created_at DESC \
+         LIMIT $1",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin shop items: {e}");
+        vec![]
+    })
+}
+
+/// Fetch all shop_categories (kèm item_count + creator_name).
+async fn fetch_admin_shop_categories(pool: &sqlx::PgPool) -> Vec<AdminShopCategoryRow> {
+    sqlx::query_as::<_, AdminShopCategoryRow>(
+        "SELECT sc.id, sc.slug, sc.name_vi, sc.icon, sc.color, \
+                sc.is_system, sc.is_approved, sc.is_active, \
+                u.display_name AS creator_name, \
+                (SELECT COUNT(*)::BIGINT FROM shop_items si WHERE si.category_id = sc.id) AS item_count, \
+                sc.created_at \
+         FROM shop_categories sc \
+         LEFT JOIN users u ON sc.created_by = u.id \
+         ORDER BY sc.is_active DESC, sc.sort_order, sc.name_vi",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_else(|e| {
+        log::warn!("⚠️ Lỗi fetch admin shop categories: {e}");
+        vec![]
+    })
+}
+
+/// Render admin thuong thanh list page with result message.
+async fn render_admin_thuong_thanh_result(
+    pool: &sqlx::PgPool,
+    actor: &User,
+    error: Option<&str>,
+    success: Option<&str>,
+) -> Response {
+    let stats = fetch_admin_stats_or_default(pool).await;
+    let items = fetch_admin_shop_items(pool, 100).await;
+    let total_active = items.iter().filter(|i| i.is_active).count();
+    let total_featured = items.iter().filter(|i| i.is_featured).count();
+    let total_pending = items.iter().filter(|i| i.moderation_status == "pending").count();
+
+    let html = AdminThuongThanhTemplate {
+        user: Some(actor.clone()),
+        stats,
+        items,
+        error: error.map(String::from),
+        success: success.map(String::from),
+        total_active,
+        total_featured,
+        total_pending,
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin thuong thanh result): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}
+
+/// Render admin categories page with result message.
+async fn render_admin_categories_result(
+    pool: &sqlx::PgPool,
+    actor: &User,
+    error: Option<&str>,
+    success: Option<&str>,
+) -> Response {
+    let stats = fetch_admin_stats_or_default(pool).await;
+    let categories = fetch_admin_shop_categories(pool).await;
+
+    let html = AdminThuongThanhCategoryTemplate {
+        user: Some(actor.clone()),
+        stats,
+        categories,
+        error: error.map(String::from),
+        success: success.map(String::from),
+    }
+    .render()
+    .unwrap_or_else(|e| {
+        log::error!("Template render error (admin categories result): {e}");
+        format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+    });
+
+    Html(html).into_response()
+}

@@ -4,7 +4,31 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.39 — Giai đoạn 43
+## 📦 Phiên bản hiện tại: v0.9.40 — Giai đoạn 44
+
+**Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷**
+
+Bản phát hành này thực hiện **3 thay đổi lớn** theo yêu cầu user:
+
+1. **Xóa hoàn toàn phần "Đăng Bán Vật Phẩm PvP"** — vì game Siêu Độ đã bị xóa khỏi dự án từ v0.9.35, nên PvP (người-vs-người) không còn ý nghĩa. Thay bằng **Chợ Đạo Hữu** — nơi đạo hữu trao đổi vật phẩm Phật giáo, sách, đồ thờ, dịch vụ thiện lành. Route cũ `/thuong-thanh/pvp` redirect 301 → `/thuong-thanh/cho-dao-huu`.
+
+2. **Đăng bán linh hoạt theo danh mục** — người đăng có thể:
+   - Chọn danh mục có sẵn từ dropdown (12 danh mục hệ thống: Thẻ Tu Học, Thẻ Đổi Tên, Vật Phẩm, Cao Cấp, Sách Phật Giáo, Đồ Thờ, Dịch Vụ, Thực Phẩm Chay, Thẻ Hỗ Trợ, Thẻ Nhóm, Thẻ Bầu Chọn, Khác).
+   - HOẶC tạo danh mục mới (nhập tên + icon emoji). Danh mục do user tạo cần admin duyệt trước khi xuất hiện công khai. Slug tự tạo từ tên tiếng Việt có dấu (VD: "Đồ Gốm Phật Giáo" → `do-go-phat-giao`).
+
+3. **Chọn phương thức thanh toán khi đăng bán** — người đăng có thể chọn:
+   - **K** (tiền tệ trong app) — buyer thêm vào giỏ hàng, thanh toán = trừ K từ ví buyer + cộng K cho seller (sau phí **10%** — giảm từ 20% cũ).
+   - **Chuyển khoản ngân hàng** — seller tự điền `bank_name`, `account_number`, `account_holder`, `branch` (optional), `qr_image_url` (URL ảnh QR VietQR). Buyer xem thông tin ngân hàng trên trang chi tiết vật phẩm, tự liên hệ seller để chuyển khoản. KHÔNG qua giỏ hàng (vì không thể verify chuyển khoản tự động).
+
+4. **Hoàn thiện bảng quản trị Thương Thành** — trước v0.9.40, admin không có UI quản lý Thương Thành. v0.9.40 thêm 2 trang admin hoàn chỉnh:
+   - `/admin/thuong-thanh` — List all shop_items (App + Đạo Hữu), 4 stats cards (tổng vật phẩm, đang hoạt động, nổi bật, chờ duyệt), filter chips theo moderation_status. Actions per item: Duyệt / Từ chối / Nổi bật (toggle) / Xóa (soft delete). Permission: tất cả admin role.
+   - `/admin/thuong-thanh/danh-muc` — Quản lý shop_categories. Form tạo mới (name_vi, slug, icon, color, description) + list categories với badge "Hệ thống" / "User tạo" / "Chờ duyệt" / "Ẩn" + actions (Duyệt / Ẩn).
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0940--2026-08-17--giai-doạn-44-chợ-đạo-hữu--admin-thương-thành-hoàn-thiện--payment-kbank-).
+
+---
+
+## 📦 Phiên bản trước: v0.9.39 — Giai đoạn 43
 
 **Giai đoạn 43: Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion 🪷**
 

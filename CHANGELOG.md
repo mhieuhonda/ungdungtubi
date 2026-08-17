@@ -6,6 +6,254 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.40] — 2026-08-17 — Giai đoạn 44: Chợ Đạo Hữu + Admin Thương Thành Hoàn Thiện + Payment K/Bank 🪷
+
+### 🎯 Mục tiêu giai đoạn
+
+Bản phát hành này thực hiện **3 thay đổi lớn** theo yêu cầu user:
+
+1. **Xóa hoàn toàn phần "Đăng Bán Vật Phẩm PvP"** — vì game Siêu Độ đã bị xóa
+   khỏi dự án từ v0.9.35 (Giai đoạn 40), nên PvP (người-vs-người) không còn ý
+   nghĩa. Thay bằng một loại đăng bán mới linh hoạt hơn.
+2. **Đăng bán linh hoạt theo danh mục** — người đăng có thể chọn danh mục có
+   sẵn trong hệ thống HOẶC tạo mới danh mục (cần admin duyệt trước khi public).
+3. **Chọn phương thức thanh toán** — khi đăng vật phẩm, người đăng có thể chọn
+   nhận tiền bằng **K** (tiền tệ trong app, 10% phí hệ thống) HOẶC **chuyển
+   khoản ngân hàng** (tự điền thông tin bank_name, account_number,
+   account_holder, QR URL).
+4. **Hoàn thiện bảng quản trị Thương Thành** — trước v0.9.40, admin không có
+   UI quản lý Thương Thành. Không thể duyệt, xóa, hoặc feature sản phẩm do
+   user đăng. v0.9.40 thêm 2 trang admin hoàn chỉnh.
+
+### 🤝 Chợ Đạo Hữu — Rename từ "Chợ PvP"
+
+Theo tài liệu `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục V.3, "Cửa Hàng
+PvP" được định nghĩa là nơi thành viên đăng đạo cụ trong game Siêu Độ. Vì game
+đã bị xóa, giữ tên "PvP" gây nhầm lẫn cho người dùng mới. v0.9.40 rename thành
+"Chợ Đạo Hữu" — phản ánh đúng bản chất: nơi đạo hữu trao đổi vật phẩm Phật giáo,
+sách, đồ thờ, dịch vụ thiện lành (không liên quan đến game).
+
+- **[DH-1]** `src/models/thuong_thanh.rs` — Rename `ShopStore::Pvp` → `ShopStore::DaoHuu`.
+  Method `from_str()` giờ accept cả `"pvp"` (data cũ) và `"dao_huu"` (mới) — cùng
+  map về `DaoHuu`. Label `"Chợ Đạo Hữu"`, icon `🤝`, color `#C62828`.
+- **[DH-2]** `src/handlers/thuong_thanh.rs` — Rename `store_pvp` → `store_dao_huu`.
+  Thêm `store_pvp_redirect` — `GET /thuong-thanh/pvp` giờ redirect 301 permanent
+  → `/thuong-thanh/cho-dao-huu` (back-compat cho bookmark cũ).
+- **[DH-3]** `src/main.rs` — Route mới `/thuong-thanh/cho-dao-huu`. Route cũ
+  `/thuong-thanh/pvp` giữ lại (gọi `store_pvp_redirect`).
+- **[DH-4]** `templates/thuong-thanh/pvp.html` — Hero đổi "⚔️ Chợ PvP" → "🤝 Chợ Đạo
+  Hữu". Mô tả đổi "Đạo hữu tự đăng bán vật phẩm, thiết lập giá. Giao dịch thu 20%
+  phí" → "Đạo hữu tự đăng bán vật phẩm Phật giáo, sách, đồ thờ, dịch vụ thiện lành.
+  Chọn nhận tiền K (10% phí) hoặc chuyển khoản ngân hàng".
+- **[DH-5]** `templates/thuong-thanh/index.html` — Section "Chợ PvP" → "Chợ Đạo Hữu".
+  Stats label "PvP đang bán" → "Đạo Hữu đang bán". Link "Xem tất cả" trỏ tới
+  `/thuong-thanh/cho-dao-huu` (thay `/thuong-thanh/pvp`). Hiển thị giá K HOẶC
+  VNĐ + badge "🏦 Ngân hàng" / "🪷 Tiền K" cho mỗi item.
+- **[DH-6]** `templates/thuong-thanh/create.html` — Title "Đăng Bán PvP" →
+  "Đăng Bán Vật Phẩm — Chợ Đạo Hữu". Nút submit "⚔️ Đăng bán" → "🤝 Đăng bán"
+  (color #C62828 → #0F766E).
+- **[DH-7]** `templates/thuong-thanh/item.html` — Breadcrumb "Chợ PvP" → "Chợ Đạo Hữu".
+  Back link cũng đổi theo.
+- **[DH-8]** `templates/thuong-thanh/cart.html` — Label "PvP (20% phí)" →
+  "Chợ Đạo Hữu (10% phí)".
+
+### 📂 Danh Mục Linh Hoạt — Chọn Có Sẵn Hoặc Tạo Mới
+
+User khi đăng bán có thể chọn 1 trong 2 cách:
+- **Chọn danh mục có sẵn** từ dropdown (12 danh mục hệ thống: Thẻ Tu Học, Thẻ
+  Đổi Tên, Vật Phẩm, Cao Cấp, Sách Phật Giáo, Đồ Thờ, Dịch Vụ, Thực Phẩm Chay,
+  Thẻ Hỗ Trợ, Thẻ Nhóm, Thẻ Bầu Chọn, Khác).
+- **Tạo danh mục mới** — user nhập tên + icon emoji. Danh mục do user tạo có
+  `is_system = false, is_approved = false` → cần admin duyệt trước khi xuất
+  hiện công khai. Trong khi chờ duyệt, item vẫn đăng được (dùng tạm category
+  text).
+
+- **[CAT-1]** `migrations/028_cho_dao_huu_marketplace.sql` — Tạo bảng
+  `shop_categories` (id, slug, name_vi, description, icon, color, parent_id,
+  sort_order, is_system, is_approved, is_active, created_by, created_at,
+  updated_at). Index `idx_shop_categories_parent` + `idx_shop_categories_active`.
+- **[CAT-2]** Migration 028 — Seed 12 danh mục hệ thống (`is_system = true`):
+  the-tu-hoc, the-doi-ten, the-ho-tro, the-nhom, the-bau-chon, vat-pham,
+  cao-cap, sach-phat-giao, do-tho, dich-vu, thuc-pham-chay, khac.
+- **[CAT-3]** Migration 028 — Backfill `category_id` cho shop_items cũ (map
+  `category` TEXT → `shop_categories.slug` qua `REPLACE(LOWER(category), '_', '-')`).
+- **[CAT-4]** `src/db/mod.rs::ensure_schema_safety()` — `CREATE TABLE IF NOT
+  EXISTS shop_categories (... 14 cột ...)` (idempotent, chạy trước sqlx
+  migrations). Đồng bộ với migration 028. Index + seed 12 categories.
+- **[CAT-5]** `src/handlers/thuong_thanh.rs::slugify_vi()` — Hàm tạo slug từ
+  tên tiếng Việt có dấu (VD: "Đồ Gốm Phật Giáo" → "do-go-phat-giao"). Bỏ dấu
+  → lowercase → thay khoảng trắng bằng `-`.
+- **[CAT-6]** `src/handlers/thuong_thanh.rs::fetch_categories()` — Fetch all
+  active, approved categories (ORDER BY sort_order, name_vi).
+- **[CAT-7]** `src/handlers/thuong_thanh.rs::create_item_form` — Truyền
+  `categories: Vec<ShopCategory>` vào template cho dropdown.
+- **[CAT-8]** `src/handlers/thuong_thanh.rs::create_item` — Nếu user nhập
+  `new_category_name` không rỗng → INSERT vào `shop_categories` với
+  `is_system = false, is_approved = false, created_by = user_id`. Lấy `id` mới
+  → gán vào `shop_items.category_id`. Nếu trùng slug (đã có user khác tạo)
+  → `ON CONFLICT (slug) DO UPDATE` lấy id hiện có.
+- **[CAT-9]** `templates/thuong-thanh/create.html` — Dropdown "Chọn có sẵn"
+  + toggle "Tạo danh mục mới" (Alpine.js `createNewCat`). Khi toggle = tạo
+  mới, hiện input `new_category_name` + `new_category_icon`.
+
+### 💰 Payment Method — K Hoặc Ngân Hàng
+
+Khi đăng vật phẩm, user chọn 1 trong 2 phương thức thanh toán:
+
+- **K (tiền tệ trong app)** — buyer thêm vào giỏ hàng, thanh toán = trừ K từ
+  ví buyer + cộng K cho seller (sau phí 10%). Phí giảm từ 20% → 10% cho Chợ
+  Đạo Hữu (PvP cũ vẫn 20% cho back-compat).
+- **Chuyển khoản ngân hàng** — seller tự điền: `bank_name` (Vietcombank,
+  Techcombank, MB Bank...), `account_number`, `account_holder`, `branch`
+  (optional), `qr_image_url` (URL ảnh QR VietQR hoặc QR tự tạo). Buyer xem
+  thông tin ngân hàng trên trang chi tiết vật phẩm, tự liên hệ seller để
+  chuyển khoản. KHÔNG qua giỏ hàng (vì không thể verify chuyển khoản tự động).
+
+- **[PAY-1]** Migration 028 — `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS
+  payment_method TEXT NOT NULL DEFAULT 'k' CHECK (payment_method IN ('k', 'bank'))`.
+- **[PAY-2]** Migration 028 — `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS
+  price_vnd BIGINT` (giá VNĐ khi payment_method = 'bank').
+- **[PAY-3]** Migration 028 — `ALTER TABLE shop_items ADD COLUMN IF NOT EXISTS
+  bank_info JSONB DEFAULT '{}'` (lưu {bank_name, account_number,
+  account_holder, branch, qr_image_url}).
+- **[PAY-4]** Migration 028 — `ALTER TABLE transactions ADD COLUMN IF NOT
+  EXISTS payment_method TEXT NOT NULL DEFAULT 'k'` (snapshot lúc giao dịch).
+- **[PAY-5]** Migration 028 — `ALTER TABLE transactions ADD COLUMN IF NOT
+  EXISTS price_vnd BIGINT` + `bank_info JSONB` + `buyer_contact TEXT` (snapshot
+  buyer contact info khi bank transfer).
+- **[PAY-6]** `src/models/thuong_thanh.rs::BankInfo` — Struct mới với 5 field
+  (bank_name, account_number, account_holder, branch, qr_image_url). Method
+  `to_json()` build `serde_json::Value` cho sqlx bind. Method `validate()`
+  kiểm tra 3 field bắt buộc + max length.
+- **[PAY-7]** `src/models/thuong_thanh.rs::format_vnd()` — Helper format số
+  VNĐ: `1500000` → `"1.500.000 ₫"`.
+- **[PAY-8]** `src/models/thuong_thanh.rs::ShopItem` + `ShopItemWithSeller` —
+  Thêm field `category_id, payment_method, price_vnd, bank_info, is_featured,
+  moderation_status` (with `#[sqlx(default)]`). Method `price_display()` trả
+  K hoặc VNĐ tuỳ payment_method. Method `bank_info_struct()` parse JSONB.
+- **[PAY-9]** `src/models/thuong_thanh.rs::ItemCreateForm` — Form mới với
+  tất cả field: name, description, price_k, price_vnd, category_id,
+  new_category_name, new_category_icon, payment_method, bank_name,
+  account_number, account_holder, branch, qr_image_url, buyer_contact.
+  Method `validate()` trả `ValidatedItem` struct (category_id, payment_method,
+  price_vnd, bank_info).
+- **[PAY-10]** `src/handlers/thuong_thanh.rs::create_item` — INSERT shop_items
+  với tất cả field mới. `payment_method = 'bank'` → bind `price_vnd` +
+  `bank_info` JSONB. `moderation_status = 'approved'` (auto-approve — admin có
+  thể review sau qua `/admin/thuong-thanh`).
+- **[PAY-11]** `templates/thuong-thanh/create.html` — Toggle "Nhận tiền K" /
+  "Chuyển khoản ngân hàng" (Alpine.js `payment`). Khi `payment = 'k'` → hiện
+  input `price_k`. Khi `payment = 'bank'` → hiện 5 input (bank_name,
+  account_number, account_holder, branch, qr_image_url) + giá VNĐ + warning
+  "Vật phẩm thanh toán ngân hàng KHÔNG qua giỏ hàng".
+- **[PAY-12]** `templates/thuong-thanh/item.html` — Khi `item.payment_method
+  == 'bank'` → render box "🏦 Thông tin chuyển khoản" với 4 field (bank_name,
+  account_number, account_holder, branch) + ảnh QR (nếu có `qr_image_url`) +
+  warning "Đây là giao dịch giữa hai cá nhân. Hệ thống không chịu trách nhiệm".
+  Nút "🛒 Thêm vào giỏ hàng" → "💬 Liên hệ người bán" (link `/ban-be/tin-nhan`).
+- **[PAY-13]** `src/handlers/thuong_thanh.rs::cart_add` — Check
+  `payment_method` của item trước khi thêm vào giỏ. Nếu `bank` → redirect tới
+  `/thuong-thanh/vat-pham/{id}?bank=1` (trang chi tiết có bank info). Nếu `k`
+  → thêm vào giỏ bình thường.
+- **[PAY-14]** `src/handlers/thuong_thanh.rs::cart_checkout` — Thêm
+  `payment_method = 'k'` khi INSERT transaction. Fee cho Đạo Hữu giảm từ 20%
+  → 10% (PvP cũ vẫn 20% cho back-compat).
+- **[PAY-15]** `templates/thuong-thanh/pvp.html` — Card hiển thị giá K HOẶC
+  VNĐ + badge "🏦 Ngân hàng" / "🪷 Tiền K" cho mỗi item. Nút "🛒 Mua" →
+  "🏦 Xem bank info" nếu bank payment.
+
+### 🛡️ Admin Thương Thành Hoàn Thiện
+
+Trước v0.9.40, admin không có UI quản lý Thương Thành. Module chỉ có ở mặt user.
+User report không có cách kiểm duyệt sản phẩm đăng bán (đặc biệt khi user chọn
+bank payment với thông tin ngân hàng của họ). v0.9.40 thêm 2 trang admin hoàn chỉnh.
+
+- **[ADM-1]** `src/handlers/admin.rs::admin_thuong_thanh_list` — `GET
+  /admin/thuong-thanh` — List 100 shop_items mới nhất (kèm seller_name +
+  category_name JOIN). Stats: tổng vật phẩm, đang hoạt động, nổi bật, chờ
+  duyệt. Permission: tất cả admin role.
+- **[ADM-2]** `src/handlers/admin.rs::admin_thuong_thanh_delete` — `POST
+  /admin/thuong-thanh/{id}/xoa` — Soft delete (set `is_active = false,
+  moderation_status = 'removed'`). Audit log.
+- **[ADM-3]** `src/handlers/admin.rs::admin_thuong_thanh_toggle_featured` —
+  `POST /admin/thuong-thanh/{id}/noi-bat` — Toggle `is_featured` (đặt/bỏ
+  nổi bật).
+- **[ADM-4]** `src/handlers/admin.rs::admin_thuong_thanh_approve` — `POST
+  /admin/thuong-thanh/{id}/duyet` — Set `moderation_status = 'approved',
+  is_active = true`.
+- **[ADM-5]** `src/handlers/admin.rs::admin_thuong_thanh_reject` — `POST
+  /admin/thuong-thanh/{id}/tu-choi` — Set `moderation_status = 'rejected',
+  is_active = false` (ẩn khỏi công khai).
+- **[ADM-6]** `src/handlers/admin.rs::admin_thuong_thanh_categories` — `GET
+  /admin/thuong-thanh/danh-muc` — List all shop_categories (kèm item_count +
+  creator_name JOIN). Hiển thị badge "Hệ thống" / "User tạo" / "Chờ duyệt" /
+  "Ẩn".
+- **[ADM-7]** `src/handlers/admin.rs::admin_category_create` — `POST
+  /admin/thuong-thanh/danh-muc/tao` — Tạo category mới (`is_system = true,
+  is_approved = true`). Tự tạo slug từ tên nếu user không cung cấp.
+- **[ADM-8]** `src/handlers/admin.rs::admin_category_approve` — `POST
+  /admin/thuong-thanh/danh-muc/{id}/duyet` — Duyệt category do user tạo
+  (`is_approved = true, is_active = true`).
+- **[ADM-9]** `src/handlers/admin.rs::admin_category_delete` — `POST
+  /admin/thuong-thanh/danh-muc/{id}/xoa` — Ẩn category (`is_active = false`).
+  Vật phẩm thuộc category sẽ không bị xóa.
+- **[ADM-10]** `templates/admin/thuong-thanh/index.html` — Trang list items
+  với 4 stats cards + table list + actions (Duyệt / Từ chối / Nổi bật / Xóa).
+  Filter chips theo moderation_status. Color-coded badges.
+- **[ADM-11]** `templates/admin/thuong-thanh/danh-muc.html` — Trang quản lý
+  categories với form tạo mới (name_vi, slug, icon, color, description) +
+  list categories + actions (Duyệt / Ẩn).
+- **[ADM-12]** `src/main.rs` — 8 routes mới cho admin Thương Thành.
+- **[ADM-13]** `templates/admin/quan-li/index.html` — Thêm nav tab "🏪 Thương
+  Thành" trỏ tới `/admin/thuong-thanh`.
+
+### 🗄️ Migration 028 + Safety Schema
+
+- **[DB-1]** `migrations/028_cho_dao_huu_marketplace.sql` — Toàn bộ schema
+  mới (shop_categories table + 6 cột mới shop_items + 4 cột mới transactions
+  + 12 system categories seed + backfill category_id + 3 index + 2 CHECK
+  constraint mới).
+- **[DB-2]** `src/db/mod.rs::ensure_schema_safety()` — `CREATE TABLE IF NOT
+  EXISTS shop_categories (...)`, `ALTER TABLE shop_items ADD COLUMN IF NOT
+  EXISTS ...` (6 cột), `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS
+  ...` (4 cột). Index + seed 12 categories. Backfill category_id. Idempotent
+  — chạy trước sqlx migrations để schema luôn nhất quán (cùng cơ chế đã fix
+  v0.9.25, v0.9.38, v0.9.39).
+
+### 📦 Version Sync v0.9.40
+
+- Bump version `0.9.39` → `0.9.40` ở: `Cargo.toml`, `src/main.rs` (startup
+  log + health check public + health check inner + phase 43 → 44), `templates/
+  layout.html` (footer), `templates/admin/placeholder.html` (title + footer),
+  `templates/admin/ky-thuat/index.html` (title + footer), `templates/admin/
+  quan-li/index.html` (footer), `templates/admin/cong-dong/index.html`
+  (footer), `templates/admin/phat-trien/index.html` (badge + roadmap + footer),
+  `templates/khong-gian/index.html` (footer), `src/middleware/rate_limit.rs`
+  (429 page footer), `Dockerfile.coolify` (comment).
+- Update phase 43 → 44 trong health check + main log.
+- Thêm 43 feature flags v0.9.40 vào `HEALTH_FEATURES` array.
+- Cập nhật roadmap `/admin/phat-trien`: Giai đoạn 43 → "Hoàn thành" (green),
+  Giai đoạn 44 → "Đang triển khai" (indigo).
+- Thêm `v0_9_40_note` vào health check JSON response.
+
+### 🔧 Tech Notes
+
+- **Rust 1.97.1** — Đảm bảo `Cargo.toml` có `rust-version = "1.97.1"` và
+  `Dockerfile` dùng `rust:1.97.1-slim-bookworm`. Build pass `cargo check
+  --release` và `cargo build --release` thành công (17 warnings, 0 errors —
+  tất cả warnings là dead-code fields/methods reserved cho future use).
+- **Askama template syntax** — Không hỗ trợ `.iter().filter().count()` trong
+  template expressions. Workaround: precompute counts trong handler, truyền
+  vào template struct (`total_active, total_featured, total_pending`).
+- **Alpine.js** — Form đăng bán dùng Alpine.js cho 2 toggle: `createNewCat`
+  (chọn category có sẵn vs tạo mới) + `payment` (K vs bank). CSS `x-cloak`
+  ẩn các section chưa active để tránh FOUC.
+- **Slug generation** — `slugify_vi()` tự tạo slug từ tên tiếng Việt có dấu
+  (Đồ Gốm → do-go). Mirror function `slugify_vi_admin()` trong admin handler
+  (tránh circular dependency giữa handlers::thuong_thanh và handlers::admin).
+
+---
+
 ## [0.9.39] — 2026-08-17 — Giai đoạn 43: Active User Sync + Settings Fix + Stats Timezone Fix + Mobile Menu Accordion 🪷
 
 ### 🎯 Mục tiêu giai đoạn
