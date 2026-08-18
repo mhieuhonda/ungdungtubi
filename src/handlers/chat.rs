@@ -159,6 +159,20 @@ pub async fn global_chat_send_rest(
             .into_response();
     }
 
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words(&state.pool, &body).await;
+    if fw_result.should_block {
+        log::warn!("🚫 Chat chung bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Nội dung chứa từ ngữ không phù hợp. Vui lòng sửa lại."})),
+        )
+            .into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 Chat chung flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+    }
+
     use crate::models::community::{GlobalChatMessage, GlobalChatMessageWithAuthor};
 
     let saved: Result<GlobalChatMessageWithAuthor, _> = sqlx::query_as::<_, GlobalChatMessage>(

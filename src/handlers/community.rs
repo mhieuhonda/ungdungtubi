@@ -799,6 +799,28 @@ pub async fn create_topic(
         return Html(html).into_response();
     }
 
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words_multi(&state.pool, &[&title, &body]).await;
+    if fw_result.should_block {
+        log::warn!("🚫 Chủ đề bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        let html = CreateTopicTemplate {
+            user: Some(user),
+            active_page: "community".into(),
+            group_slug: slug,
+            group_name,
+            error: Some("Nội dung chứa từ ngữ không phù hợp. Vui lòng sửa lại.".into()),
+        }
+        .render()
+        .unwrap_or_else(|e| {
+            log::error!("Template render error (create_topic fw_block): {e}");
+            format!("<html><body><h1>Lỗi render template</h1><pre>{e}</pre></body></html>")
+        });
+        return Html(html).into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 Chủ đề flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+    }
+
     let topic_id: Uuid = match sqlx::query_scalar(
         "INSERT INTO topics (group_id, author_id, title, body)
          VALUES ($1, $2, $3, $4)
@@ -1026,6 +1048,18 @@ pub async fn create_comment(
     if locked == Some(true) {
         // v0.9.37: redirect thay vì plain-text 403.
         return Redirect::to(&format!("/cong-dong/chu-de/{topic_id}?err=chu-de-da-khoa")).into_response();
+    }
+
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words(&state.pool, &body).await;
+    if fw_result.should_block {
+        log::warn!("🚫 Bình luận bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        return Html(format!(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">⚠️ Nội dung bình luận chứa từ ngữ không phù hợp. Vui lòng sửa lại.</div>"#
+        )).into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 Bình luận flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
     }
 
     if let Err(e) = sqlx::query(

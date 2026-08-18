@@ -809,6 +809,20 @@ pub async fn dm_send_message(
             .into_response();
     }
 
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words(&state.pool, &trimmed).await;
+    if fw_result.should_block {
+        log::warn!("🚫 DM bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({"error": "Nội dung chứa từ ngữ không phù hợp. Vui lòng sửa lại."})),
+        )
+            .into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 DM flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+    }
+
     // Lưu message vào DB
     match sqlx::query_as::<_, DirectMessage>(
         "INSERT INTO direct_messages (conversation_id, author_id, body)
@@ -1292,6 +1306,21 @@ pub async fn mail_send(
             </div>"#,
         )
         .into_response();
+    }
+
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words_multi(&state.pool, &[&subject, &body]).await;
+    if fw_result.should_block {
+        log::warn!("🚫 Thư bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        return Html(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                ⚠️ Nội dung thư chứa từ ngữ không phù hợp. Vui lòng sửa lại. <a href="/ban-be/thu/gui" class="underline">← Thử lại</a>
+            </div>"#,
+        )
+        .into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 Thư flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
     }
 
     // Insert mail

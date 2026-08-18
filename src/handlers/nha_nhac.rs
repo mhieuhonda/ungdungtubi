@@ -594,6 +594,18 @@ pub async fn nha_nhac_submit_music(
         }
     };
 
+    // v0.9.42 — Giai đoạn 46: Forbidden words auto-check
+    let fw_result = crate::db::check_forbidden_words_multi(&state.pool, &[&title, &description]).await;
+    if fw_result.should_block {
+        log::warn!("🚫 Nhạc đăng bị chặn (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+        return Html(format!(
+            r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">⚠️ Nội dung chứa từ ngữ không phù hợp. Vui lòng sửa lại.</div>"#
+        )).into_response();
+    }
+    if fw_result.should_flag {
+        log::warn!("🚩 Nhạc đăng flagged (forbidden words): user_id={}, words={:?}", user.id, fw_result.matched_words);
+    }
+
     // Rate limit: max 5 submissions per user per day
     let today_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_music_submissions WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 day'"
@@ -630,9 +642,13 @@ pub async fn nha_nhac_submit_music(
     }
 
     // Insert submission
+    // v0.9.42 — Giai đoạn 46: Explicitly include source_type='youtube' instead of
+    // relying on DB DEFAULT. Root cause fix cho "Lỗi gửi bài — không thể lưu bài hát
+    // vào cơ sở dữ liệu" — nếu DB column chưa có DEFAULT (partial migration), INSERT
+    // sẽ fail. Tường minh an toàn hơn.
     let result = sqlx::query(
-        "INSERT INTO user_music_submissions (user_id, title, artist, category, youtube_url, youtube_id, description, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')"
+        "INSERT INTO user_music_submissions (user_id, title, artist, category, youtube_url, youtube_id, description, status, source_type)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'youtube')"
     )
     .bind(user.id)
     .bind(&title)

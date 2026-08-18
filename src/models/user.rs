@@ -45,6 +45,10 @@ pub struct User {
     pub k_balance: i64,
     /// Nguyên lực I — phần thưởng từ Tượng Phật (v0.9.9 — Giai đoạn 13).
     pub i_balance: i64,
+    /// Bi balance — tiền Từ Bi, loại cao cấp nhất (v0.9.42 — Giai đoạn 46).
+    /// Kiếm qua cống hiến đặc biệt hoặc quy đổi từ K. 100 K = 1 Bi.
+    #[sqlx(default)]
+    pub bi_balance: i64,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

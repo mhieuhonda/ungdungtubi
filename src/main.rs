@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.41 — Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷");
+    log::info!("📦 Phiên bản: v0.9.42 — Giai đoạn 46: Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -816,6 +816,31 @@ const HEALTH_FEATURES: &[&str] = &[
     "safety-schema-comments-new-columns-v0.9.41",
     "safety-schema-groups-new-columns-v0.9.41",
     "safety-schema-topics-new-columns-v0.9.41",
+    // ─── v0.9.42 — Giai đoạn 46: Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI
+    "forbidden-words-auto-check-v0.9.42",
+    "forbidden-words-block-content-v0.9.42",
+    "forbidden-words-flag-content-v0.9.42",
+    "forbidden-words-check-comment-v0.9.42",
+    "forbidden-words-check-topic-v0.9.42",
+    "forbidden-words-check-chat-v0.9.42",
+    "forbidden-words-check-dm-v0.9.42",
+    "forbidden-words-check-mail-v0.9.42",
+    "forbidden-words-check-music-submit-v0.9.42",
+    "music-submit-explicit-source-type-v0.9.42",
+    "music-submit-db-safety-schema-v0.9.42",
+    "music-submit-root-cause-fix-v0.9.42",
+    "user-music-submissions-table-safety-v0.9.42",
+    "currency-system-bi-balance-v0.9.42",
+    "balance-transactions-table-v0.9.42",
+    "currency-exchange-rates-table-v0.9.42",
+    "bi-balance-display-profile-v0.9.42",
+    "bi-balance-display-khong-gian-v0.9.42",
+    "bi-balance-display-admin-users-v0.9.42",
+    "currency-a-k-bi-triple-system-v0.9.42",
+    "migration-030-currency-bi-v0.9.42",
+    "safety-schema-bi-balance-v0.9.42",
+    "safety-schema-balance-transactions-v0.9.42",
+    "safety-schema-currency-exchange-rates-v0.9.42",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -834,7 +859,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.41",
+            "version": "0.9.42",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -864,11 +889,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.41",
+        "version": "0.9.42",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 45,
-        "phase_name": "Giai đoạn 45 — Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact 🪷",
+        "phase": 46,
+        "phase_name": "Giai đoạn 46 — Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

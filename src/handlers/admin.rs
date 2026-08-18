@@ -68,6 +68,9 @@ pub struct AdminUserRow {
     pub a_balance: i64,
     /// Nguyên lực I — phần thưởng từ Tượng Phật (v0.9.10).
     pub i_balance: i64,
+    /// Bi balance — tiền Từ Bi, loại cao cấp nhất (v0.9.42 — Giai đoạn 46).
+    #[sqlx(default)]
+    pub bi_balance: i64,
     /// Thời gian đăng nhập gần nhất (lấy từ sessions). NULL nếu chưa từng đăng nhập.
     pub last_session_at: Option<DateTime<Utc>>,
 }
@@ -674,6 +677,7 @@ async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
         "SELECT u.id, u.email, u.display_name, u.role, u.rank, u.is_active,
                 u.email_verified, u.created_at, u.k_balance, u.a_balance,
                 COALESCE(u.i_balance, 0) AS i_balance,
+                COALESCE(u.bi_balance, 0) AS bi_balance,
                 COALESCE(u.last_seen_at, (SELECT MAX(s.created_at) FROM sessions s WHERE s.user_id = u.id)) AS last_session_at
          FROM users u
          ORDER BY

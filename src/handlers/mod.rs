@@ -151,6 +151,7 @@ impl UserSessionMinimal {
             a_balance: self.a_balance,
             k_balance: self.k_balance,
             i_balance: 0,
+            bi_balance: 0,
             is_active: self.is_active,
             created_at: self.created_at,
             updated_at: self.updated_at,

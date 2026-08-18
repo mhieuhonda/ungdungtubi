@@ -603,5 +603,252 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
         "ALTER TABLE topics ADD COLUMN IF NOT EXISTS moderated_at TIMESTAMPTZ"
     ).execute(pool).await;
 
+    // ─── v0.9.42 — Giai đoạn 46: Safety schema cho user_music_submissions + bi_balance + balance_transactions ─
+    // Root cause fix cho "Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu":
+    //   Nếu bảng user_music_submissions chưa tồn tại (migration 025 chưa chạy),
+    //   INSERT INTO user_music_submissions sẽ fail với "relation does not exist".
+    // Fix: tạo bảng trong safety schema.
+
+    // 19. Ensure `user_music_submissions` table (v0.9.35 — Giai đoạn 40).
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_music_submissions (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title           TEXT            NOT NULL,
+            artist          TEXT            NOT NULL DEFAULT '',
+            category        TEXT            NOT NULL CHECK (category IN ('niem', 'thien', 'dao', 'khong_loi')),
+            youtube_url     TEXT            NOT NULL,
+            youtube_id      TEXT            NOT NULL,
+            description     TEXT            DEFAULT '',
+            status          TEXT            NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+            reviewed_by     UUID            REFERENCES users(id),
+            review_note     TEXT,
+            reviewed_at     TIMESTAMPTZ,
+            play_count      BIGINT          NOT NULL DEFAULT 0,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            source_type     TEXT            NOT NULL DEFAULT 'youtube' CHECK (source_type IN ('youtube', 'audio_file')),
+            audio_file_upload_id UUID      REFERENCES audio_files(id) ON DELETE SET NULL,
+            audio_duration_seconds INT
+        )"
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_user ON user_music_submissions(user_id)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_status ON user_music_submissions(status)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_category ON user_music_submissions(category)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_music_submissions_youtube_id ON user_music_submissions(youtube_id)"
+    ).execute(pool).await;
+    log::info!("  ✅ user_music_submissions table ensured (v0.9.42 — root cause fix)");
+
+    // 20. Ensure `users.bi_balance` column (v0.9.42 — Giai đoạn 46).
+    let _ = sqlx::query(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS bi_balance BIGINT NOT NULL DEFAULT 0"
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_users_bi_balance ON users(bi_balance) WHERE bi_balance > 0"
+    ).execute(pool).await;
+    log::info!("  ✅ users.bi_balance column ensured (v0.9.42)");
+
+    // 21. Ensure `balance_transactions` table (v0.9.42 — Giai đoạn 46).
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS balance_transactions (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            currency        VARCHAR(5)      NOT NULL CHECK (currency IN ('a', 'k', 'bi')),
+            amount          BIGINT          NOT NULL,
+            balance_after   BIGINT          NOT NULL,
+            tx_type         VARCHAR(30)     NOT NULL CHECK (tx_type IN (
+                'purchase', 'sale', 'reward', 'exchange_in', 'exchange_out',
+                'donation', 'admin_adjust', 'dao_huu_payment', 'signup_bonus',
+                'daily_login', 'other'
+            )),
+            description     TEXT            NOT NULL DEFAULT '',
+            reference_id    VARCHAR(100),
+            performed_by    UUID            REFERENCES users(id) ON DELETE SET NULL,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_balance_tx_user ON balance_transactions(user_id)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_balance_tx_user_currency ON balance_transactions(user_id, currency)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_balance_tx_created ON balance_transactions(created_at DESC)"
+    ).execute(pool).await;
+    log::info!("  ✅ balance_transactions table ensured (v0.9.42)");
+
+    // 22. Ensure `currency_exchange_rates` table (v0.9.42 — Giai đoạn 46).
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS currency_exchange_rates (
+            id              BIGSERIAL       PRIMARY KEY,
+            from_currency   VARCHAR(5)      NOT NULL CHECK (from_currency IN ('a', 'k', 'bi')),
+            to_currency     VARCHAR(5)      NOT NULL CHECK (to_currency IN ('a', 'k', 'bi')),
+            from_amount     BIGINT          NOT NULL DEFAULT 100,
+            is_active       BOOLEAN         NOT NULL DEFAULT true,
+            updated_by      UUID            REFERENCES users(id) ON DELETE SET NULL,
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            UNIQUE (from_currency, to_currency)
+        )"
+    )
+    .execute(pool)
+    .await;
+    // Seed exchange rates (idempotent)
+    let _ = sqlx::query(
+        "INSERT INTO currency_exchange_rates (from_currency, to_currency, from_amount) VALUES
+            ('a', 'k', 100), ('k', 'bi', 100), ('a', 'bi', 10000)
+        ON CONFLICT (from_currency, to_currency) DO NOTHING"
+    ).execute(pool).await;
+    log::info!("  ✅ currency_exchange_rates table ensured (v0.9.42)");
+
     log::info!("🔒 Safety schema check hoàn tất");
+}
+
+// ─── Forbidden Words Check ─────────────────────────────────────────────────
+
+/// Kết quả kiểm tra từ vựng cấm.
+///
+/// v0.9.42 — Giai đoạn 46: Forbidden Words Auto-Check.
+/// Khi user submit content (comment, topic, chat, mail, music),
+/// gọi `check_forbidden_words` để kiểm tra nội dung có chứa từ cấm không.
+#[derive(Debug, Clone)]
+pub struct ForbiddenWordsResult {
+    /// True nếu nội dung chứa từ cấm với action='block' — PHẢI chặn.
+    pub should_block: bool,
+    /// True nếu nội dung chứa từ cấm với action='flag' — cho phép nhưng flag.
+    pub should_flag: bool,
+    /// Danh sách từ cấm tìm thấy (để hiển thị cho user).
+    pub matched_words: Vec<String>,
+    /// Mô tả chi tiết (cho log).
+    pub detail: String,
+}
+
+impl ForbiddenWordsResult {
+    /// Không có từ cấm — nội dung an toàn.
+    pub fn clean() -> Self {
+        Self {
+            should_block: false,
+            should_flag: false,
+            matched_words: vec![],
+            detail: String::new(),
+        }
+    }
+
+    /// Có từ cấm block — chặn nội dung.
+    pub fn blocked(words: Vec<String>) -> Self {
+        let detail = format!("Chặn vì chứa từ cấm: {}", words.join(", "));
+        Self {
+            should_block: true,
+            should_flag: false,
+            matched_words: words,
+            detail,
+        }
+    }
+
+    /// Có từ cấm flag — cho phép nhưng đánh dấu.
+    pub fn flagged(words: Vec<String>) -> Self {
+        let detail = format!("Flag vì chứa từ nhạy cảm: {}", words.join(", "));
+        Self {
+            should_block: false,
+            should_flag: true,
+            matched_words: words,
+            detail,
+        }
+    }
+
+    /// Vừa block vừa flag (nhiều loại từ cấm).
+    pub fn blocked_and_flagged(block_words: Vec<String>, flag_words: Vec<String>) -> Self {
+        let mut all = block_words.clone();
+        all.extend_from_slice(&flag_words);
+        let detail = format!(
+            "Chặn vì chứa từ cấm: {} | Flag vì chứa từ nhạy cảm: {}",
+            block_words.join(", "),
+            flag_words.join(", ")
+        );
+        Self {
+            should_block: true,
+            should_flag: true,
+            matched_words: all,
+            detail,
+        }
+    }
+}
+
+/// Kiểm tra nội dung có chứa từ vựng cấm không.
+///
+/// v0.9.42 — Giai đoạn 46: Forbidden Words Auto-Check.
+/// Query bảng `forbidden_words` (is_active=true) và kiểm tra từng từ
+/// xem có xuất hiện trong nội dung không (case-insensitive).
+///
+/// # Arguments
+/// * `pool` — Database connection pool
+/// * `content` — Nội dung cần kiểm tra (title, body, message, v.v.)
+///
+/// # Returns
+/// * `ForbiddenWordsResult` — Kết quả kiểm tra (block/flag/clean)
+///
+/// # Performance
+/// Chỉ query từ cấm active một lần, cache trong hàm gọi.
+/// Với số lượng từ cấm nhỏ (< 100), linear scan là đủ.
+pub async fn check_forbidden_words(pool: &PgPool, content: &str) -> ForbiddenWordsResult {
+    // Lấy tất cả từ cấm đang active
+    let rows = match sqlx::query_as::<_, (String, String)>(
+        "SELECT word, action FROM forbidden_words WHERE is_active = true ORDER BY word"
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            // Bảng forbidden_words có thể chưa tồn tại — không chặn content.
+            log::warn!("⚠️ check_forbidden_words: không query được forbidden_words: {e}");
+            return ForbiddenWordsResult::clean();
+        }
+    };
+
+    let content_lower = content.to_lowercase();
+    let mut block_words: Vec<String> = vec![];
+    let mut flag_words: Vec<String> = vec![];
+
+    for (word, action) in &rows {
+        let word_lower = word.to_lowercase();
+        // Kiểm tra từ/cụm từ xuất hiện trong nội dung (case-insensitive)
+        if content_lower.contains(&word_lower) {
+            match action.as_str() {
+                "block" => block_words.push(word.clone()),
+                "flag" => flag_words.push(word.clone()),
+                _ => {}
+            }
+        }
+    }
+
+    let has_block = !block_words.is_empty();
+    let has_flag = !flag_words.is_empty();
+
+    match (has_block, has_flag) {
+        (true, true) => ForbiddenWordsResult::blocked_and_flagged(block_words, flag_words),
+        (true, false) => ForbiddenWordsResult::blocked(block_words),
+        (false, true) => ForbiddenWordsResult::flagged(flag_words),
+        (false, false) => ForbiddenWordsResult::clean(),
+    }
+}
+
+/// Kiểm tra nhiều trường nội dung (title + body + description, v.v.).
+/// Gộp tất cả thành 1 chuỗi để kiểm tra 1 lần (hiệu quả hơn).
+pub async fn check_forbidden_words_multi(pool: &PgPool, parts: &[&str]) -> ForbiddenWordsResult {
+    let combined = parts.join(" ");
+    check_forbidden_words(pool, &combined).await
 }
