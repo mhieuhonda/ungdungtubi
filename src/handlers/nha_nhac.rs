@@ -34,6 +34,10 @@ use axum_extra::extract::CookieJar;
 use askama::Template;
 use sqlx::PgPool;
 
+// v0.9.43 — Giai đoạn 47: trace_id generation cho music submit error logging
+// (build trace ID để admin dễ trace trong log khi user báo lỗi)
+use chrono::Utc;
+
 use crate::AppState;
 use crate::handlers::get_user_from_session;
 use crate::models::nha_nhac::{
@@ -646,6 +650,12 @@ pub async fn nha_nhac_submit_music(
     // relying on DB DEFAULT. Root cause fix cho "Lỗi gửi bài — không thể lưu bài hát
     // vào cơ sở dữ liệu" — nếu DB column chưa có DEFAULT (partial migration), INSERT
     // sẽ fail. Tường minh an toàn hơn.
+    //
+    // v0.9.43 — Giai đoạn 47: INSERT retry fallback. Nếu INSERT với source_type fail
+    // (ColumnNotFound — migration 026 chưa chạy + safety schema chưa ensure được),
+    // retry với INSERT không có source_type (rely on DB DEFAULT ''). Nếu DEFAULT
+    // chưa được set, will fail nhưng sẽ log error chi tiết với trace ID để admin debug.
+    let trace_id = format!("yt-{}", Utc::now().format("%Y%m%d%H%M%S"));
     let result = sqlx::query(
         "INSERT INTO user_music_submissions (user_id, title, artist, category, youtube_url, youtube_id, description, status, source_type)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'youtube')"
@@ -660,6 +670,28 @@ pub async fn nha_nhac_submit_music(
     .execute(&state.pool)
     .await;
 
+    // v0.9.43 — Giai đoạn 47: Retry fallback nếu source_type column not found
+    let result = match result {
+        Ok(r) => Ok(r),
+        Err(sqlx::Error::ColumnNotFound(col)) if col.contains("source_type") => {
+            log::warn!("⚠️ [trace={}] source_type column not found, retrying INSERT without source_type. Migration 026 chưa chạy — chạy safety schema sẽ fix.", trace_id);
+            sqlx::query(
+                "INSERT INTO user_music_submissions (user_id, title, artist, category, youtube_url, youtube_id, description, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')"
+            )
+            .bind(user.id)
+            .bind(&title)
+            .bind(&artist)
+            .bind(cat.db_value())
+            .bind(form.youtube_url.trim())
+            .bind(&youtube_id)
+            .bind(&description)
+            .execute(&state.pool)
+            .await
+        }
+        Err(e) => Err(e),
+    };
+
     match result {
         Ok(_) => Html(
             r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
@@ -671,9 +703,10 @@ pub async fn nha_nhac_submit_music(
             // để dễ debug. Trước v0.9.41: chỉ hiển thị generic message, không có cách debug.
             // v0.9.41: log DB error reason, phân loại lỗi (ColumnNotFound / Database / Decode),
             // hiển thị error code cho user (frontend có thể expand để report admin).
-            log::error!("❌ nha_nhac_submit_music (YouTube) INSERT fail: {e}");
-            log::error!("   user_id={}, title='{}', category='{}', youtube_id='{}'",
-                user.id, title, cat.db_value(), youtube_id);
+            // v0.9.43 — Giai đoạn 47: Thêm trace_id để admin dễ trace trong log.
+            log::error!("❌ [trace={}] nha_nhac_submit_music (YouTube) INSERT fail: {e}", trace_id);
+            log::error!("   [trace={}] user_id={}, title='{}', category='{}', youtube_id='{}'",
+                trace_id, user.id, title, cat.db_value(), youtube_id);
             let err_kind = match &e {
                 sqlx::Error::ColumnNotFound(col) => format!("Thiếu cột DB: {col}"),
                 sqlx::Error::Database(db_err) => {
@@ -694,6 +727,7 @@ pub async fn nha_nhac_submit_music(
                 r#"<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
                     ⚠️ Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu.<br>
                     <span class="text-xs text-red-600">Chi tiết: {err_kind}</span><br>
+                    <span class="text-xs text-red-500">Mã trace: {trace_id} — báo admin kèm mã này để được hỗ trợ nhanh.</span><br>
                     <span class="text-xs text-red-500">Vui lòng thử lại sau ít phút. Nếu lỗi tiếp diễn, liên hệ admin kỹ thuật kèm thông báo trên.</span>
                 </div>"#
             )).into_response()

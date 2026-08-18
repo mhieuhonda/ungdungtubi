@@ -246,17 +246,37 @@ jobs:
           echo "→ Calling Coolify API: $URL"
 
           # v0.9.27 FIX: Coolify v4 /start endpoint cần POST, không phải GET
-          HTTP_CODE=$(curl -sS -o /tmp/coolify_resp.json -w "%{http_code}" \
-            --max-time 30 \
-            -X POST \
-            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "${URL}")
+          # v0.9.43 — Giai đoạn 47: Coolify 4.3.7 confirmed:
+          #   - GET /api/v1/applications/{uuid}/start → 405 "This endpoint has changed to a POST request."
+          #   - POST /api/v1/applications/{uuid}/start → 200 "Deployment request queued."
+          # Workflow luôn dùng POST, không bao giờ GET. Nếu thấy 405 trong log, retry với POST.
+          # Thêm retry logic: nếu gặp 405, retry với POST (defensive — không bao giờ xảy ra với code hiện tại
+          # nhưng an toàn khi có ai đó vô tình sửa sang GET).
 
-          echo "HTTP status: ${HTTP_CODE}"
-          echo "Response:"
-          cat /tmp/coolify_resp.json
-          echo
+          call_coolify() {
+            local method="${1:-POST}"
+            local max_time="${2:-30}"
+            HTTP_CODE=$(curl -sS -o /tmp/coolify_resp.json -w "%{http_code}" \
+              --max-time "${max_time}" \
+              -X "${method}" \
+              -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "${URL}")
+            echo "→ ${method} ${URL} → HTTP ${HTTP_CODE}"
+            echo "Response:"
+            cat /tmp/coolify_resp.json
+            echo
+          }
+
+          # Attempt 1: POST (đúng method cho Coolify 4.3.7)
+          call_coolify "POST" "30"
+
+          # v0.9.43 — Defensive: nếu POST vẫn trả 405 (rare case), thử lại POST sau 2 giây
+          if [ "${HTTP_CODE}" = "405" ]; then
+            echo "⚠️  Got 405 even with POST (unexpected). Retrying POST after 2s..."
+            sleep 2
+            call_coolify "POST" "60"
+          fi
 
           # Coolify trả về 200 khi deploy được xếp hàng thành công
           if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ] || [ "${HTTP_CODE}" = "202" ]; then
@@ -267,6 +287,10 @@ jobs:
             fi
           else
             echo "::error::Coolify API returned HTTP ${HTTP_CODE}"
+            echo "::error::Expected: 200/201/202 (deployment queued). Got: ${HTTP_CODE}"
+            echo "::error::If 405: Coolify 4.3.7 requires POST (not GET). This workflow uses POST — check if secrets are valid."
+            echo "::error::If 401/403: COOLIFY_API_TOKEN may be expired or invalid. Regenerate in Coolify → User Settings → API Tokens."
+            echo "::error::If 404: COOLIFY_APP_UUID may be wrong. Find correct UUID in Coolify → Application → Settings."
             exit 1
           fi
 

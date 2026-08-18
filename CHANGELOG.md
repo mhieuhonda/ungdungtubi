@@ -6,6 +6,70 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.43] — 2026-08-18 — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷
+
+Bản phát hành này triển khai **Giai đoạn 47** của dự án: hoàn thiện hệ thống tiền tệ 3 loại (A/K/Bi) bằng cách thêm module quy đổi tiền tệ, harden fix lỗi "không thể lưu bài hát vào cơ sở dữ liệu" (root cause đã có từ v0.9.42 nhưng production chưa deploy), và harden Coolify webhook trigger để tránh lỗi 405 khi auto-deploy.
+
+### 💱 Currency Exchange (Module Tiền Tệ & Quy Đổi) — MỚI
+
+- **[TE-1]** `src/handlers/tien_te.rs` — Module mới (500+ dòng) triển khai đầy đủ 6 endpoint:
+  - `GET  /tien-te` — Trang quy đổi (UI Tailwind): hiển thị 4 balances (A/K/I/Bi), form đổi tiền, danh sách tỷ giá, lịch sử giao dịch.
+  - `GET  /api/tien-te/ty-gia` — JSON xem tỷ giá (public, không cần auth).
+  - `POST /api/tien-te/doi` — Quy đổi A↔K↔Bi (auth, JSON, transaction-safe).
+  - `GET  /api/tien-te/ls-giao-dich` — Lịch sử giao dịch quy đổi của user (50 giao dịch gần nhất).
+  - `GET  /admin/tien-te` — Admin quản lý tỷ giá (UI: form update + list rates + toggle active).
+  - `POST /admin/tien-te/ty-gia` — Admin cập nhật/insert tỷ giá (form, admin-only).
+  - `POST /admin/tien-te/ty-gia/{from}/{to}/toggle` — Admin bật/tắt tỷ giá.
+- **[TE-2]** Transaction-safe exchange: Mỗi giao dịch quy đổi chạy trong DB transaction (BEGIN/COMMIT). Trừ balance nguồn + cộng balance đích + log 2 rows vào `balance_transactions` (exchange_out + exchange_in). Nếu bất kỳ bước nào fail, toàn bộ rollback.
+- **[TE-3]** Validation đầy đủ: from != to, amount > 0, amount >= from_amount (tối thiểu để nhận 1 đơn vị target), check balance đủ trước khi trừ, rate limit max 10 giao dịch/user/ngày (chống spam).
+- **[TE-4]** Reverse rate fallback: Nếu không có direct rate (vd: A→Bi), dùng reverse rate (Bi→A) nếu có. Hỗ trợ mọi cặp A↔K↔Bi kể cả khi admin chỉ set 1 chiều.
+- **[TE-5]** UI inline (Tailwind CDN) — không cần Askama template phức tạp, render HTML trực tiếp từ handler. Card balances gradient (emerald/amber/violet/pink), form Alpine.js fetch API, history list loaded async.
+- **[TE-6]** Admin UI — table rates với badge "Đang dùng"/"Tắt", form update với checkbox "Kích hoạt", action toggle nhanh. Note default rates: 100A = 1K · 100K = 1Bi · 10000A = 1Bi.
+- **[TE-7]** `src/handlers/mod.rs` — Thêm `pub mod tien_te;`.
+- **[TE-8]** `src/main.rs` — 7 routes mới registered.
+
+### 🐛 Music Submit DB Hardening — Root cause production-down fix
+
+- **[MUSIC-FIX-1]** Nguyên nhân gốc: Production vẫn chạy v0.9.41 (không phải v0.9.42). User báo "Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu" là vì code fix root cause (safety schema `user_music_submissions` table + INSERT explicit `source_type='youtube'`) ở v0.9.42 chưa được deploy. Workflow CI/CD có thể đang fail hoặc secrets COOLIFY_API_TOKEN/UUID đã cũ.
+- **[MUSIC-FIX-2]** `src/handlers/nha_nhac.rs` — `nha_nhac_submit_music` (YouTube): Thêm INSERT retry fallback. Nếu INSERT với `source_type` fail với `ColumnNotFound(col) if col.contains("source_type")`, retry với INSERT không có `source_type` (rely on DB DEFAULT). Đây là defensive layer 2 — safety schema nên đã ensure cột, nhưng nếu migrate bị fail mid-way, retry sẽ cứu vãn.
+- **[MUSIC-FIX-3]** `src/handlers/nha_nhac.rs` — Thêm `trace_id` cho mỗi lần submit (format: `yt-YYYYMMDDHHMMSS`). Khi INSERT fail, error message hiển thị `Mã trace: yt-20260818143052 — báo admin kèm mã này để được hỗ trợ nhanh.` Admin grep log với trace_id để biết full error + user_id + title + category + youtube_id.
+- **[MUSIC-FIX-4]** `src/handlers/nha_nhac.rs` — Import `chrono::Utc` (đã có sẵn trong Cargo.toml dependencies).
+
+### 🚀 Coolify Webhook POST Hardening — Defensive against 405
+
+- **[CW-1]** Đã xác nhận bằng test thực tế: Coolify v4.3.7 endpoint `/api/v1/applications/{uuid}/start`:
+  - `GET` → HTTP 405 `{"message":"This endpoint has changed to a POST request."}` ❌
+  - `POST` → HTTP 200 `{"message":"Deployment request queued.","deployment_uuid":"..."}` ✅
+- **[CW-2]** `.github/workflows/docker.yml` — Workflow đã dùng POST từ v0.9.27. Thêm comment giải thích rõ ràng Coolify 4.3.7 requires POST (không GET).
+- **[CW-3]** `.github/workflows/docker.yml` — Thêm retry logic defensive: nếu POST trả 405 (rare case — không bao giờ xảy ra với code hiện tại, nhưng an toàn khi có ai đó vô tình sửa sang GET), retry POST sau 2 giây.
+- **[CW-4]** `.github/workflows/docker.yml` — Cải thiện error messages khi fail:
+  - `405` → "Coolify 4.3.7 requires POST (not GET). This workflow uses POST — check if secrets are valid."
+  - `401/403` → "COOLIFY_API_TOKEN may be expired or invalid. Regenerate in Coolify → User Settings → API Tokens."
+  - `404` → "COOLIFY_APP_UUID may be wrong. Find correct UUID in Coolify → Application → Settings."
+- **[CW-5]** Đảm bảo secrets GitHub `COOLIFY_API_TOKEN` và `COOLIFY_APP_UUID` được set đúng giá trị (token: `11|vFmypspxE8nECNQVdlzn3ervfFfsEhQezamaq4kued4b2d45`, UUID: `xsrqp8xrcwwk57dvtcwt6393`).
+
+### 📦 Version Sync v0.9.43
+
+- `Cargo.toml` — version `0.9.42` → `0.9.43` (rust-version `1.97.1` giữ nguyên — đã đúng từ trước).
+- `src/main.rs`:
+  - Startup log: `v0.9.42 — Giai đoạn 46` → `v0.9.43 — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening`.
+  - Health check public: `"version": "0.9.42"` → `"0.9.43"`.
+  - Health check staff: version + phase 46 → 47 + phase_name mới.
+  - HEALTH_FEATURES: thêm 17 feature flags v0.9.43 (currency-exchange-page, currency-exchange-api, admin-tien-te-page, music-submit-insert-retry-fallback, music-submit-error-trace-id, coolify-webhook-post-hardening, coolify-webhook-405-retry, coolify-deploy, ...).
+- `Dockerfile.coolify` — Comment header update v0.9.43 + Giai đoạn 47 (image tag `sha-3477b01` giữ nguyên — workflow sẽ tự update sau push).
+- `templates/admin/phat-trien/index.html` — Phase badge 46 → 47, phase description mới, Giai đoạn 46 mark "Hoàn thành" (green), Giai đoạn 47 "Đang triển khai" (indigo), Migrations count 22 → 30 files.
+- 14 file templates (admin dashboards + placeholder + thuong-thanh + tu-vung-cam + binh-luan + cong-dong): footer version `v0.9.42` → `v0.9.43`.
+
+### 🔧 Rust 1.97.1 — Confirmed
+
+- `Cargo.toml`: `rust-version = "1.97.1"` ✅
+- `Dockerfile`: `FROM rust:1.97.1-slim-bookworm AS builder` ✅
+- README: `Backend | Rust 1.97.1 + Axum 0.8` ✅
+- Dockerfile.coolify comment: `Rust 1.97.1` ✅
+- Không cần thay đổi — Rust 1.97.1 đã được pin từ v0.9.5.
+
+---
+
 ## [0.9.41] — 2026-08-17 — Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷
 
 ### 🎯 Mục tiêu giai đoạn

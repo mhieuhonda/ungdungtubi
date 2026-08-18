@@ -45,14 +45,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.39 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.43 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.42 — Giai đoạn 46: Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI 🪷");
+    log::info!("📦 Phiên bản: v0.9.43 — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -366,6 +366,14 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/thuong-thanh/danh-muc/tao", post(handlers::admin::admin_category_create))
         .route("/admin/thuong-thanh/danh-muc/{cat_id}/xoa", post(handlers::admin::admin_category_delete))
         .route("/admin/thuong-thanh/danh-muc/{cat_id}/duyet", post(handlers::admin::admin_category_approve))
+        // v0.9.43 — Giai đoạn 47: Currency Exchange (Tiền Tệ & Quy Đổi)
+        .route("/tien-te", get(handlers::tien_te::tien_te_index))
+        .route("/api/tien-te/ty-gia", get(handlers::tien_te::tien_te_rates_api))
+        .route("/api/tien-te/doi", post(handlers::tien_te::tien_te_exchange_api))
+        .route("/api/tien-te/ls-giao-dich", get(handlers::tien_te::tien_te_history_api))
+        .route("/admin/tien-te", get(handlers::tien_te::admin_tien_te_index))
+        .route("/admin/tien-te/ty-gia", post(handlers::tien_te::admin_tien_te_update_rate))
+        .route("/admin/tien-te/ty-gia/{from}/{to}/toggle", post(handlers::tien_te::admin_tien_te_toggle_rate))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -841,6 +849,25 @@ const HEALTH_FEATURES: &[&str] = &[
     "safety-schema-bi-balance-v0.9.42",
     "safety-schema-balance-transactions-v0.9.42",
     "safety-schema-currency-exchange-rates-v0.9.42",
+    // ─── v0.9.43 — Giai đoạn 47: Currency Exchange + Music Submit Hardening + Webhook POST
+    "currency-exchange-page-v0.9.43",
+    "currency-exchange-api-v0.9.43",
+    "currency-exchange-rates-json-v0.9.43",
+    "currency-exchange-history-v0.9.43",
+    "currency-exchange-a-to-k-v0.9.43",
+    "currency-exchange-k-to-bi-v0.9.43",
+    "currency-exchange-a-to-bi-v0.9.43",
+    "currency-exchange-transaction-safe-v0.9.43",
+    "currency-exchange-rate-limit-10-per-day-v0.9.43",
+    "currency-exchange-balance-transactions-log-v0.9.43",
+    "admin-tien-te-page-v0.9.43",
+    "admin-tien-te-update-rate-v0.9.43",
+    "admin-tien-te-toggle-rate-v0.9.43",
+    "music-submit-insert-retry-fallback-v0.9.43",
+    "music-submit-error-trace-id-v0.9.43",
+    "coolify-webhook-post-hardening-v0.9.43",
+    "coolify-webhook-405-retry-v0.9.43",
+    "coolify-deploy-v0.9.43",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -859,7 +886,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.42",
+            "version": "0.9.43",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -889,11 +916,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.42",
+        "version": "0.9.43",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 46,
-        "phase_name": "Giai đoạn 46 — Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI 🪷",
+        "phase": 47,
+        "phase_name": "Giai đoạn 47 — Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

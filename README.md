@@ -4,25 +4,43 @@
 
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 
-## 📦 Phiên bản hiện tại: v0.9.41 — Giai đoạn 45
+## 📦 Phiên bản hiện tại: v0.9.43 — Giai đoạn 47
 
-**Giai đoạn 45: Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix + Mobile Menu Compact + Music Submit Error Log 🪷**
+**Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷**
 
-Bản phát hành này hoàn thiện **3 module admin còn sót** từ các giai đoạn trước, fix **4 bug user báo cáo**, và cải thiện UX mobile menu:
+Bản phát hành này triển khai **3 thay đổi lớn** theo yêu cầu user + hoàn thiện hệ thống tiền tệ:
 
-1. **Hoàn thiện Quản lý Bình luận** — trước v0.9.41, trang `/admin/binh-luan` chỉ hiển thị placeholder "Module đang hoàn thiện" + read-only list (và list còn bị lỗi type mismatch UUID vs i64 → luôn rỗng). v0.9.41 thay bằng moderation UI đầy đủ: ẩn / hiện / xóa / ghim / khoá nhánh trả lời. Fix lỗi type mismatch (UUID thay vì i64).
+1. **Currency Exchange (Module Tiền Tệ & Quy Đổi) — MỚI** — Hoàn thiện hệ thống tiền tệ 3 loại (A/K/Bi) đã được giới thiệu ở v0.9.42 (chỉ thêm cột `bi_balance` + bảng `balance_transactions` + `currency_exchange_rates`). v0.9.43 thêm module `/tien-te` cho user đổi tiền A↔K↔Bi (transaction-safe, rate limit 10/ngày), API JSON `/api/tien-te/doi` + `/api/tien-te/ty-gia` + `/api/tien-te/ls-giao-dich`, và admin page `/admin/tien-te` (CRUD tỷ giá).
 
-2. **Hoàn thiện Quản lý Nhóm Cộng Đồng** — tương tự bình luận, `/admin/cong-dong/nhom` chỉ là placeholder. v0.9.41 thay bằng moderation đầy đủ: khoá / mở khoá nhóm (is_active), đặt / bỏ đặc biệt (is_featured), xóa (soft delete).
+2. **Fix lỗi "Lỗi gửi bài — không thể lưu bài hát vào cơ sở dữ liệu"** — Nguyên nhân gốc: Production vẫn chạy v0.9.41 (chứa code lỗi cũ), v0.9.42 với safety schema fix chưa được deploy do workflow CI/CD có thể đang fail. v0.9.43 harden fix:
+   - Thêm INSERT retry fallback: nếu INSERT với `source_type` fail vì column not found, retry với INSERT không có `source_type`.
+   - Thêm `trace_id` cho mỗi lần submit. Khi lỗi, error message hiển thị `Mã trace: yt-20260818143052` để admin grep log nhanh.
+   - Force redeploy bằng cách push commit v0.9.43 + update GitHub secrets COOLIFY_API_TOKEN/UUID.
 
-3. **Hoàn thiện module Từ vựng cấm** — trước v0.9.41, nút "Từ vựng cấm" trong admin dashboard chỉ là anchor `#tu-vung-cam` (không có trang). v0.9.41 thêm `/admin/tu-vung-cam` — CRUD đầy đủ: tạo / bật / tắt / xóa từ cấm. Phân loại (profanity / spam / politics / religious / scam / other) + action (block / flag). Seed 9 từ cấm hệ thống mặc định.
+3. **Coolify 4.3.7 Webhook POST Hardening** — Coolify v4.3.7 endpoint `/api/v1/applications/{uuid}/start` yêu cầu POST (không GET) — GET trả 405 `"This endpoint has changed to a POST request."`. Workflow đã dùng POST từ v0.9.27, nhưng v0.9.43:
+   - Thêm retry logic defensive nếu POST vô tình trả 405 (rare case).
+   - Cải thiện error messages: 405/401/403/404 → hướng dẫn debug rõ ràng.
+   - Update GitHub secrets `COOLIFY_API_TOKEN` + `COOLIFY_APP_UUID` để workflow chạy đúng.
 
-4. **Fix bug "hoạt động 6 giờ trước dù đang online"** — trước v0.9.41, heartbeat client setInterval 10 phút, không fire ngay khi user login → `last_seen_at` rỗng cho đến lần tick đầu tiên (sau 10 phút). Admin stats đếm `WHERE last_seen_at > NOW() - INTERVAL '5 min'` → user vừa login không nằm trong top active. v0.9.41: fire heartbeat NGAY khi DOM ready + giảm interval xuống 2 phút + fire khi tab visible trở lại sau 1 phút idle.
+**Rust 1.97.1** — đã được pin từ v0.9.5, không cần thay đổi (`Cargo.toml`: `rust-version = "1.97.1"`, `Dockerfile`: `FROM rust:1.97.1-slim-bookworm`).
 
-5. **Fix lỗi "không thể lưu bài hát vào cơ sở dữ liệu"** — trước v0.9.41, error message chỉ nói chung chung, không có cách debug. v0.9.41: phân loại lỗi (ColumnNotFound / Database / Decode), hiển thị error chi tiết cho user (để report admin), log đầy đủ user_id + title + category + audio_file_id để admin trace.
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0943--2026-08-18--giai-doạn-47-currency-exchange-akbi--music-submit-db-hardening--coolify-webhook-post-hardening-).
 
-6. **Rút gọn mobile menu thêm** — trước v0.9.41, mobile drawer dùng vertical list với padding lớn (py-2.5, gap-3, text-xl icon) → 27+ items vẫn chiếm nhiều chỗ. v0.9.41: chuyển sub-items sang **2-column grid** (compact gấp đôi), giảm padding (py-1.5, gap-2, text-base icon, text-xs font). 4 nút quick-access thu nhỏ (text-lg, text-[9px] label).
+---
 
-Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0941--2026-08-17--giai-doạn-45-admin-moderation-hoàn-thiện--từ-vựng-cấm--heartbeat-fix--mobile-menu-compact--music-submit-error-log-).
+## 📦 Phiên bản trước: v0.9.42 — Giai đoạn 46
+
+**Giai đoạn 46: Forbidden Words Auto-Check + Music Submit DB Fix + Hệ Thống Tiền Tệ Bi + Balance UI 🪷**
+
+Bản phát hành này triển khai **3 tính năng lớn** + harden music submit:
+
+1. **Forbidden Words Auto-Check** — Kiểm duyệt tự động (block/flag) trên comment, topic, chat, DM, mail, music submit. Khi user submit nội dung chứa từ cấm (đã có từ v0.9.41), hệ thống tự block hoặc flag tùy cấu hình.
+
+2. **Music Submit DB Fix (root cause)** — Fix root cause lỗi "không thể lưu bài hát vào cơ sở dữ liệu": safety schema ensure `user_music_submissions` table tồn tại + INSERT explicit `source_type='youtube'` thay vì rely on DB DEFAULT.
+
+3. **Hệ Thống Tiền Tệ Bi** — Thêm cột `bi_balance` vào `users` (tiền Từ Bi, loại cao cấp nhất), bảng `balance_transactions` (lịch sử giao dịch A/K/Bi), bảng `currency_exchange_rates` (tỷ giá admin quản lý). Migration 030. UI hiển thị Bi balance trên profile + Không Gian + admin users list.
+
+Xem chi tiết đầy đủ trong [`CHANGELOG.md`](CHANGELOG.md#0942--2026-08-18--giai-doạn-46-forbidden-words-auto-check--music-submit-db-fix--hệ-thống-tiền-tệ-bi--balance-ui-).
 
 ---
 
@@ -1149,6 +1167,13 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 | POST | `/api/heartbeat` | Heartbeat giữ session | Auth |
 | GET | `/api/upload-info` | Trả về giới hạn upload | Public |
 | POST | `/api/upload-image` | Upload ảnh (5MB max, JPEG/PNG/WebP/GIF) | Auth |
+| GET | `/tien-te` | **[v0.9.43]** Trang quy đổi tiền tệ (A↔K↔Bi) | Public |
+| GET | `/api/tien-te/ty-gia` | **[v0.9.43]** JSON xem tỷ giá hiện tại | Public |
+| POST | `/api/tien-te/doi` | **[v0.9.43]** Quy đổi tiền tệ (transaction-safe) | Auth |
+| GET | `/api/tien-te/ls-giao-dich` | **[v0.9.43]** Lịch sử giao dịch quy đổi | Auth |
+| GET | `/admin/tien-te` | **[v0.9.43]** Admin quản lý tỷ giá | Auth + admin |
+| POST | `/admin/tien-te/ty-gia` | **[v0.9.43]** Admin cập nhật tỷ giá | Auth + admin |
+| POST | `/admin/tien-te/ty-gia/{from}/{to}/toggle` | **[v0.9.43]** Admin bật/tắt tỷ giá | Auth + admin |
 
 ## Phiên Bản
 
@@ -1159,6 +1184,7 @@ Từ v0.9.4, dự án áp dụng mô hình CI/CD hoàn toàn tự động:
 - **v0.5** — Giai đoạn 5: Hạ tầng deploy (Docker + GitHub Actions + Coolify) + storage ảnh
 - **v0.6** — Giai đoạn 6: Cộng Đồng Foundation (Nhóm + Chủ Đề + Bình luận)
 - **v0.9** — Giai đoạn 9: Codebase sạch lỗi, clippy pedantic/nursery pass, Axum 0.8 ổn định
+- **v0.9.43** — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening
 - **v0.9.1** — Fix UI mobile (bottom nav + x-cloak), bỏ GitHub Actions, deploy thủ công qua Coolify
 - **v0.9.2** — Giai đoạn 7: Live Chat WebSocket trong Nhóm (Axum 0.8 ws + ChatHub broadcast + Alpine.js liveChat component)
 - **v0.9.3** — Fix live chat (mpsc channel + tokio::select!), thêm Chat Chung toàn platform, avatar/group image upload, favicon

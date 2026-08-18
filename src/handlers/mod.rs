@@ -12,6 +12,7 @@ pub mod nha_nhac;
 pub mod quy_tu_bi;
 pub mod thanh_tich;
 pub mod thuong_thanh;
+pub mod tien_te;
 pub mod tim_kiem;
 pub mod tong_quan;
 pub mod uploads;
