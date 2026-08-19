@@ -1,0 +1,187 @@
+{% extends "layout.html" %}
+
+{% block title %}Mục Tiêu Tu Học — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 py-8">
+
+    <div class="text-center mb-8">
+        <span class="text-5xl">🎯</span>
+        <h1 class="text-3xl font-bold text-emerald-800 mt-2 mb-1">Mục Tiêu Tu Học</h1>
+        <p class="text-gray-500 text-sm">
+            Đặt mục tiêu tu học cá nhân — niệm Phật, thiền, đọc sách<br>
+            <span class="text-xs italic">Giai đoạn 58 — v0.9.45 · Bảo vệ streak khi lỡ bỏ ngày</span>
+        </p>
+    </div>
+
+    {% if let Some(e) = error %}
+    <div class="mb-6 bg-red-50 border border-red-200 text-red-800 rounded-xl p-4 text-sm">⚠️ {{ e }}</div>
+    {% endif %}
+    {% if let Some(s) = success %}
+    <div class="mb-6 bg-green-50 border border-green-200 text-green-800 rounded-xl p-4 text-sm">✅ {{ s }}</div>
+    {% endif %}
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <!-- Cột trái: Tạo mục tiêu + danh sách -->
+        <div class="space-y-4">
+            <form action="/khong-gian/muc-tieu/tao" method="POST" class="bg-white rounded-2xl shadow p-5 space-y-3">
+                <h2 class="font-bold text-gray-800">➕ Tạo mục tiêu mới</h2>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Loại mục tiêu</label>
+                    <select name="goal_type" required class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="daily_niem">每日 Niệm Phật</option>
+                        <option value="weekly_niem">Hàng tuần niệm Phật</option>
+                        <option value="monthly_niem">Hàng tháng niệm Phật</option>
+                        <option value="daily_read">每日 Đọc sách</option>
+                        <option value="weekly_read">Hàng tuần đọc sách</option>
+                        <option value="daily_thien">每日 Thiền định</option>
+                        <option value="custom">Tùy chỉnh</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Tiêu đề</label>
+                    <input type="text" name="title" required maxlength="200"
+                           class="w-full px-3 py-2 border rounded-lg text-sm"
+                           placeholder="VD: Niệm 108 lần A Di Đà Phật mỗi ngày">
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Mục tiêu số</label>
+                        <input type="number" name="target_value" min="1" required
+                               class="w-full px-3 py-2 border rounded-lg text-sm" placeholder="108">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Đơn vị</label>
+                        <select name="target_unit" class="w-full px-3 py-2 border rounded-lg text-sm">
+                            <option value="count">lần</option>
+                            <option value="chapter">chương</option>
+                            <option value="minute">phút</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Deadline (optional)</label>
+                    <input type="date" name="deadline"
+                           class="w-full px-3 py-2 border rounded-lg text-sm">
+                </div>
+
+                <button type="submit" class="w-full bg-emerald-600 text-white py-2 rounded-lg hover:bg-emerald-700 transition text-sm">
+                    📤 Tạo mục tiêu
+                </button>
+            </form>
+
+            <!-- Danh sách mục tiêu -->
+            <div class="bg-white rounded-2xl shadow p-4">
+                <h2 class="font-bold text-gray-800 mb-3">📋 Mục tiêu hiện tại</h2>
+                {% if goals.is_empty() %}
+                <p class="text-sm text-gray-400 text-center py-4">Chưa có mục tiêu nào. Hãy tạo mục tiêu đầu tiên! 🌱</p>
+                {% else %}
+                <div class="space-y-2">
+                    {% for g in &goals %}
+                    <div class="border rounded-lg p-3
+                        {% if g.status == "completed" %}bg-emerald-50{% else %}bg-white{% endif %}">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="font-semibold text-sm text-gray-800">{{ g.title }}</div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    {{ g.goal_type }} · Mục tiêu: {{ g.current_value }}/{{ g.target_value }} {{ g.target_unit }}
+                                    {% if let Some(d) = g.deadline %} · Deadline: {{ d }}{% endif %}
+                                </div>
+                                {% if g.status != "completed" %}
+                                <div class="mt-2 bg-gray-200 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-emerald-500 h-2 rounded-full"
+                                         style="width: {{ (g.current_value * 100 / g.target_value.max(1)) }}%"></div>
+                                </div>
+                                {% endif %}
+                            </div>
+                            <div class="flex flex-col gap-1">
+                                {% if g.status != "completed" %}
+                                <form action="/khong-gian/muc-tieu/{{ g.id }}/hoan-thanh" method="POST">
+                                    <button type="submit" class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded hover:bg-emerald-200">✅</button>
+                                </form>
+                                {% endif %}
+                                <form action="/khong-gian/muc-tieu/{{ g.id }}/xoa" method="POST" onsubmit="return confirm('Xoá mục tiêu?')">
+                                    <button type="submit" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200">🗑️</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Cột phải: Streak Freeze -->
+        <div class="space-y-4">
+            <div class="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-2xl p-5">
+                <h2 class="font-bold text-indigo-800 mb-2">❄️ Streak Bảo Vệ</h2>
+                <p class="text-xs text-indigo-700 mb-4">Nếu lỡ 1 ngày không niệm Phật, dùng Streak Freeze để giữ streak. Miễn phí 2 cái/tháng, mua thêm 100 A/cái.</p>
+
+                <div class="bg-white rounded-lg p-3 mb-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600">Quota tháng này</span>
+                        <span class="font-semibold">{{ streak_freeze_used }}/{{ streak_freeze_quota }}</span>
+                    </div>
+                    <div class="mt-2 bg-gray-200 h-2 rounded-full overflow-hidden">
+                        <div class="bg-indigo-500 h-2 rounded-full"
+                             style="width: {{ (streak_freeze_used * 100 / streak_freeze_quota.max(1)) }}%"></div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg p-3 mb-3">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-gray-600">Đã mua (chưa dùng)</span>
+                        <span class="font-semibold">{{ streak_freeze_purchased }}</span>
+                    </div>
+                </div>
+
+                <button onclick="buyFreeze()" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition text-sm">
+                    🛒 Mua 1 Streak Freeze (100 A)
+                </button>
+                <div id="buy-result" class="mt-2 text-xs"></div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+                <h3 class="font-semibold text-amber-800 mb-2 text-sm">💡 Mẹo giữ streak</h3>
+                <ul class="text-xs text-amber-700 space-y-1 list-disc list-inside">
+                    <li>Nhận phần thưởng đăng nhập hàng ngày tại /khong-gian</li>
+                    <li>Niệm Phật ngay khi nhớ — 1 lần cũng được tính</li>
+                    <li>Streak dài nhất được lưu trữ — không bao giờ mất</li>
+                    <li>Nhắc nhở hàng ngày có thể bật tại /cai-dat/nhac-nho</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-8">
+        <a href="/khong-gian" class="text-sm text-gray-500 hover:text-emerald-700">← Về Không Gian</a>
+    </div>
+</section>
+
+<script>
+async function buyFreeze() {
+    const btn = event.target;
+    if (!confirm('Mua 1 Streak Freeze với 100 A?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Đang xử lý...';
+    const result = document.getElementById('buy-result');
+    try {
+        const res = await fetch('/api/streak-freeze/mua', { method: 'POST' });
+        const data = await res.json();
+        result.innerHTML = data.success
+            ? '<span class="text-emerald-700">✅ ' + data.message + '</span>'
+            : '<span class="text-red-700">⚠️ ' + data.message + '</span>';
+        if (data.success) setTimeout(() => location.reload(), 1500);
+    } catch(e) {
+        result.innerHTML = '<span class="text-red-700">⚠️ Lỗi mạng.</span>';
+    }
+    btn.disabled = false;
+    btn.textContent = '🛒 Mua 1 Streak Freeze (100 A)';
+}
+</script>
+{% endblock %}

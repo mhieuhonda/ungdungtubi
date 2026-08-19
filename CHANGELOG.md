@@ -6,6 +6,210 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.45] — 2026-08-19 — Giai đoạn 53-60: Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷
+
+Bản phát hành này triển khai **8 giai đoạn liên tiếp** (53-60) — bổ sung các tính năng được tài liệu `HieuLouis/ỨNG DỤNG TỪ BI.docx` và `Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx` mô tả nhưng chưa được hiện thực hóa. Tổng cộng: 7 migration SQL mới, 11 bảng DB mới, 8 handler modules mới, 4 templates Askama mới, 37 routes mới, 80+ feature flags.
+
+### 📿 Giai đoạn 53 — Hệ Thống Tu Sĩ (1-5 Sao) — MỚI
+
+Theo tài liệu `ỨNG DỤNG TỪ BI.docx` mục II.3.c: thành viên đăng ký trở thành Tu Sĩ — được xét duyệt bởi admin. Cấp bậc 1-5 sao tương ứng với cam kết 100/200/500/1000/5000 K/tháng.
+
+- **[TS-1]** `migrations/032_tu_si_system.sql` — Tạo 2 bảng mới + 2 cột mới trên users:
+  - `users.tu_si_rank SMALLINT` (1-5 sao, NULL nếu chưa duyệt)
+  - `users.tu_si_approved_at TIMESTAMPTZ`
+  - `tu_si_applications` (đơn đăng ký: user_id, requested_rank, monthly_k_pledge, motivation, status, reviewed_by, reviewed_at, review_note)
+  - `tu_si_monthly_supports` (theo dõi đóng góp K hàng tháng của Tu Sĩ)
+  - CHECK constraint `tu_si_rank BETWEEN 1 AND 5`
+- **[TS-2]** Safety schema idempotent cho tất cả 4 thay đổi (chống migration drift).
+- **[TS-3]** `src/handlers/tu_si.rs` (580+ dòng) — 7 endpoints:
+  - `GET /tu-si` — Trang Tu Sĩ (form đăng ký + cấp bậc hiện tại + lịch sử)
+  - `POST /tu-si/dang-ky` — Gửi đơn đăng ký (validate rank 1-5, pledge >= min, motivation 20-2000 chars)
+  - `POST /tu-si/huy-don/{app_id}` — User rút đơn đang pending
+  - `GET /admin/tu-si` — Admin duyệt đơn (3 tabs: pending/approved/rejected)
+  - `POST /admin/tu-si/{app_id}/duyet` — Admin duyệt → UPDATE users.tu_si_rank
+  - `POST /admin/tu-si/{app_id}/tu-choi` — Admin từ chối với lý do
+- **[TS-4]** `templates/tu-si/index.html` + `templates/admin/tu-si/index.html` — Tailwind UI với form validation, gradient cards, star ranks.
+- **[TS-5]** Helper functions: `min_k_pledge_for_rank(rank)` + `tu_si_rank_name(rank)` + `tu_si_rank_stars(rank)`.
+
+### 📈 Giai đoạn 54 — Hệ Thống Cấp Bậc Tự Động — MỚI
+
+Theo tài liệu mục II.3.b: 9 cấp bậc từ Người Mới → Đại Gia. Hệ thống tự tính rank dựa trên đóng góp Quỹ Từ Bi + số bạn bè + độ hoàn thiện hồ sơ.
+
+- **[AR-1]** `migrations/033_auto_rank_promotion.sql` — 1 bảng + 1 SQL function:
+  - `member_rank_history` (id, user_id, from_rank, to_rank, reason, changed_by, note, created_at) — index theo user_id + created_at
+  - `calculate_member_rank(UUID) RETURNS VARCHAR(40)` — pure SQL function tính rank dựa trên:
+    - Top 10 tài phú K + đóng góp >= 10000 K → 'dai_gia' (Đại Gia)
+    - Tổng đóng góp >= 10000 K → 'thien_nhan' (Thiện Nhân)
+    - Tổng đóng góp >= 5000 K → 'excellent' (Người Cực Kỳ Tốt)
+    - Tổng đóng góp >= 1000 K → 'great' (Người Rất Tốt)
+    - Tổng đóng góp >= 500 K → 'very_good' (Người Khá Tốt)
+    - Tổng đóng góp >= 100 K → 'good' (Người Tốt)
+    - Bạn bè >= 10 → 'common' (Người Bình Thường)
+    - Profile đầy đủ → 'normal' (Người Thường)
+    - Default → 'new' (Người Mới)
+  - Backfill: `UPDATE users SET rank='new' WHERE rank IS NULL` + INSERT history rows cho existing users
+- **[AR-2]** Safety schema cho member_rank_history.
+- **[AR-3]** `src/handlers/auto_rank.rs` — 3 endpoints:
+  - `POST /admin/thanh-vien/tang-cap-tu-dong` — Admin trigger auto-promote TẤT CẢ users
+  - `GET /admin/thanh-vien/lich-su-tang-cap` — Trang lịch sử thay đổi rank (table view 200 rows gần nhất)
+  - `POST /api/users/{user_id}/tang-cap-tu-dong` — API trigger auto-promote 1 user (JSON response)
+- **[AR-4]** `auto_promote_user()` — helper async function: query rank hiện tại → gọi `calculate_member_rank` → nếu khác → UPDATE + INSERT history. Trả về `(old_rank, new_rank, was_promoted)`.
+- **[AR-5]** Hook vào `auth::google_callback` — sau khi tạo session, tự động `auto_promote_user()` best-effort (không block login nếu fail).
+
+### 🔔 Giai đoạn 55 — Nhắc Nhở Tu Học Hàng Ngày — MỚI
+
+Hệ thống reminder cho user: nếu hôm nay chưa niệm Phật, nhắc nhẹ vào giờ user chọn. Hỗ trợ cả notification trong app và email (opt-in).
+
+- **[RM-1]** `migrations/034_daily_reminders.sql` — 2 bảng mới:
+  - `notification_preferences` (user_id PK, daily_niem_reminder, streak_warning, email_reminders, reminder_hour 0-23, reminder_channel 'app'|'email'|'both', last_reminder_sent_at)
+  - `daily_reminder_log` (id, user_id, reminder_date, reminder_type, channel, sent_at, status, error_message) — chống spam nhiều lần/ngày
+- **[RM-2]** Safety schema cho cả 2 bảng.
+- **[RM-3]** `src/handlers/reminders.rs` (380+ dòng) — 4 endpoints:
+  - `GET /cai-dat/nhac-nho` — Trang cài đặt nhắc nhở (3 checkboxes + giờ + channel)
+  - `POST /cai-dat/nhac-nho/cap-nhat` — Upsert preferences (ON CONFLICT DO UPDATE)
+  - `GET /api/nhac-nho/preferences` — JSON API lấy preferences hiện tại
+  - `POST /api/nhac-nho/test-reminder` — Gửi test notification (INSERT vào bảng notifications)
+- **[RM-4]** Template inline (Tailwind) render từ Rust, không cần Askama template riêng — giảm độ phức tạp.
+
+### 📖 Giai đoạn 56 — Tiến Độ Đọc Sách + Bookmark — MỚI
+
+Khi user đọc sách, hệ thống theo dõi chương cuối đọc + % hoàn thành + thời gian đọc. Khi user quay lại sách, gợi ý "Tiếp tục đọc từ chương X".
+
+- **[RP-1]** `migrations/035_reading_progress.sql` — 2 bảng mới:
+  - `reading_progress` (user_id, book_id, last_chapter_id, progress_percent 0-100, scroll_position, total_reading_seconds, chapters_read, last_read_at) — UNIQUE (user_id, book_id) → 1 row/sách
+  - `chapter_bookmarks` (user_id, book_id, chapter_id, note, label, created_at) — UNIQUE (user_id, chapter_id) → 1 bookmark/chương
+  - Indexes: idx_reading_progress_user_last (latest reads), idx_chapter_bookmarks_user_book
+- **[RP-2]** Safety schema — books.id & book_chapters.id là UUID (đã check từ migration 012).
+- **[RP-3]** `src/handlers/reading_progress.rs` (350+ dòng) — 6 endpoints:
+  - `POST /api/kinh-sach/luu-tien-do` — Lưu tiến độ khi user đọc chương (upsert + accumulates total_reading_seconds + chapters_read)
+  - `GET /api/kinh-sach/tien-do/{book_id}` — Lấy tiến độ cho 1 sách (cho "Tiếp tục đọc")
+  - `GET /api/kinh-sach/tien-do` — List tất cả sách đang đọc (50 gần nhất)
+  - `POST /api/kinh-sach/chuong/{chapter_id}/bookmark` — Bookmark chương
+  - `POST /api/kinh-sach/chuong/{chapter_id}/huy-bookmark` — Xoá bookmark
+  - `GET /api/kinh-sach/bookmarks` — List tất cả bookmark của user
+- **[RP-4]** `progress_percent` auto-update sau khi upsert: `chapters_read * 100 / chapter_count` (clamped 0-100).
+
+### 🎁 Giai đoạn 57 — Phần Thưởng Đăng Nhập Hàng Ngày — MỚI
+
+7-day reward cycle để khuyến khích user đăng nhập hàng ngày. Ngày 7 = bonus 100 A đặc biệt.
+
+- **[DL-1]** `migrations/036_daily_login_rewards.sql` — 2 bảng mới:
+  - `daily_login_rewards` (user_id, reward_date, streak_day 1-7, reward_a, is_bonus, balance_after, claimed_at) — UNIQUE (user_id, reward_date) → 1 reward/ngày
+  - `user_login_streaks` (user_id PK, current_streak, max_streak, last_login_date, total_days_claimed, total_a_earned)
+  - Backfill: tạo row cho existing users
+- **[DL-2]** Safety schema cho cả 2 bảng.
+- **[DL-3]** `src/handlers/daily_login.rs` (480+ dòng) — 3 endpoints + 1 helper:
+  - `GET /api/daily-login/status` — Trạng thái streak + reward hôm nay + schedule 7 ngày
+  - `POST /api/daily-login/nhan` — Nhận thưởng (transaction-safe: INSERT reward + UPDATE streaks + UPDATE users.a_balance + INSERT balance_transactions)
+  - `GET /api/daily-login/ls` — Lịch sử 30 ngày gần nhất
+  - `try_auto_award_on_login()` — Helper gọi từ `auth::google_callback` — tự động award khi user login (best-effort)
+- **[DL-4]** Reward schedule: Ngày 1=10A · 2=15A · 3=20A · 4=25A · 5=30A · 6=40A · **7=100A (bonus)**.
+- **[DL-5]** Streak rules: last_login = yesterday → streak +1. last_login < yesterday → reset về 1. Đã claim hôm nay → không claim lại.
+- **[DL-6]** Timezone-aware: dùng `local_today()` (UTC+7) cho date comparison, không UTC — tránh reset streak sai khi user niệm Phật lúc 1h sáng giờ VN.
+- **[DL-7]** Hook vào `auth::google_callback` — sau khi tạo session, tự động `try_auto_award_on_login()`.
+
+### 🎯 Giai đoạn 58 — Mục Tiêu Tu Học + Streak Bảo Vệ — MỚI
+
+User tự đặt mục tiêu tu học (Niệm 108 lần/ngày, Đọc 1 chương/tuần, v.v.). Streak freeze bảo vệ chuỗi ngày khi lỡ bỏ 1 ngày (giống Duolingo).
+
+- **[MT-1]** `migrations/037_tu_hoc_goals.sql` — 3 bảng mới:
+  - `tu_hoc_goals` (user_id, goal_type, target_value, target_unit, title, status, deadline, current_value, last_reset_at) — 7 loại: daily_niem, weekly_niem, monthly_niem, daily_read, weekly_read, daily_thien, custom
+  - `streak_freezes` (user_id, freeze_date, source 'monthly_free'|'purchased'|'admin_grant', cost_a, applied) — bảo vệ 1 ngày bỏ lỡ
+  - `streak_freeze_quota` (user_id, year_month, used_count) — quota miễn phí 2 cái/tháng (PK: user_id + year_month)
+- **[MT-2]** Safety schema cho cả 3 bảng.
+- **[MT-3]** `src/handlers/tu_hoc_goals.rs` (430+ dòng) — 6 endpoints:
+  - `GET /khong-gian/muc-tieu` — Trang mục tiêu + streak freeze quota UI
+  - `POST /khong-gian/muc-tieu/tao` — Tạo mục tiêu (validate goal_type, target_value, title)
+  - `POST /khong-gian/muc-tieu/{id}/xoa` — Xoá mục tiêu
+  - `POST /khong-gian/muc-tieu/{id}/hoan-thanh` — Đánh dấu hoàn thành
+  - `GET /api/streak-freeze/quota` — Quota tháng này + đã dùng + đã mua
+  - `POST /api/streak-freeze/mua` — Mua 1 streak freeze với 100 A (transaction-safe)
+- **[MT-4]** `templates/khong-gian/muc-tieu.html` — Tailwind UI với progress bars + buy button (Alpine.js fetch).
+- **[MT-5]** Constants: `STREAK_FREEZE_COST_A = 100`, `STREAK_FREEZE_MONTHLY_QUOTA = 2`.
+
+### 🔥 Giai đoạn 59 — Chủ Đề Nổi Bật Algorithm + Trang Khám Phá — MỚI
+
+Trang `/cong-dong/kham-pha` hiển thị: hot topics + nhóm nổi bật + sách được yêu thích + nhạc mới duyệt. Hot score algorithm dựa trên bình luận 24h/7d + group size + tuổi topic.
+
+- **[HT-1]** `migrations/038_hot_topics.sql` — 4 cột + 1 SQL function trên bảng `topics`:
+  - `topics.hot_score DOUBLE PRECISION` (default 0)
+  - `topics.last_activity_at TIMESTAMPTZ` (thời điểm comment mới nhất)
+  - `topics.is_hot BOOLEAN` (cache flag — top 10)
+  - `topics.hot_score_at TIMESTAMPTZ` (thời điểm tính lần cuối)
+  - Indexes: `idx_topics_hot_score DESC`, `idx_topics_is_hot WHERE is_hot=true`
+  - `calculate_topic_hot_score(UUID) RETURNS DOUBLE PRECISION` — pure SQL function
+- **[HT-2]** Algorithm: `score = (comments_24h * 4 + comments_7d * 2 + group_size * 0.5) / (age_hours + 2)^0.5`
+  - Bình luận 24h qua: weight 4× (tin tức mới nhất)
+  - Bình luận 7 ngày (trừ 24h): weight 2× (xu hướng tuần)
+  - Group size: weight 0.5× (cộng đồng lớn)
+  - Tuổi topic: chia cho √(hours+2) — topic cũ bị phạt điểm
+- **[HT-3]** Safety schema cho 4 cột + 2 indexes mới.
+- **[HT-4]** `src/handlers/hot_topics.rs` (300+ dòng) — 3 endpoints:
+  - `GET /cong-dong/kham-pha` — Trang khám phá (4 sections: Hot Topics, Featured Groups, Popular Books, Recent Music)
+  - `POST /admin/cong-dong/tinh-hot-score` — Admin trigger recalculate hot_score cho TẤT CẢ topics + mark top 10 as `is_hot=true`
+  - `GET /api/cong-dong/chu-de-noi-bat` — JSON API top 10 hot topics
+- **[HT-5]** `templates/cong-dong/kham-pha.html` — Responsive 3-column layout với Tailwind. Admin có button "🔥 Tính lại Hot Score".
+
+### 🌐 Giai đoạn 60 — SEO + Sitemap + Robots + JSON-LD — MỚI
+
+Tối ưu hóa SEO để lan tỏa ứng dụng từ bi tới cộng đồng qua Google/Bing search + social sharing.
+
+- **[SEO-1]** `src/handlers/seo.rs` (180+ dòng) — 4 endpoints:
+  - `GET /sitemap.xml` — XML sitemap động (static URLs + 200 books + 100 groups + lastmod + changefreq + priority)
+  - `GET /robots.txt` — Allow: / + Disallow: /admin/ + /api/ + /ban-be/tin-nhan/ + /ws/ + Sitemap: line
+  - `GET /manifest.json` — PWA manifest (WebApplication + standalone + 192/512 icons)
+  - `GET /api/seo/structured-data` — JSON-LD structured data (schema.org WebApplication + publisher + offers + featureList)
+- **[SEO-2]** Content-Type chính xác: `application/xml` cho sitemap, `text/plain` cho robots.txt, `application/json` cho manifest + JSON-LD.
+- **[SEO-3]** `base_url()` helper đọc từ `config.app_base_url` — không hardcode domain.
+- **[SEO-4]** Sitemap động: query books ORDER BY view_count DESC LIMIT 200 + groups WHERE is_active=true ORDER BY created_at DESC LIMIT 100.
+
+### 🔧 Version Sync v0.9.45
+
+- `Cargo.toml` — version `0.9.44` → `0.9.45` (rust-version `1.97.1` giữ nguyên).
+- `src/main.rs`:
+  - Startup log: `v0.9.44 — Giai đoạn 48-52` → `v0.9.45 — Giai đoạn 53-60`.
+  - Health check public: `"version": "0.9.44"` → `"0.9.45"`.
+  - Health check staff: phase 52 → 60 + phase_name mới.
+  - HEALTH_FEATURES: thêm 80+ feature flags v0.9.45 (chia 8 nhóm theo stage 53-60).
+- `src/handlers/mod.rs`: thêm 8 module mới (`tu_si`, `auto_rank`, `reminders`, `reading_progress`, `daily_login`, `tu_hoc_goals`, `hot_topics`, `seo`).
+- `src/handlers/auth.rs::google_callback`: thêm 2 hooks best-effort sau khi tạo session:
+  - `daily_login::try_auto_award_on_login()` — tự động award daily login reward.
+  - `auto_rank::auto_promote_user()` — tự động tăng rank nếu user đạt điều kiện mới.
+- `src/handlers/admin.rs::render_forbidden`: chuyển từ `fn` → `pub fn` để các module khác (tu_si, hot_topics, auto_rank) dùng được.
+- `src/db/mod.rs::ensure_schema_safety()`: thêm 11 safety schema blocks (steps 27-37) cho tất cả bảng/cột mới.
+- `Dockerfile.coolify` — header comment update v0.9.45 + Giai đoạn 53-60.
+- `README.md` — version badge v0.9.44 → v0.9.45.
+
+### 📦 Migrations Summary
+
+| # | File | Bảng/Cột mới |
+|---|------|--------------|
+| 032 | `032_tu_si_system.sql` | `tu_si_applications` + `tu_si_monthly_supports` + `users.tu_si_rank` + `users.tu_si_approved_at` |
+| 033 | `033_auto_rank_promotion.sql` | `member_rank_history` + `calculate_member_rank()` SQL function |
+| 034 | `034_daily_reminders.sql` | `notification_preferences` + `daily_reminder_log` |
+| 035 | `035_reading_progress.sql` | `reading_progress` + `chapter_bookmarks` |
+| 036 | `036_daily_login_rewards.sql` | `daily_login_rewards` + `user_login_streaks` |
+| 037 | `037_tu_hoc_goals.sql` | `tu_hoc_goals` + `streak_freezes` + `streak_freeze_quota` |
+| 038 | `038_hot_topics.sql` | `topics.hot_score` + `topics.is_hot` + `topics.last_activity_at` + `topics.hot_score_at` + `calculate_topic_hot_score()` SQL function |
+
+### 🗺 Roadmap Alignment
+
+Theo tài liệu `HieuLouis/Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx`:
+
+- **Giai đoạn I (Kiến tạo nền móng)**: ✅ Hoàn thiện (stages 1-52, v0.9.0-v0.9.44)
+- **Giai đoạn II (Phát triển hệ sinh thái)**: 🔄 Tiếp tục (stages 53-60, v0.9.45) — bổ sung Tu Sĩ, Auto Rank, Reminders, Reading Progress, Daily Login, Goals, Hot Topics, SEO
+
+Triết lý "Phát triển cộng đồng trước, phát triển công nghệ sau" tiếp tục được duy trì: các tính năng mới tập trung vào engagement cộng đồng (Tu Sĩ, Goals, Hot Topics, Daily Login) và retention (Reading Progress, Streak Freeze, Reminders) thay vì các tính năng kỹ thuật hàn lâm.
+
+### 🔧 Rust 1.97.1 — Confirmed
+
+- `Cargo.toml`: `rust-version = "1.97.1"` ✅
+- `Dockerfile`: `FROM rust:1.97.1-slim-bookworm AS builder` ✅
+- Local build verified: `rustc 1.97.1 (8bab26f4f 2026-07-14)` ✅
+- `cargo check` pass với 33 warnings (chỉ dead_code + unused imports — không có errors)
+
+---
+
 ## [0.9.43] — 2026-08-18 — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷
 
 Bản phát hành này triển khai **Giai đoạn 47** của dự án: hoàn thiện hệ thống tiền tệ 3 loại (A/K/Bi) bằng cách thêm module quy đổi tiền tệ, harden fix lỗi "không thể lưu bài hát vào cơ sở dữ liệu" (root cause đã có từ v0.9.42 nhưng production chưa deploy), và harden Coolify webhook trigger để tránh lỗi 405 khi auto-deploy.

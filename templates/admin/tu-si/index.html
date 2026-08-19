@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+
+{% block title %}Admin — Quản Lý Tu Sĩ{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-6">
+
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">🪷 Quản Lý Tu Sĩ</h1>
+            <p class="text-sm text-gray-500">Giai đoạn 53 — v0.9.45</p>
+        </div>
+        <div class="text-right">
+            <div class="text-3xl font-bold text-amber-600">{{ total_tu_si }}</div>
+            <div class="text-xs text-gray-500">Tu Sĩ đang hoạt động</div>
+        </div>
+    </div>
+
+    {% if let Some(e) = error %}
+    <div class="bg-red-50 border border-red-200 text-red-800 rounded-xl p-3 text-sm mb-4">⚠️ {{ e }}</div>
+    {% endif %}
+    {% if let Some(s) = success %}
+    <div class="bg-green-50 border border-green-200 text-green-800 rounded-xl p-3 text-sm mb-4">✅ {{ s }}</div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4 border-b">
+        <a href="#pending" class="px-4 py-2 text-sm font-semibold border-b-2 border-amber-500 text-amber-700">
+            ⏳ Chờ duyệt ({{ pending.len() }})
+        </a>
+        <a href="#approved" class="px-4 py-2 text-sm font-semibold border-b-2 border-emerald-500 text-emerald-700">
+            ✅ Đã duyệt ({{ approved.len() }})
+        </a>
+        <a href="#rejected" class="px-4 py-2 text-sm font-semibold border-b-2 border-red-400 text-red-600">
+            ❌ Bị từ chối ({{ rejected.len() }})
+        </a>
+    </div>
+
+    <!-- Pending -->
+    <div id="pending" class="mb-8">
+        {% if pending.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Không có đơn nào đang chờ duyệt 🪷</div>
+        {% else %}
+        <div class="space-y-3">
+            {% for app in &pending %}
+            <div class="bg-white rounded-xl shadow p-4">
+                <div class="flex items-start gap-3">
+                    <img src="{{ app.user_avatar_url.as_deref().unwrap_or("/static/tubi.png") }}"
+                         class="w-10 h-10 rounded-full" alt="">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="font-semibold text-gray-800">{{ app.user_display_name }}</span>
+                                <span class="text-xs text-gray-500"> · {{ app.user_email }}</span>
+                            </div>
+                            <div class="text-xs text-gray-500">{{ app.created_at.format("%Y-%m-%d %H:%M") }}</div>
+                        </div>
+                        <div class="mt-1 flex items-center gap-2">
+                            <span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-semibold">
+                                {{ app.requested_rank }} sao
+                            </span>
+                            <span class="text-xs text-gray-600">Cam kết: <strong>{{ app.monthly_k_pledge }} K/tháng</strong></span>
+                            <span class="text-xs text-gray-400">· K hiện có: {{ app.user_k_balance }}</span>
+                        </div>
+                        <p class="text-sm text-gray-700 mt-2 italic">"{{ app.motivation }}"</p>
+
+                        <form action="/admin/tu-si/{{ app.id }}/duyet" method="POST" class="mt-3 flex gap-2">
+                            <input type="text" name="review_note" placeholder="Ghi chú (optional)"
+                                   class="flex-1 px-3 py-1.5 text-sm border rounded-lg">
+                            <button type="submit" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-emerald-700">
+                                ✅ Duyệt
+                            </button>
+                        </form>
+                        <form action="/admin/tu-si/{{ app.id }}/tu-choi" method="POST" class="mt-2 flex gap-2">
+                            <input type="text" name="review_note" placeholder="Lý do từ chối (optional)"
+                                   class="flex-1 px-3 py-1.5 text-sm border rounded-lg">
+                            <button type="submit" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-sm hover:bg-red-200">
+                                ❌ Từ chối
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Approved -->
+    <div id="approved" class="mb-8">
+        {% if approved.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Chưa có Tu Sĩ nào được duyệt 🌱</div>
+        {% else %}
+        <div class="grid md:grid-cols-2 gap-3">
+            {% for app in &approved %}
+            <div class="bg-white rounded-xl shadow p-3">
+                <div class="flex items-center gap-2">
+                    <img src="{{ app.user_avatar_url.as_deref().unwrap_or("/static/tubi.png") }}"
+                         class="w-8 h-8 rounded-full" alt="">
+                    <div class="flex-1">
+                        <div class="font-semibold text-sm">{{ app.user_display_name }}</div>
+                        <div class="text-xs text-gray-500">{{ app.requested_rank }} sao · {{ app.monthly_k_pledge }} K/tháng</div>
+                    </div>
+                    <div class="text-amber-500">
+                        {% for i in 1..=app.requested_rank %}⭐{% endfor %}
+                    </div>
+                </div>
+                {% if let Some(at) = app.reviewed_at %}
+                <div class="text-[10px] text-gray-400 mt-2">Duyệt: {{ at.format("%Y-%m-%d %H:%M") }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Rejected -->
+    <div id="rejected" class="mb-8">
+        {% if rejected.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Không có đơn bị từ chối 🪷</div>
+        {% else %}
+        <div class="space-y-2">
+            {% for app in &rejected %}
+            <div class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm">
+                <span class="font-semibold">{{ app.user_display_name }}</span>
+                <span class="text-gray-500 text-xs"> · {{ app.requested_rank }} sao · {{ app.created_at.format("%Y-%m-%d") }}</span>
+                {% if !app.review_note.is_empty() %}
+                <p class="text-xs text-red-700 mt-1 italic">Lý do: {{ app.review_note }}</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="text-center mt-6">
+        <a href="/admin" class="text-sm text-gray-500 hover:text-emerald-700">← Về trang admin</a>
+    </div>
+</section>
+{% endblock %}

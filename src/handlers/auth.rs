@@ -258,6 +258,15 @@ pub async fn google_callback(
         return error_page("Lỗi tạo phiên", "Không tạo được phiên đăng nhập. Vui lòng thử lại.");
     }
 
+    // v0.9.45 — Giai đoạn 57: Tự động award daily login reward khi user login thành công.
+    // Function tự check đã claim hôm nay chưa → nếu chưa, award reward + update streak.
+    // Best-effort: không block login nếu fail.
+    crate::handlers::daily_login::try_auto_award_on_login(pool, user.id).await;
+
+    // v0.9.45 — Giai đoạn 54: Auto-promote rank nếu user đạt điều kiện mới.
+    // Best-effort: không block login nếu fail.
+    crate::handlers::auto_rank::auto_promote_user(pool, user.id).await;
+
     // Xoá cookie OAuth tạm + set session cookie.
     build_session_redirect_response(
         jar, config.is_production, &session_id, &return_path,

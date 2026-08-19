@@ -60,14 +60,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.44 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.45 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.44 — Giai đoạn 48-52: Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics 🪷");
+    log::info!("📦 Phiên bản: v0.9.45 — Giai đoạn 53-60: Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -409,6 +409,50 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         // Pure CSS bar/line charts (no JS chart lib) + CSV export per metric.
         .route("/admin/thong-ke", get(handlers::thong_ke::admin_thong_ke_index))
         .route("/admin/thong-ke/csv/{metric}", get(handlers::thong_ke::admin_thong_ke_csv))
+        // ─── v0.9.45 — Giai đoạn 53-60: 8 stages mới ───
+        // Giai đoạn 53 — Hệ Thống Tu Sĩ (1-5 sao)
+        .route("/tu-si", get(handlers::tu_si::tu_si_index))
+        .route("/tu-si/dang-ky", post(handlers::tu_si::tu_si_apply))
+        .route("/tu-si/huy-don/{app_id}", post(handlers::tu_si::tu_si_withdraw))
+        .route("/admin/tu-si", get(handlers::tu_si::admin_tu_si_index))
+        .route("/admin/tu-si/{app_id}/duyet", post(handlers::tu_si::admin_tu_si_approve))
+        .route("/admin/tu-si/{app_id}/tu-choi", post(handlers::tu_si::admin_tu_si_reject))
+        // Giai đoạn 54 — Hệ Thống Cấp Bậc Tự Động
+        .route("/admin/thanh-vien/tang-cap-tu-dong", post(handlers::auto_rank::admin_auto_promote_all))
+        .route("/admin/thanh-vien/lich-su-tang-cap", get(handlers::auto_rank::admin_rank_history))
+        .route("/api/users/{user_id}/tang-cap-tu-dong", post(handlers::auto_rank::api_auto_promote_user))
+        // Giai đoạn 55 — Nhắc Nhở Tu Học Hàng Ngày
+        .route("/cai-dat/nhac-nho", get(handlers::reminders::reminder_settings_index))
+        .route("/cai-dat/nhac-nho/cap-nhat", post(handlers::reminders::reminder_settings_update))
+        .route("/api/nhac-nho/preferences", get(handlers::reminders::api_reminder_preferences))
+        .route("/api/nhac-nho/test-reminder", post(handlers::reminders::api_test_reminder))
+        // Giai đoạn 56 — Tiến Độ Đọc Sách + Bookmark
+        .route("/api/kinh-sach/luu-tien-do", post(handlers::reading_progress::api_save_progress))
+        .route("/api/kinh-sach/tien-do/{book_id}", get(handlers::reading_progress::api_get_progress))
+        .route("/api/kinh-sach/tien-do", get(handlers::reading_progress::api_list_progress))
+        .route("/api/kinh-sach/chuong/{chapter_id}/bookmark", post(handlers::reading_progress::api_add_bookmark))
+        .route("/api/kinh-sach/chuong/{chapter_id}/huy-bookmark", post(handlers::reading_progress::api_remove_bookmark))
+        .route("/api/kinh-sach/bookmarks", get(handlers::reading_progress::api_list_bookmarks))
+        // Giai đoạn 57 — Phần Thưởng Đăng Nhập Hàng Ngày
+        .route("/api/daily-login/status", get(handlers::daily_login::api_daily_login_status))
+        .route("/api/daily-login/nhan", post(handlers::daily_login::api_daily_login_claim))
+        .route("/api/daily-login/ls", get(handlers::daily_login::api_daily_login_history))
+        // Giai đoạn 58 — Mục Tiêu Tu Học + Streak Bảo Vệ
+        .route("/khong-gian/muc-tieu", get(handlers::tu_hoc_goals::muc_tieu_index))
+        .route("/khong-gian/muc-tieu/tao", post(handlers::tu_hoc_goals::muc_tieu_create))
+        .route("/khong-gian/muc-tieu/{goal_id}/xoa", post(handlers::tu_hoc_goals::muc_tieu_delete))
+        .route("/khong-gian/muc-tieu/{goal_id}/hoan-thanh", post(handlers::tu_hoc_goals::muc_tieu_complete))
+        .route("/api/streak-freeze/quota", get(handlers::tu_hoc_goals::api_streak_freeze_quota))
+        .route("/api/streak-freeze/mua", post(handlers::tu_hoc_goals::api_streak_freeze_buy))
+        // Giai đoạn 59 — Chủ Đề Nổi Bật + Khám Phá
+        .route("/cong-dong/kham-pha", get(handlers::hot_topics::kham_pha_index))
+        .route("/api/cong-dong/chu-de-noi-bat", get(handlers::hot_topics::api_hot_topics))
+        .route("/admin/cong-dong/tinh-hot-score", post(handlers::hot_topics::admin_recalculate_hot_scores))
+        // Giai đoạn 60 — SEO (sitemap.xml + robots.txt + manifest + JSON-LD)
+        .route("/sitemap.xml", get(handlers::seo::sitemap_xml))
+        .route("/robots.txt", get(handlers::seo::robots_txt))
+        .route("/manifest.json", get(handlers::seo::manifest_json))
+        .route("/api/seo/structured-data", get(handlers::seo::structured_data))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -937,6 +981,92 @@ const HEALTH_FEATURES: &[&str] = &[
     "admin-placeholder-version-fix-v0.9.44",
     "nha-nhac-js-onended-audio-ref-fix-v0.9.44",
     "nha-nhac-loadcommunitymusic-isArray-check-v0.9.44",
+    // ─── v0.9.45 — Giai đoạn 53-60: 8 stages mới
+    // Stage 53 — Tu Sĩ System
+    "tu-si-system-v0.9.45",
+    "tu-si-applications-table-v0.9.45",
+    "tu-si-monthly-supports-table-v0.9.45",
+    "users-tu-si-rank-column-v0.9.45",
+    "tu-si-apply-form-v0.9.45",
+    "tu-si-withdraw-application-v0.9.45",
+    "admin-tu-si-page-v0.9.45",
+    "admin-tu-si-approve-reject-v0.9.45",
+    // Stage 54 — Auto Member Rank Promotion
+    "auto-rank-promotion-v0.9.45",
+    "member-rank-history-table-v0.9.45",
+    "calculate-member-rank-sql-function-v0.9.45",
+    "auto-promote-on-login-v0.9.45",
+    "admin-auto-promote-all-v0.9.45",
+    "admin-rank-history-page-v0.9.45",
+    "rank-codes-new-normal-common-good-v0.9.45",
+    // Stage 55 — Daily Tu Hoc Reminders
+    "daily-tu-hoc-reminders-v0.9.45",
+    "notification-preferences-table-v0.9.45",
+    "daily-reminder-log-table-v0.9.45",
+    "reminder-settings-page-v0.9.45",
+    "reminder-settings-update-v0.9.45",
+    "api-reminder-preferences-v0.9.45",
+    "test-reminder-endpoint-v0.9.45",
+    "daily-niem-reminder-toggle-v0.9.45",
+    "streak-warning-toggle-v0.9.45",
+    "email-reminders-opt-in-v0.9.45",
+    "reminder-hour-config-v0.9.45",
+    // Stage 56 — Reading Progress + Bookmarks
+    "reading-progress-tracking-v0.9.45",
+    "reading-progress-table-v0.9.45",
+    "chapter-bookmarks-table-v0.9.45",
+    "api-save-reading-progress-v0.9.45",
+    "api-get-reading-progress-v0.9.45",
+    "api-list-reading-progress-v0.9.45",
+    "api-add-chapter-bookmark-v0.9.45",
+    "api-remove-chapter-bookmark-v0.9.45",
+    "api-list-bookmarks-v0.9.45",
+    "continue-reading-feature-v0.9.45",
+    // Stage 57 — Daily Login Rewards
+    "daily-login-rewards-v0.9.45",
+    "daily-login-rewards-table-v0.9.45",
+    "user-login-streaks-table-v0.9.45",
+    "daily-login-reward-schedule-7-days-v0.9.45",
+    "daily-login-day-7-bonus-100a-v0.9.45",
+    "auto-award-on-login-v0.9.45",
+    "api-daily-login-status-v0.9.45",
+    "api-daily-login-claim-v0.9.45",
+    "api-daily-login-history-v0.9.45",
+    "streak-reset-on-miss-day-v0.9.45",
+    // Stage 58 — Tu Hoc Goals + Streak Freeze
+    "tu-hoc-goals-v0.9.45",
+    "tu-hoc-goals-table-v0.9.45",
+    "streak-freezes-table-v0.9.45",
+    "streak-freeze-quota-table-v0.9.45",
+    "muc-tieu-tu-hoc-page-v0.9.45",
+    "create-tu-hoc-goal-v0.9.45",
+    "complete-tu-hoc-goal-v0.9.45",
+    "delete-tu-hoc-goal-v0.9.45",
+    "buy-streak-freeze-100a-v0.9.45",
+    "monthly-streak-freeze-quota-2-v0.9.45",
+    "api-streak-freeze-quota-v0.9.45",
+    // Stage 59 — Hot Topics + Discovery
+    "hot-topics-algorithm-v0.9.45",
+    "topics-hot-score-column-v0.9.45",
+    "topics-is-hot-column-v0.9.45",
+    "topics-last-activity-at-column-v0.9.45",
+    "calculate-topic-hot-score-sql-function-v0.9.45",
+    "cong-dong-kham-pha-page-v0.9.45",
+    "admin-recalculate-hot-score-v0.9.45",
+    "api-hot-topics-endpoint-v0.9.45",
+    "hot-score-formula-comments-24h-7d-v0.9.45",
+    "featured-groups-on-kham-pha-v0.9.45",
+    // Stage 60 — SEO
+    "seo-sitemap-robots-manifest-v0.9.45",
+    "sitemap-xml-endpoint-v0.9.45",
+    "robots-txt-endpoint-v0.9.45",
+    "manifest-json-pwa-v0.9.45",
+    "json-ld-structured-data-v0.9.45",
+    "api-seo-structured-data-v0.9.45",
+    "seo-static-routes-v0.9.45",
+    "seo-dynamic-books-sitemap-v0.9.45",
+    "seo-dynamic-groups-sitemap-v0.9.45",
+    "robots-disallow-admin-api-v0.9.45",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -955,7 +1085,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.44",
+            "version": "0.9.45",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -985,11 +1115,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.44",
+        "version": "0.9.45",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 52,
-        "phase_name": "Giai đoạn 48-52 — Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics 🪷",
+        "phase": 60,
+        "phase_name": "Giai đoạn 53-60 — Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

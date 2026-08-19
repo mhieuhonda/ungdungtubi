@@ -1,22 +1,30 @@
 pub mod admin;
 pub mod auth;
+pub mod auto_rank;      // v0.9.45 — Giai đoạn 54: Auto Member Rank Promotion
 pub mod bang_xep_hang;
 pub mod cai_dat;
 pub mod chat;
 pub mod community;
+pub mod daily_login;    // v0.9.45 — Giai đoạn 57: Phần Thưởng Đăng Nhập Hàng Ngày
 pub mod doi_ngu;
 pub mod friends;
+pub mod hoat_dong;
+pub mod hot_topics;     // v0.9.45 — Giai đoạn 59: Chủ Đề Nổi Bật + Khám Phá
 pub mod kinh_sach;
 pub mod khong_gian;
-pub mod hoat_dong;
 pub mod nha_nhac;
 pub mod quy_tu_bi;
+pub mod reading_progress; // v0.9.45 — Giai đoạn 56: Tiến Độ Đọc Sách + Bookmark
+pub mod reminders;      // v0.9.45 — Giai đoạn 55: Nhắc Nhở Tu Học Hàng Ngày
+pub mod seo;            // v0.9.45 — Giai đoạn 60: SEO + sitemap + robots.txt + JSON-LD
 pub mod thanh_tich;
-pub mod thong_ke; // v0.9.44 — Giai đoạn 52: Admin Analytics Dashboard (/admin/thong-ke)
+pub mod thong_ke;       // v0.9.44 — Giai đoạn 52: Admin Analytics Dashboard (/admin/thong-ke)
 pub mod thuong_thanh;
 pub mod tien_te;
 pub mod tim_kiem;
 pub mod tong_quan;
+pub mod tu_hoc_goals;   // v0.9.45 — Giai đoạn 58: Mục Tiêu Tu Học + Streak Bảo Vệ
+pub mod tu_si;          // v0.9.45 — Giai đoạn 53: Hệ Thống Tu Sĩ (1-5 sao)
 pub mod uploads;
 
 use axum::{

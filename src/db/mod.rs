@@ -769,6 +769,221 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     ).execute(pool).await;
     log::info!("  ✅ user_search_history table ensured (v0.9.44)");
 
+    // ─── v0.9.45 — Giai đoạn 53-60: Safety schema cho các bảng mới ─
+    //   Mỗi bảng/mục mới phải chạy idempotent DDL trực tiếp để app sống sót
+    //   qua migration drift (checksum mismatch, partial deploy, manual rollback).
+
+    // 27. users.tu_si_rank + tu_si_approved_at (Giai đoạn 53)
+    let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS tu_si_rank SMALLINT").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS tu_si_approved_at TIMESTAMPTZ").execute(pool).await;
+    log::info!("  ✅ users.tu_si_rank + tu_si_approved_at ensured (v0.9.45)");
+
+    // 28. tu_si_applications (Giai đoạn 53)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS tu_si_applications (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            requested_rank  SMALLINT        NOT NULL,
+            monthly_k_pledge BIGINT         NOT NULL DEFAULT 0,
+            motivation      TEXT            NOT NULL DEFAULT '',
+            status          VARCHAR(20)     NOT NULL DEFAULT 'pending',
+            reviewed_by     UUID            REFERENCES users(id) ON DELETE SET NULL,
+            reviewed_at     TIMESTAMPTZ,
+            review_note     TEXT            NOT NULL DEFAULT '',
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_tu_si_apps_user ON tu_si_applications(user_id)").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_tu_si_apps_status ON tu_si_applications(status)").execute(pool).await;
+    log::info!("  ✅ tu_si_applications table ensured (v0.9.45)");
+
+    // 29. tu_si_monthly_supports (Giai đoạn 53)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS tu_si_monthly_supports (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            year_month      INTEGER         NOT NULL,
+            k_contributed   BIGINT          NOT NULL DEFAULT 0,
+            fulfilled       BOOLEAN         NOT NULL DEFAULT false,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, year_month)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ tu_si_monthly_supports table ensured (v0.9.45)");
+
+    // 30. member_rank_history (Giai đoạn 54)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS member_rank_history (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            from_rank       VARCHAR(40)     NOT NULL DEFAULT '',
+            to_rank         VARCHAR(40)     NOT NULL,
+            reason          VARCHAR(60)     NOT NULL DEFAULT 'auto',
+            changed_by      UUID            REFERENCES users(id) ON DELETE SET NULL,
+            note            TEXT            NOT NULL DEFAULT '',
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_member_rank_history_user ON member_rank_history(user_id)").execute(pool).await;
+    log::info!("  ✅ member_rank_history table ensured (v0.9.45)");
+
+    // 31. notification_preferences (Giai đoạn 55)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS notification_preferences (
+            user_id                 UUID            PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            daily_niem_reminder     BOOLEAN         NOT NULL DEFAULT true,
+            streak_warning          BOOLEAN         NOT NULL DEFAULT true,
+            email_reminders         BOOLEAN         NOT NULL DEFAULT false,
+            reminder_hour           SMALLINT        NOT NULL DEFAULT 20,
+            reminder_channel        VARCHAR(10)     NOT NULL DEFAULT 'app',
+            last_reminder_sent_at   TIMESTAMPTZ,
+            created_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at              TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ notification_preferences table ensured (v0.9.45)");
+
+    // 32. daily_reminder_log (Giai đoạn 55)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS daily_reminder_log (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reminder_date   DATE            NOT NULL DEFAULT CURRENT_DATE,
+            reminder_type   VARCHAR(30)     NOT NULL,
+            channel         VARCHAR(10)     NOT NULL,
+            sent_at         TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            status          VARCHAR(20)     NOT NULL DEFAULT 'sent',
+            error_message   TEXT            NOT NULL DEFAULT ''
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_daily_reminder_log_user_date ON daily_reminder_log(user_id, reminder_date)").execute(pool).await;
+    log::info!("  ✅ daily_reminder_log table ensured (v0.9.45)");
+
+    // 33. reading_progress (Giai đoạn 56) — books.id & book_chapters.id là UUID
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS reading_progress (
+            id                  BIGSERIAL       PRIMARY KEY,
+            user_id             UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            book_id             UUID            NOT NULL,
+            last_chapter_id     UUID,
+            progress_percent    SMALLINT        NOT NULL DEFAULT 0,
+            scroll_position     INTEGER         NOT NULL DEFAULT 0,
+            total_reading_seconds BIGINT       NOT NULL DEFAULT 0,
+            chapters_read       BIGINT          NOT NULL DEFAULT 0,
+            last_read_at        TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, book_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_reading_progress_user_last ON reading_progress(user_id, last_read_at DESC)").execute(pool).await;
+    log::info!("  ✅ reading_progress table ensured (v0.9.45)");
+
+    // 34. chapter_bookmarks (Giai đoạn 56) — books.id & book_chapters.id là UUID
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS chapter_bookmarks (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            book_id         UUID            NOT NULL,
+            chapter_id      UUID            NOT NULL,
+            note            TEXT            NOT NULL DEFAULT '',
+            label           VARCHAR(30)     NOT NULL DEFAULT 'bookmark',
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, chapter_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_chapter_bookmarks_user_book ON chapter_bookmarks(user_id, book_id)").execute(pool).await;
+    log::info!("  ✅ chapter_bookmarks table ensured (v0.9.45)");
+
+    // 35. daily_login_rewards + user_login_streaks (Giai đoạn 57)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS daily_login_rewards (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            reward_date     DATE            NOT NULL DEFAULT CURRENT_DATE,
+            streak_day      SMALLINT        NOT NULL,
+            reward_a        BIGINT          NOT NULL,
+            is_bonus        BOOLEAN         NOT NULL DEFAULT false,
+            balance_after   BIGINT          NOT NULL,
+            claimed_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, reward_date)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_daily_login_rewards_user_date ON daily_login_rewards(user_id, reward_date DESC)").execute(pool).await;
+    log::info!("  ✅ daily_login_rewards table ensured (v0.9.45)");
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_login_streaks (
+            user_id             UUID            PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            current_streak      SMALLINT        NOT NULL DEFAULT 0,
+            max_streak          SMALLINT        NOT NULL DEFAULT 0,
+            last_login_date     DATE,
+            total_days_claimed  BIGINT          NOT NULL DEFAULT 0,
+            total_a_earned      BIGINT          NOT NULL DEFAULT 0,
+            created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ user_login_streaks table ensured (v0.9.45)");
+
+    // 36. tu_hoc_goals + streak_freezes + streak_freeze_quota (Giai đoạn 58)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS tu_hoc_goals (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            goal_type       VARCHAR(30)     NOT NULL,
+            target_value    BIGINT          NOT NULL,
+            target_unit     VARCHAR(20)     NOT NULL DEFAULT 'count',
+            title           VARCHAR(200)    NOT NULL,
+            status          VARCHAR(20)     NOT NULL DEFAULT 'active',
+            deadline        DATE,
+            current_value   BIGINT          NOT NULL DEFAULT 0,
+            last_reset_at   TIMESTAMPTZ,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_tu_hoc_goals_user_status ON tu_hoc_goals(user_id, status)").execute(pool).await;
+    log::info!("  ✅ tu_hoc_goals table ensured (v0.9.45)");
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS streak_freezes (
+            id              BIGSERIAL       PRIMARY KEY,
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            freeze_date     DATE            NOT NULL,
+            source          VARCHAR(20)     NOT NULL DEFAULT 'monthly_free',
+            cost_a          BIGINT          NOT NULL DEFAULT 0,
+            applied         BOOLEAN         NOT NULL DEFAULT false,
+            applied_at      TIMESTAMPTZ,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_streak_freezes_user_date ON streak_freezes(user_id, freeze_date)").execute(pool).await;
+    log::info!("  ✅ streak_freezes table ensured (v0.9.45)");
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS streak_freeze_quota (
+            user_id         UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            year_month      INTEGER         NOT NULL,
+            used_count      SMALLINT        NOT NULL DEFAULT 0,
+            created_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (user_id, year_month)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ streak_freeze_quota table ensured (v0.9.45)");
+
+    // 37. topics.hot_score + is_hot + last_activity_at (Giai đoạn 59)
+    let _ = sqlx::query("ALTER TABLE topics ADD COLUMN IF NOT EXISTS hot_score DOUBLE PRECISION NOT NULL DEFAULT 0").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE topics ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE topics ADD COLUMN IF NOT EXISTS is_hot BOOLEAN NOT NULL DEFAULT false").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE topics ADD COLUMN IF NOT EXISTS hot_score_at TIMESTAMPTZ").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_topics_hot_score ON topics(hot_score DESC)").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_topics_is_hot ON topics(is_hot) WHERE is_hot = true").execute(pool).await;
+    log::info!("  ✅ topics.hot_score + is_hot + last_activity_at ensured (v0.9.45)");
+
     log::info!("🔒 Safety schema check hoàn tất");
 }
 

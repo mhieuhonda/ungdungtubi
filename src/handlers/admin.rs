@@ -700,7 +700,8 @@ async fn fetch_users_list(pool: &sqlx::PgPool) -> Vec<AdminUserRow> {
 
 /// Render trang 403 Forbidden — user không có quyền.
 /// v0.9.24: Cập nhật message — admin ngang hàng, phân quyền theo scope.
-fn render_forbidden(user: &User) -> Response {
+/// v0.9.45: Pub hóa để các module khác (tu_si, seo, ...) dùng được.
+pub fn render_forbidden(user: &User) -> Response {
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="vi"><head>

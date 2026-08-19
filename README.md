@@ -2,7 +2,7 @@
 
 > *Siêu thoát không siêu thích. Giải thoát không giải thích. Buông bỏ mới có thể trở về.*
 
-**Phiên bản:** v0.9.44 — Giai đoạn 48-52
+**Phiên bản:** v0.9.45 — Giai đoạn 53-60
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 **Stack:** Rust 1.97.1 · axum 0.8 · PostgreSQL 17 · Askama 0.14 · Alpine.js · Tailwind CSS
 

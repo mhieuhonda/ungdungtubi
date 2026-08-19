@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+
+{% block title %}Khám Phá — Ứng Dụng Từ Bi{% endblock %}
+
+{% block og_title %}Khám Phá Cộng Đồng Từ Bi{% endblock %}
+{% block og_description %}Top chủ đề nổi bật, nhóm sôi động, sách được yêu thích, và nhạc mới nhất trong cộng đồng Từ Bi.{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-6">
+
+    <!-- Header -->
+    <div class="text-center mb-6">
+        <span class="text-4xl">🧭</span>
+        <h1 class="text-3xl font-bold text-emerald-800 mt-2 mb-1">Khám Phá</h1>
+        <p class="text-gray-500 text-sm">
+            Chủ đề nổi bật · Nhóm sôi động · Sách được yêu thích · Nhạc mới duyệt<br>
+            <span class="text-xs italic">Giai đoạn 59 — v0.9.45 · Hot Score Algorithm</span>
+        </p>
+    </div>
+
+    <!-- Grid layout -->
+    <div class="grid lg:grid-cols-3 gap-6">
+
+        <!-- Cột 1+2: Hot Topics -->
+        <div class="lg:col-span-2 space-y-4">
+            <div class="bg-white rounded-2xl shadow p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="font-bold text-gray-800 flex items-center gap-2">
+                        🔥 Chủ Đề Nổi Bật
+                    </h2>
+                    <span class="text-xs text-gray-500">Top 10 — cập nhật theo Hot Score</span>
+                </div>
+
+                {% if hot_topics.is_empty() %}
+                <div class="text-center py-8 text-gray-400 text-sm">
+                    Chưa có chủ đề nổi bật. Hoạt động cộng đồng sẽ tự cập nhật 🪷
+                </div>
+                {% else %}
+                <div class="space-y-3">
+                    {% for t in &hot_topics %}
+                    <a href="/cong-dong/chu-de/{{ t.id }}" class="block border rounded-xl p-3 hover:shadow-md hover:border-emerald-300 transition">
+                        <div class="flex items-start gap-3">
+                            <div class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold">
+                                #{{ loop.index }}
+                            </div>
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-800 text-sm">{{ t.title }}</div>
+                                <div class="text-xs text-gray-500 mt-1 line-clamp-2">{{ t.body }}</div>
+                                <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                                    <span>💬 {{ t.comment_count }} bình luận</span>
+                                    <span>👁️ {{ t.view_count }} lượt xem</span>
+                                    {% if t.is_hot %}
+                                    <span class="bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-semibold">🔥 HOT</span>
+                                    {% endif %}
+                                    <span class="text-amber-600">🔥 Score: {{ t.hot_score.round() as i64 }}</span>
+                                </div>
+                                <div class="mt-2 flex items-center gap-2">
+                                    <a href="/cong-dong/nhom/{{ t.group_slug }}" class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                                        👥 {{ t.group_name }}
+                                    </a>
+                                    <span class="text-xs text-gray-400">· bởi {{ t.author_name }}</span>
+                                    {% if let Some(at) = t.last_activity_at %}
+                                    <span class="text-xs text-gray-400">· hoạt động {{ at.format("%Y-%m-%d %H:%M") }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Recent Music -->
+            <div class="bg-white rounded-2xl shadow p-5">
+                <h2 class="font-bold text-gray-800 mb-3 flex items-center gap-2">🎵 Nhạc Mới Duyệt</h2>
+                {% if recent_music.is_empty() %}
+                <div class="text-center py-4 text-gray-400 text-sm">Chưa có bài hát nào được duyệt gần đây.</div>
+                {% else %}
+                <div class="grid sm:grid-cols-2 gap-3">
+                    {% for m in &recent_music %}
+                    <div class="border rounded-xl p-3 hover:shadow-sm">
+                        <div class="font-semibold text-sm text-gray-800">{{ m.title }}</div>
+                        <div class="text-xs text-gray-500 mt-1">bởi {{ m.submitter_name }}</div>
+                        {% if let Some(at) = m.approved_at %}
+                        <div class="text-xs text-gray-400 mt-1">Duyệt: {{ at.format("%Y-%m-%d") }}</div>
+                        {% endif %}
+                        {% if m.source_type == "youtube" %}
+                        <span class="inline-block mt-1 text-xs bg-red-50 text-red-700 px-2 py-0.5 rounded">📺 YouTube</span>
+                        {% else %}
+                        <span class="inline-block mt-1 text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded">🎶 Audio File</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="mt-3 text-center">
+                    <a href="/khong-gian/nha-nhac" class="text-xs text-emerald-700 hover:underline">→ Xem tất cả nhạc</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cột 3: Featured Groups + Popular Books -->
+        <div class="space-y-4">
+            <!-- Featured Groups -->
+            <div class="bg-white rounded-2xl shadow p-4">
+                <h2 class="font-bold text-gray-800 mb-3 flex items-center gap-2">👥 Nhóm Sôi Động</h2>
+                {% if featured_groups.is_empty() %}
+                <div class="text-center py-4 text-gray-400 text-xs">Chưa có nhóm nào.</div>
+                {% else %}
+                <div class="space-y-2">
+                    {% for g in &featured_groups %}
+                    <a href="/cong-dong/nhom/{{ g.slug }}" class="block border rounded-lg p-2 hover:bg-emerald-50">
+                        <div class="flex items-center gap-2">
+                            <img src="{{ g.logo_url.as_deref().unwrap_or("/static/tubi.png") }}"
+                                 class="w-8 h-8 rounded-full" alt="">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold text-sm truncate">{{ g.name }}</div>
+                                <div class="text-xs text-gray-500">
+                                    {{ g.member_count }} members · {{ g.topic_count }} topics
+                                </div>
+                            </div>
+                            {% if g.is_featured %}
+                            <span class="text-xs">⭐</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Popular Books -->
+            <div class="bg-white rounded-2xl shadow p-4">
+                <h2 class="font-bold text-gray-800 mb-3 flex items-center gap-2">📚 Sách Được Yêu Thích</h2>
+                {% if popular_books.is_empty() %}
+                <div class="text-center py-4 text-gray-400 text-xs">Chưa có sách nào.</div>
+                {% else %}
+                <div class="space-y-2">
+                    {% for b in &popular_books %}
+                    <a href="/kinh-sach/{{ b.slug }}" class="block border rounded-lg p-2 hover:bg-emerald-50">
+                        <div class="flex gap-2">
+                            <img src="{{ b.cover_url.as_deref().unwrap_or("/static/tubi.png") }}"
+                                 class="w-10 h-14 rounded object-cover" alt="">
+                            <div class="flex-1 min-w-0">
+                                <div class="font-semibold text-sm truncate">{{ b.title }}</div>
+                                {% if let Some(a) = &b.author %}
+                                <div class="text-xs text-gray-500 truncate">{{ a }}</div>
+                                {% endif %}
+                                <div class="text-xs text-gray-400 mt-1">
+                                    👁️ {{ b.view_count }} · 🌸 {{ b.flower_count }}
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="mt-3 text-center">
+                    <a href="/kinh-sach" class="text-xs text-emerald-700 hover:underline">→ Vào thư viện</a>
+                </div>
+            </div>
+
+            <!-- Admin: trigger recalculate -->
+            {% if let Some(u) = user %}
+            {% if u.is_staff() %}
+            <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3">
+                <div class="font-semibold text-indigo-800 text-sm mb-2">⚙️ Admin</div>
+                <form action="/admin/cong-dong/tinh-hot-score" method="POST"
+                      onsubmit="return confirm('Tính lại hot_score cho TẤT CẢ topics? Có thể mất vài giây.')">
+                    <button type="submit" class="w-full bg-indigo-600 text-white py-1.5 rounded text-xs hover:bg-indigo-700">
+                        🔥 Tính lại Hot Score
+                    </button>
+                </form>
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="text-center mt-8">
+        <p class="text-xs text-gray-500">Giai đoạn 59 — v0.9.45 · Hot Score = (comments 24h × 4 + comments 7d × 2 + group_size × 0.5) / √(age_hours + 2)</p>
+    </div>
+</section>
+{% endblock %}
