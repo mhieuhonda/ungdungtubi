@@ -29,7 +29,7 @@ use crate::AppState;
 use crate::handlers::get_user_from_session;
 use crate::models::kinh_sach::{
     BookCategory, BookChapter, BookChapterSummary, BookReviewForm, BookReviewWithAuthor,
-    BookWithCategory,
+    BookWithCategory, UserSearchHistoryItem,
 };
 use crate::models::user::User;
 
@@ -74,6 +74,13 @@ pub struct KinhSachSearchTemplate {
     pub active_page: String,
     pub query: String,
     pub books: Vec<BookWithCategory>,
+    pub search_history: Vec<UserSearchHistoryItem>,
+    /// Library slug filter hiện tại (rỗng nếu không lọc).
+    pub library: String,
+    /// Sort mode hiện tại: 'relevance' | 'popular' | 'recent'.
+    pub sort: String,
+    /// True nếu FTS trả về 0 kết quả và đã fallback sang ILIKE.
+    pub used_fallback: bool,
 }
 
 #[derive(Template)]
@@ -168,10 +175,20 @@ pub async fn kinh_sach_index(State(state): State<AppState>, jar: CookieJar) -> R
     Html(html).into_response()
 }
 
-/// GET /kinh-sach/tim-kiem?q=... — Tìm kiếm sách.
+/// GET /kinh-sach/tim-kiem?q=...&library=...&sort=... — Tìm kiếm sách.
+///
+/// v0.9.44 — Giai đoạn 51: PostgreSQL Full-Text Search.
+///   * Dùng `ts_rank_cd(search_tsv, plainto_tsquery('simple', $1))` để rank kết quả.
+///   * Fallback sang ILIKE nếu FTS trả về 0 kết quả (giữ backward compat với
+///     các query tiếng Việt có dấu mà tokenizer 'simple' không match tốt).
+///   * Ghi lịch sử tìm kiếm vào `user_search_history` (nếu user đã đăng nhập).
+///   * Hiển thị 10 chip lịch sử tìm kiếm gần nhất của user.
+///   * Lọc theo thư viện (`library`) và sắp xếp theo `sort` (relevance/popular/recent).
 #[derive(Debug, Deserialize)]
 pub struct SearchQuery {
     pub q: Option<String>,
+    pub library: Option<String>,
+    pub sort: Option<String>,
 }
 
 pub async fn kinh_sach_search(
@@ -181,29 +198,121 @@ pub async fn kinh_sach_search(
 ) -> Response {
     let user = get_user_from_session(&state.pool, &jar).await;
     let q = query.q.unwrap_or_default().trim().to_string();
+    let library = query.library.unwrap_or_default().trim().to_string();
+    // Chuẩn hoá sort: chỉ chấp nhận 3 giá trị hợp lệ, mặc định 'relevance'.
+    let sort = match query.sort.as_deref().unwrap_or("relevance") {
+        "popular" => "popular".to_string(),
+        "recent" => "recent".to_string(),
+        _ => "relevance".to_string(),
+    };
 
+    // Ghi lịch sử tìm kiếm (chỉ khi user đã đăng nhập và query không rỗng).
+    if let Some(ref u) = user {
+        if !q.is_empty() {
+            let _ = sqlx::query(
+                "INSERT INTO user_search_history (user_id, query) VALUES ($1, $2)"
+            )
+            .bind(u.id)
+            .bind(&q)
+            .execute(&state.pool)
+            .await;
+        }
+    }
+
+    // Fetch 10 mục lịch sử tìm kiếm gần nhất của user.
+    let search_history: Vec<UserSearchHistoryItem> = if let Some(ref u) = user {
+        sqlx::query_as::<_, UserSearchHistoryItem>(
+            "SELECT id, user_id, query, searched_at
+             FROM user_search_history
+             WHERE user_id = $1
+             ORDER BY searched_at DESC
+             LIMIT 10"
+        )
+        .bind(u.id)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    let mut used_fallback = false;
     let books = if q.is_empty() {
         Vec::new()
     } else {
-        // Dùng ILIKE + pg_trgm similarity cho tìm kiếm fuzzy
-        // v0.9.27: Escape ILIKE wildcards
-        let escaped = q.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-        let pattern = format!("%{escaped}%");
-        sqlx::query_as::<_, BookWithCategory>(&format!(
+        // Xây ORDER BY clause theo sort mode.
+        // Với FTS path: 'relevance' = ts_rank_cd DESC (mặc định).
+        //               'popular'/'recent' = dùng view_count/created_at.
+        let order_clause_fts = match sort.as_str() {
+            "popular" => "ORDER BY b.view_count DESC",
+            "recent" => "ORDER BY b.created_at DESC",
+            // default = 'relevance': rank theo FTS.
+            _ => "ORDER BY ts_rank_cd(b.search_tsv, plainto_tsquery('simple', $1)) DESC",
+        };
+
+        // FTS path: dùng GIN index → rất nhanh.
+        // Library filter: nếu library rỗng thì không lọc (AND $2 = '' OR bc.slug = $2).
+        let fts_sql = format!(
             "SELECT {BOOK_LIST_COLUMNS}
              FROM books b
              LEFT JOIN book_categories bc ON bc.id = b.category_id
              WHERE b.is_active = true AND b.status = 'published'
-               AND (b.title ILIKE $1 ESCAPE '\\' OR b.author ILIKE $1 ESCAPE '\\' OR b.description ILIKE $1 ESCAPE '\\')
-             ORDER BY
-               CASE WHEN b.title ILIKE $1 ESCAPE '\\' THEN 0 ELSE 1 END,
-               b.view_count DESC
-             LIMIT 50"
-        ))
-        .bind(&pattern)
-        .fetch_all(&state.pool)
-        .await
-        .unwrap_or_default()
+               AND b.search_tsv @@ plainto_tsquery('simple', $1)
+               AND ($2::text = '' OR bc.slug = $2)
+             {order_clause_fts}
+             LIMIT 20"
+        );
+
+        let mut fts_books: Vec<BookWithCategory> =
+            sqlx::query_as::<_, BookWithCategory>(&fts_sql)
+                .bind(&q)
+                .bind(&library)
+                .fetch_all(&state.pool)
+                .await
+                .unwrap_or_default();
+
+        if fts_books.is_empty() {
+            // Fallback sang ILIKE (giữ backward compat với các query có dấu mà
+            // tokenizer 'simple' không match tốt — ví dụ: "Từ Bi" vs "từ bi").
+            used_fallback = true;
+
+            // ILIKE path: 'relevance' = ưu tiên title match trước, rồi view_count.
+            let order_clause_ilike = match sort.as_str() {
+                "popular" => "ORDER BY b.view_count DESC",
+                "recent" => "ORDER BY b.created_at DESC",
+                _ => "ORDER BY \
+                    CASE WHEN b.title ILIKE $1 ESCAPE '\\' THEN 0 ELSE 1 END, \
+                    b.view_count DESC",
+            };
+
+            let escaped = q
+                .replace('\\', "\\\\")
+                .replace('%', "\\%")
+                .replace('_', "\\_");
+            let pattern = format!("%{escaped}%");
+
+            let ilike_sql = format!(
+                "SELECT {BOOK_LIST_COLUMNS}
+                 FROM books b
+                 LEFT JOIN book_categories bc ON bc.id = b.category_id
+                 WHERE b.is_active = true AND b.status = 'published'
+                   AND (b.title ILIKE $1 ESCAPE '\\'
+                        OR b.author ILIKE $1 ESCAPE '\\'
+                        OR b.description ILIKE $1 ESCAPE '\\')
+                   AND ($2::text = '' OR bc.slug = $2)
+                 {order_clause_ilike}
+                 LIMIT 50"
+            );
+
+            fts_books = sqlx::query_as::<_, BookWithCategory>(&ilike_sql)
+                .bind(&pattern)
+                .bind(&library)
+                .fetch_all(&state.pool)
+                .await
+                .unwrap_or_default();
+        }
+
+        fts_books
     };
 
     let html = KinhSachSearchTemplate {
@@ -211,6 +320,10 @@ pub async fn kinh_sach_search(
         active_page: "books".into(),
         query: q,
         books,
+        search_history,
+        library,
+        sort,
+        used_fallback,
     }
     .render()
     .unwrap_or_else(|e| {

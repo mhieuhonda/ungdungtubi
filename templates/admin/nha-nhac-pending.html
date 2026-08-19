@@ -30,6 +30,42 @@
   </div>
 
   <!-- Pending Submissions List -->
+  {% if let Some(q) = query_ok %}
+    {% if q == "approve" %}
+    <div class="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+      <span class="text-lg">✅</span>
+      <span>Đã duyệt thành công{% if let Some(id) = sub_id_param %} bài #{{ id }}{% endif %} và thêm vào kho nhạc chính. User đã nhận được thông báo.</span>
+    </div>
+    {% else if q == "reject" %}
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
+      <span class="text-lg">❌</span>
+      <span>Đã từ chối{% if let Some(id) = sub_id_param %} bài #{{ id }}{% endif %}. User đã nhận được thông báo kèm lý do.</span>
+    </div>
+    {% endif %}
+  {% endif %}
+  {% if let Some(e) = query_err %}
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm flex items-start gap-2">
+      <span class="text-lg shrink-0">⚠️</span>
+      <div>
+        <div class="font-semibold">Lỗi xử lý{% if let Some(id) = sub_id_param %} bài #{{ id }}{% endif %}</div>
+        {% if e == "insert_fail" %}
+        <div class="text-xs mt-1">Không thể lưu bài vào kho nhạc chính (music_tracks). Submission vẫn ở trạng thái "chờ duyệt". Kiểm tra log server để biết chi tiết — có thể do CHECK constraint, NULL value, hoặc schema drift.</div>
+        {% else if e == "not_found" %}
+        <div class="text-xs mt-1">Bài không tồn tại hoặc đã bị xoá.</div>
+        {% else if e == "not_pending" %}
+        <div class="text-xs mt-1">Bài không còn ở trạng thái "chờ duyệt" (có thể đã được admin khác xử lý).</div>
+        {% else if e == "vanish" %}
+        <div class="text-xs mt-1">Bài biến mất giữa chừng xử lý (race condition). Vui lòng thử lại.</div>
+        {% else if e == "db" %}
+        <div class="text-xs mt-1">Lỗi database khi UPDATE submission. Vui lòng thử lại.</div>
+        {% else if e == "commit" %}
+        <div class="text-xs mt-1">Lỗi COMMIT transaction. Vui lòng thử lại.</div>
+        {% else %}
+        <div class="text-xs mt-1">Lỗi không xác định: {{ e }}</div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
   {% if submissions.is_empty() %}
   <div class="text-center py-16">
     <div class="text-6xl mb-4">✅</div>
@@ -56,7 +92,12 @@
               </div>
               {% if let Some(filename) = &sub.audio_stored_filename %}
               <audio controls preload="metadata" class="w-full h-9">
-                <source src="/uploads/{{ filename }}" type="audio/mpeg">
+                {# v0.9.44 — Giai đoạn 48 (bug C6 fix): Trước v0.9.44, src dùng
+                   `/uploads/{{ filename }}` — nhưng app KHÔNG có route `/uploads/`,
+                   chỉ có `/static/uploads/` (ServeDir mount tại /static). Kết quả:
+                   admin mở trang pending → audio element 404 → không nghe được
+                   bài gửi → duyệt "blind" không nghe thử. Fix: dùng `/static/uploads/`. #}
+                <source src="/static/uploads/{{ filename }}" type="audio/mpeg">
                 Trình duyệt không hỗ trợ phát âm thanh.
               </audio>
               {% else %}

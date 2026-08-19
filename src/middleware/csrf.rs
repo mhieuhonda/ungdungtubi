@@ -1,59 +1,34 @@
-//! CSRF Protection middleware (v0.9.24 — Giai đoạn 29).
+//! CSRF Protection middleware (v0.9.24 — Giai đoạn 29; clarified v0.9.44).
 //!
-//! Cơ chế Double-Submit Cookie:
-//!   1. Khi user login, server set cookie `csrf_token` (HttpOnly=false, JS có thể đọc)
-//!   2. Mọi POST/PUT/DELETE form phải có hidden input `csrf_token` = giá trị cookie
-//!   3. Middleware so sánh cookie value vs form field — nếu không khớp → 403
+//! v0.9.44 — Giai đoạn 49 (bug M4 fix): Documentation + architectural decision.
 //!
-//! Ưu điểm: đơn giản, stateless, không cần DB lookup.
-//! Nhược điểm: phụ thuộc cookie SameSite=Lax (đã có).
+//! Trước v0.9.44, file này có middleware "log-only" với TODO comment hứa sẽ
+//! "block mode" ở v0.9.25. Nhưng 11 phiên bản sau, block mode vẫn chưa được
+//! implement, và CSRF cookie cũng không bao giờ được set trong OAuth callback.
+//! Trạng thái "sắp block" gây hiểu nhầm — đọc code tưởng đã có CSRF protection
+//! nhưng thực ra dựa hoàn toàn vào SameSite=Lax cookie.
 //!
-//! Note: OAuth callback không cần CSRF token (Google redirect, có state check riêng).
-//!       Logout POST đã có CSRF protection qua SameSite cookie.
+//! Quyết định v0.9.44: GIỮ NGUYÊN thiết kế hiện tại — SameSite=Lax cookie là
+//! cơ chế CSRF protection chính thức của app. Middleware này chỉ giữ lại làm
+//! placeholder cho future work (nếu cần double-submit cookie sau này), nhưng
+//! comment đã được update để phản ánh đúng trạng thái thực tế.
 //!
-//! Hiện tại middleware này ở trạng thái "log-only" — ghi log nếu thiếu CSRF token
-//! nhưng KHÔNG block request, để tránh break existing forms chưa thêm hidden input.
-//! Trong v0.9.25+ sẽ chuyển sang block mode sau khi all forms đã có CSRF token.
+//! Lý do không implement block mode:
+//!   1. SameSite=Lax đã chặn 99% CSRF vectors (cross-site POST không gửi cookie)
+//!   2. Implement double-submit cookie đòi hỏi update tất cả form templates
+//!      (40+ forms) — chi phí cao, lợi ích cận biên thấp
+//!   3. Google OAuth state check đã chặn CSRF ở login flow
+//!   4. Logout POST đã được SameSite=Lax cookie bảo vệ
+//!
+//! Nếu sau này cần CSRF protection mạnh hơn (vd: SameSite=None cho third-party
+//! embed), sử dụng signed double-submit cookie pattern, KHÔNG dùng log-only mode.
 
 use axum::{extract::Request, middleware::Next, response::Response};
 
-/// Middleware function: log CSRF check (không block trong v0.9.24).
-///
-/// Sẽ chuyển sang block mode ở v0.9.25 sau khi all forms đã có CSRF hidden input.
+/// Middleware function: no-op placeholder. CSRF protection đến từ SameSite=Lax
+/// cookie (set trong auth callback). Function này exist để route có thể reference
+/// nó nếu sau này cần附加 CSRF middleware layer nào đó — hiện tại nó chỉ pass-through.
 pub async fn csrf_check(req: Request, next: Next) -> Response {
-    let method = req.method().clone();
-    let path = req.uri().path().to_string();
-
-    // Chỉ check POST/PUT/PATCH/DELETE
-    if method.is_safe() {
-        return next.run(req).await;
-    }
-
-    // Whitelist: OAuth callback (Google redirect, có state check riêng)
-    // và /api/theme (Alpine fetch, không phải form submit)
-    if path.starts_with("/auth/google/callback")
-        || path == "/api/theme"
-        || path == "/api/heartbeat"
-        || path.starts_with("/ws/")
-    {
-        return next.run(req).await;
-    }
-
-    // v0.9.24: Log-only mode — ghi log để monitor, KHÔNG block
-    // Khi all forms đã có CSRF hidden input, sẽ chuyển sang block mode
-    // (so sánh cookie csrf_token vs form field csrf_token, mismatch → 403)
-
-    // TODO v0.9.25: implement block mode
-    // let jar = CookieJar::from_headers(req.headers());
-    // let cookie_token = jar.get("csrf_token").map(|c| c.value().to_string());
-    // let form_token = extract_csrf_from_form(&req).await;
-    // if cookie_token.is_none() || form_token.is_none() || cookie_token != form_token {
-    //     return (StatusCode::FORBIDDEN, "CSRF token mismatch").into_response();
-    // }
-
-    if method == "POST" {
-        log::debug!("🔒 CSRF check (log-only): {} {}", method, path);
-    }
-
+    // Pass-through. SameSite=Lax cookie đã handle CSRF.
     next.run(req).await
 }

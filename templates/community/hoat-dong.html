@@ -1,0 +1,65 @@
+{% extends "layout.html" %}
+{% block title %}🌐 Hoạt Động Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  {# ─── Hero / Breadcrumb ─────────────────────────────────────────────── #}
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+    <nav class="text-sm opacity-90 mb-3" aria-label="Breadcrumb">
+      <a href="/cong-dong" class="hover:underline">👥 Cộng Đồng</a>
+      <span class="mx-2 opacity-70">›</span>
+      <span class="font-semibold">🌐 Hoạt Động</span>
+    </nav>
+    <h1 class="text-3xl md:text-4xl font-bold mb-2">🌐 Hoạt Động Cộng Đồng</h1>
+    <p class="opacity-90 max-w-2xl">
+      Cập nhật gần đây từ cộng đồng Từ Bi: chủ đề mới, bình luận, nhóm mới,
+      nhạc được duyệt và thành viên mới tham gia — làm mới mỗi 5 phút.
+    </p>
+  </div>
+
+  {# ─── Activity list ─────────────────────────────────────────────────── #}
+  {% if activities.is_empty() %}
+  <div class="text-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
+    <span class="text-6xl">🪷</span>
+    <h2 class="text-xl font-semibold mt-4 mb-2 text-gray-700">Chưa có hoạt động nào trong 7 ngày qua.</h2>
+    <p class="text-gray-500 mb-6">Hãy tham gia nhóm, đăng chủ đề hoặc bình luận để cộng đồng thêm sôi động!</p>
+    <a href="/cong-dong" class="inline-block text-white px-6 py-3 rounded-xl hover:opacity-90 transition" style="background-color:#388E3C">
+      👥 Khám phá cộng đồng
+    </a>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-gray-100 bg-gray-50 text-xs text-gray-500 flex items-center justify-between flex-wrap gap-2">
+      <span>📋 {{ activities.len() }} hoạt động gần nhất (7 ngày qua)</span>
+      <span class="text-gray-400">🔄 Cache 5 phút · 5 loại hoạt động</span>
+    </div>
+    <ul class="divide-y divide-gray-100 max-h-[640px] overflow-y-auto" style="scrollbar-width:thin">
+      {% for a in &activities %}
+      <li class="hover:bg-gray-50 transition">
+        <a href="{{ a.target_link_or_default() }}" class="flex items-start gap-3 p-4">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0" style="background-color:#E8F5E9">
+            {{ a.icon() }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-gray-800">{{ a.description_or_default() }}</p>
+            <div class="flex items-center gap-2 mt-1.5 text-xs text-gray-400 flex-wrap">
+              <time title="{{ a.created_at_rfc3339() }}">{{ a.time_ago() }}</time>
+              <span>·</span>
+              <span class="px-1.5 py-0.5 rounded-full" style="background-color:#F0FDF4;color:#166534">{{ a.type_label() }}</span>
+            </div>
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# ─── Footer note ───────────────────────────────────────────────────── #}
+  <p class="text-center text-xs text-gray-400 mt-6">
+    🪷 Hoạt Động Cộng Đồng — v0.9.44 · Giai đoạn 50 · 5 phút cache · 5 loại hoạt động
+  </p>
+
+</section>
+{% endblock %}

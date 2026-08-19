@@ -7,6 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use std::sync::Arc;
 use sqlx::postgres::PgPoolOptions;
+use tokio::sync::Mutex;
 use tower_http::{compression::CompressionLayer, services::ServeDir, trace::TraceLayer};
 
 mod config;
@@ -25,12 +26,26 @@ use middleware::RateLimitState;
 /// v0.9.3: thêm `global_chat_hub` cho Chat Chung toàn platform.
 /// v0.9.5: thêm `dm_chat_hub` cho Direct Messages 1-1 (Giai đoạn 9).
 /// v0.9.21: xoá `chat_hub` (group live chat) — chỉ giữ Chat Chung.
+/// v0.9.44 — Giai đoạn 48: thêm `play_count_cache` để rate-limit play_count
+/// increment (1 play/track/user/minute). Trước v0.9.44, không có rate limit
+/// → bot có thể spam POST /api/nha-nhac/track/{id}/play để inflate analytics.
+///
+/// v0.9.44 — Giai đoạn 50: thêm `activity_cache` cho Hoạt Động Cộng Đồng
+/// (UNION ALL query trên 5 bảng — cache 5 phút tránh truy vấn nặng mỗi page load).
 #[derive(Clone)]
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub config: Arc<Config>,
     pub global_chat_hub: GlobalChatHub,
     pub dm_chat_hub: DmChatHub,
+    /// v0.9.44 — In-memory rate-limit cache cho play_count.
+    /// Key: (user_id, track_id). Value: thời điểm ghi lượt nghe cuối.
+    /// Entry được evict khi quá 60s (sẽ tự clean bằng cách check time khi truy cập).
+    pub play_count_cache: Arc<Mutex<std::collections::HashMap<(uuid::Uuid, i64), std::time::Instant>>>,
+    /// v0.9.44 — Giai đoạn 50: Cache kết quả UNION ALL activity feed (5 phút TTL).
+    /// Tránh truy vấn nặng (UNION ALL trên topics + comments + groups +
+    /// user_music_submissions + group_members) mỗi page load của /cong-dong/hoat-dong.
+    pub activity_cache: Arc<Mutex<Option<(std::time::Instant, Vec<handlers::hoat_dong::ActivityItem>)>>>,
 }
 
 #[tokio::main]
@@ -45,14 +60,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.43 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.44 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.43 — Giai đoạn 47: Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷");
+    log::info!("📦 Phiên bản: v0.9.44 — Giai đoạn 48-52: Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -142,11 +157,15 @@ async fn main() -> std::io::Result<()> {
     middleware::rate_limit::spawn_cleanup_task(RateLimitState::get_global().clone());
 
     // Build shared state (v0.9.3: + global_chat_hub; v0.9.5: + dm_chat_hub; v0.9.21: - chat_hub)
+    // v0.9.44 — Giai đoạn 48: + play_count_cache cho rate limit play_count increment.
+    // v0.9.44 — Giai đoạn 50: + activity_cache cho /cong-dong/hoat-dong (5 phút TTL).
     let state = AppState {
         pool: db_pool,
         config: Arc::new(config.clone()),
         global_chat_hub: GlobalChatHub::default(),
         dm_chat_hub: DmChatHub::default(),
+        play_count_cache: Arc::new(Mutex::new(std::collections::HashMap::new())),
+        activity_cache: Arc::new(Mutex::new(None)),
     };
 
     // Build router
@@ -261,6 +280,17 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
             "/cong-dong/chu-de/{id}/binh-luan",
             post(handlers::community::create_comment),
         )
+        // Routes — Hoạt Động Cộng Đồng (v0.9.44 — Giai đoạn 50: Activity Feed)
+        // UNION ALL query trên 5 bảng (topics + comments + groups +
+        // user_music_submissions + group_members), cache 5 phút.
+        .route(
+            "/cong-dong/hoat-dong",
+            get(handlers::hoat_dong::hoat_dong_index),
+        )
+        .route(
+            "/api/cong-dong/hoat-dong",
+            get(handlers::hoat_dong::hoat_dong_api),
+        )
         // Routes — Chat Chung toàn platform (v0.9.3)
         // v0.9.21: Đã xoá group live chat routes (chỉ giữ Chat Chung)
         .route(
@@ -374,6 +404,11 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/admin/tien-te", get(handlers::tien_te::admin_tien_te_index))
         .route("/admin/tien-te/ty-gia", post(handlers::tien_te::admin_tien_te_update_rate))
         .route("/admin/tien-te/ty-gia/{from}/{to}/toggle", post(handlers::tien_te::admin_tien_te_toggle_rate))
+        // v0.9.44 — Giai đoạn 52: Admin Analytics Dashboard (/admin/thong-ke)
+        // 6 metric: DAU 30d · Signups 30d · Top tracks · Top groups · Music categories · Exchange 7d.
+        // Pure CSS bar/line charts (no JS chart lib) + CSV export per metric.
+        .route("/admin/thong-ke", get(handlers::thong_ke::admin_thong_ke_index))
+        .route("/admin/thong-ke/csv/{metric}", get(handlers::thong_ke::admin_thong_ke_csv))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -868,6 +903,40 @@ const HEALTH_FEATURES: &[&str] = &[
     "coolify-webhook-post-hardening-v0.9.43",
     "coolify-webhook-405-retry-v0.9.43",
     "coolify-deploy-v0.9.43",
+    // ─── v0.9.44 — Giai đoạn 48-52: Music Approval Hardening + Notification + Activity + FTS + Analytics
+    "music-approval-transaction-atomic-v0.9.44",
+    "music-approval-no-silent-insert-v0.9.44",
+    "music-approval-notification-to-user-v0.9.44",
+    "music-my-submissions-widget-v0.9.44",
+    "music-community-section-autoshow-v0.9.44",
+    "music-play-count-rate-limit-1-per-min-v0.9.44",
+    "music-play-count-track-validation-v0.9.44",
+    "music-ca-nhan-remove-result-check-v0.9.44",
+    "notification-music-approved-type-v0.9.44",
+    "notification-music-rejected-type-v0.9.44",
+    "activity-feed-page-v0.9.44",
+    "activity-feed-widget-v0.9.44",
+    "activity-feed-5min-cache-v0.9.44",
+    "kinh-sach-tsvector-fts-v0.9.44",
+    "kinh-sach-search-history-v0.9.44",
+    "kinh-sach-search-highlight-v0.9.44",
+    "admin-analytics-dashboard-v0.9.44",
+    "admin-analytics-dau-30-days-v0.9.44",
+    "admin-analytics-signups-30-days-v0.9.44",
+    "admin-analytics-top-tracks-v0.9.44",
+    "admin-analytics-top-groups-v0.9.44",
+    "admin-analytics-csv-export-v0.9.44",
+    "tien-te-race-condition-fix-v0.9.44",
+    "tien-te-balance-transactions-tx-v0.9.44",
+    "tien-te-reverse-rate-fix-v0.9.44",
+    "tien-te-update-balance-clamp-v0.9.44",
+    "thuong-thanh-cart-checkout-tx-v0.9.44",
+    "thuong-thanh-create-item-error-handler-v0.9.44",
+    "csrf-middleware-cleanup-v0.9.44",
+    "gioi-thieu-page-version-fix-v0.9.44",
+    "admin-placeholder-version-fix-v0.9.44",
+    "nha-nhac-js-onended-audio-ref-fix-v0.9.44",
+    "nha-nhac-loadcommunitymusic-isArray-check-v0.9.44",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -886,7 +955,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.43",
+            "version": "0.9.44",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -916,11 +985,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.43",
+        "version": "0.9.44",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 47,
-        "phase_name": "Giai đoạn 47 — Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST Hardening 🪷",
+        "phase": 52,
+        "phase_name": "Giai đoạn 48-52 — Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

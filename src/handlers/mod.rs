@@ -8,9 +8,11 @@ pub mod doi_ngu;
 pub mod friends;
 pub mod kinh_sach;
 pub mod khong_gian;
+pub mod hoat_dong;
 pub mod nha_nhac;
 pub mod quy_tu_bi;
 pub mod thanh_tich;
+pub mod thong_ke; // v0.9.44 — Giai đoạn 52: Admin Analytics Dashboard (/admin/thong-ke)
 pub mod thuong_thanh;
 pub mod tien_te;
 pub mod tim_kiem;

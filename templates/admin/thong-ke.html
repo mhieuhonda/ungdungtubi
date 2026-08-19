@@ -1,0 +1,297 @@
+{% extends "layout.html" %}
+
+{% block title %}📊 Thống Kê — Admin — Ứng Dụng Từ Bi{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-16">
+
+  {# ─── Header: gradient purple→indigo, breadcrumb, title ─── #}
+  <div class="mb-6">
+    <nav class="text-xs text-gray-500 mb-3 flex items-center gap-2 flex-wrap">
+      <a href="/admin" class="hover:text-purple-700 transition">Admin</a>
+      <span class="text-gray-300">/</span>
+      <span class="text-purple-700 font-semibold">📊 Thống Kê</span>
+    </nav>
+    <div class="bg-gradient-to-r from-purple-700 to-indigo-700 rounded-2xl p-5 sm:p-6 text-white shadow-lg">
+      <div class="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <span>📊</span> Thống Kê Hệ Thống
+          </h1>
+          <p class="text-sm text-purple-100 mt-1">
+            DAU · Signups · Top Tracks · Top Groups · Categories · Exchange — 6 metric về sức khoẻ nền tảng.
+          </p>
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-purple-200">Cập nhật</div>
+          <div class="text-sm font-mono">realtime · TZ Asia/Ho_Chi_Minh</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if has_error %}
+  <div class="mb-6 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl text-sm flex items-start gap-2">
+    <span class="text-lg shrink-0">⚠️</span>
+    <div>
+      <div class="font-semibold">Không tải được dữ liệu thống kê</div>
+      <div class="text-xs mt-1">Một hoặc nhiều query bị lỗi — xem log server. Có thể DB chưa migrate đầy đủ hoặc thiếu cột last_seen_at / play_count.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── 6 cards grid: 1 col mobile, 2 cols desktop ─── #}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    {# ═══ Card 1: DAU 30 ngày (vertical bars) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>📊</span> DAU 30 ngày
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">Daily Active Users — `last_seen_at` per day</p>
+        </div>
+        <a href="/admin/thong-ke/csv/dau" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if dau_30_days.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Không có dữ liệu DAU.</div>
+        {% else %}
+        <div class="flex items-end gap-1 h-40 sm:h-48 overflow-x-auto pb-1">
+          {% for (date, count) in dau_30_days %}
+          <div class="flex flex-col items-center gap-1 shrink-0 group" style="min-width:18px;">
+            <div class="text-[9px] text-gray-500 opacity-0 group-hover:opacity-100 transition font-semibold">{{ fmt(count) }}</div>
+            <div class="w-full rounded-t-sm bg-gradient-to-t from-purple-500 to-indigo-400 hover:from-purple-600 hover:to-indigo-500 transition"
+                 style="height: {{ dau_bar_height(count) }}%; min-height: 2px;"
+                 title="{{ date }}: {{ fmt(count) }} user active"></div>
+            <div class="text-[8px] text-gray-400 -rotate-45 origin-center whitespace-nowrap">{{ date }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span>Max: <strong class="text-purple-700">{{ fmt(dau_max()) }}</strong> user/ngày</span>
+          <span>30 ngày gần nhất</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══ Card 2: Signups 30 ngày (vertical bars) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>✨</span> Signups 30 ngày
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">New user signups — `users.created_at` per day</p>
+        </div>
+        <a href="/admin/thong-ke/csv/signups" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if signups_30_days.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Không có dữ liệu Signups.</div>
+        {% else %}
+        <div class="flex items-end gap-1 h-40 sm:h-48 overflow-x-auto pb-1">
+          {% for (date, count) in signups_30_days %}
+          <div class="flex flex-col items-center gap-1 shrink-0 group" style="min-width:18px;">
+            <div class="text-[9px] text-gray-500 opacity-0 group-hover:opacity-100 transition font-semibold">{{ fmt(count) }}</div>
+            <div class="w-full rounded-t-sm bg-gradient-to-t from-indigo-500 to-violet-400 hover:from-indigo-600 hover:to-violet-500 transition"
+                 style="height: {{ signups_bar_height(count) }}%; min-height: 2px;"
+                 title="{{ date }}: {{ fmt(count) }} user đăng ký"></div>
+            <div class="text-[8px] text-gray-400 -rotate-45 origin-center whitespace-nowrap">{{ date }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span>Max: <strong class="text-purple-700">{{ fmt(signups_max()) }}</strong> user/ngày</span>
+          <span>30 ngày gần nhất</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══ Card 3: Top 10 tracks phát nhiều nhất (horizontal bars) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>🎵</span> Top 10 tracks phát nhiều nhất
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">`music_tracks.play_count` DESC</p>
+        </div>
+        <a href="/admin/thong-ke/csv/top_tracks" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if top_tracks.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Chưa có track nào được phát.</div>
+        {% else %}
+        <div class="space-y-2.5">
+          {% for (title, plays) in top_tracks %}
+          <div class="flex items-center gap-3">
+            <div class="text-xs text-gray-400 font-mono w-5 shrink-0">{{ loop.index0 + 1 }}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between text-xs mb-0.5">
+                <span class="truncate font-medium text-gray-700" title="{{ title }}">{{ title }}</span>
+                <span class="text-purple-700 font-bold shrink-0 ml-2">{{ fmt(plays) }}</span>
+              </div>
+              <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all"
+                     style="width: {{ top_tracks_bar_width(plays) }}%;"></div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══ Card 4: Top 10 nhóm hoạt động (horizontal bars) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>👥</span> Top 10 nhóm hoạt động
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">`groups.topic_count` DESC</p>
+        </div>
+        <a href="/admin/thong-ke/csv/top_groups" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if top_groups.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Chưa có nhóm nào có chủ đề.</div>
+        {% else %}
+        <div class="space-y-2.5">
+          {% for (name, topics) in top_groups %}
+          <div class="flex items-center gap-3">
+            <div class="text-xs text-gray-400 font-mono w-5 shrink-0">{{ loop.index0 + 1 }}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between text-xs mb-0.5">
+                <span class="truncate font-medium text-gray-700" title="{{ name }}">{{ name }}</span>
+                <span class="text-purple-700 font-bold shrink-0 ml-2">{{ fmt(topics) }} chủ đề</span>
+              </div>
+              <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all"
+                     style="width: {{ top_groups_bar_width(topics) }}%;"></div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══ Card 5: Danh mục nhạc cộng đồng (pie-like display) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>🎨</span> Danh mục nhạc cộng đồng
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">`user_music_submissions WHERE status='approved'` GROUP BY category</p>
+        </div>
+        <a href="/admin/thong-ke/csv/music_categories" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if music_categories.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Chưa có bài nhạc cộng đồng nào được duyệt.</div>
+        {% else %}
+        <div class="space-y-3">
+          {% for (name, count) in music_categories %}
+          <div class="flex items-center gap-3">
+            <span class="inline-block w-3 h-3 rounded-full shrink-0"
+                  style="background-color: {{ category_color(loop.index0) }};"></span>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="truncate font-medium text-gray-700">{{ name }}</span>
+                <span class="text-gray-500 shrink-0 ml-2">
+                  <strong class="text-purple-700">{{ fmt(count) }}</strong>
+                  · {{ category_percent(loop.index0) }}%
+                </span>
+              </div>
+              <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full rounded-full transition-all"
+                     style="width: {{ category_percent(loop.index0) }}%; background-color: {{ category_color(loop.index0) }};"></div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+          <span class="text-gray-500">Tổng cộng</span>
+          <span class="font-bold text-purple-700">{{ fmt(music_categories_total()) }} bài đã duyệt</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ═══ Card 6: Khối lượng quy đổi 7 ngày (vertical bars) ═══ #}
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div class="p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-purple-700 flex items-center gap-2">
+            <span>💱</span> Khối lượng quy đổi 7 ngày
+          </h2>
+          <p class="text-xs text-gray-500 mt-0.5">`balance_transactions` tx_type IN (exchange_in, exchange_out)</p>
+        </div>
+        <a href="/admin/thong-ke/csv/exchange" class="shrink-0 text-xs px-3 py-1.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition font-semibold">
+          📥 Tải CSV
+        </a>
+      </div>
+      <div class="p-5">
+        {% if exchange_volume_7d.is_empty() %}
+        <div class="text-center py-8 text-gray-400 text-sm">Không có dữ liệu exchange.</div>
+        {% else %}
+        <div class="flex items-end gap-2 h-40 sm:h-48">
+          {% for (date, volume) in exchange_volume_7d %}
+          <div class="flex-1 flex flex-col items-center gap-1 group">
+            <div class="text-[10px] text-gray-500 opacity-0 group-hover:opacity-100 transition font-semibold">{{ fmt(volume) }}</div>
+            <div class="w-full rounded-t-md bg-gradient-to-t from-purple-600 to-indigo-500 hover:from-purple-700 hover:to-indigo-600 transition"
+                 style="height: {{ exchange_bar_height(volume) }}%; min-height: 2px;"
+                 title="{{ date }}: {{ fmt(volume) }}"></div>
+            <div class="text-[10px] text-gray-400">{{ date }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
+          <span>Max: <strong class="text-purple-700">{{ fmt(exchange_max()) }}</strong></span>
+          <span>7 ngày gần nhất</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+
+  {# ─── Footer note ─── #}
+  <div class="mt-8 text-center text-xs text-gray-400">
+    🪷 Thống Kê Hệ Thống — v0.9.44 · Giai đoạn 52 · DAU · Signups · Top Tracks · Top Groups · Categories · Exchange · CSV export
+  </div>
+
+  {# ─── Back link ─── #}
+  <div class="mt-4 text-center">
+    <a href="/admin" class="text-sm text-gray-500 hover:text-purple-700 transition">← Về trang Admin</a>
+  </div>
+
+</section>
+
+{# ─── Custom scrollbar styling for chart containers ─── #}
+<style>
+  .overflow-x-auto::-webkit-scrollbar { height: 6px; width: 6px; }
+  .overflow-x-auto::-webkit-scrollbar-track { background: transparent; }
+  .overflow-x-auto::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  .overflow-x-auto::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+</style>
+{% endblock %}

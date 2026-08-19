@@ -495,12 +495,53 @@ pub async fn create_item(
     .bind(expires_at)
     .execute(&state.pool).await;
 
+    // v0.9.44 — Giai đoạn 49 (bug M6 fix): Trước v0.9.44, code luôn redirect về
+    // /thuong-thanh/cho-dao-huu bất kể INSERT thành công hay fail → user không biết
+    // vật phẩm của mình không được tạo, vào chợ không thấy gì.
+    // Fix: on error, re-render form với error message + categories để user thử lại.
     match result {
-        Ok(_) => log::info!("✅ Vật phẩm '{}' tạo thành công bởi {} (payment: {})", form.name, u.display_name, validated.payment_method),
-        Err(e) => log::error!("❌ Lỗi tạo vật phẩm: {e}"),
+        Ok(_) => {
+            log::info!(
+                "✅ Vật phẩm '{}' tạo thành công bởi {} (payment: {})",
+                form.name, u.display_name, validated.payment_method
+            );
+            Redirect::to("/thuong-thanh/cho-dao-huu?ok=created").into_response()
+        }
+        Err(e) => {
+            log::error!(
+                "❌ Lỗi tạo vật phẩm '{}' bởi {}: {e}",
+                form.name, u.display_name
+            );
+            let categories = fetch_categories(&state.pool).await;
+            let err_msg = format!(
+                "Không thể tạo vật phẩm: {}. Vui lòng thử lại. Nếu lỗi tiếp diễn, liên hệ admin kỹ thuật.",
+                match &e {
+                    sqlx::Error::Database(db_err) => {
+                        let msg = db_err.message();
+                        if msg.contains("violates") { format!("Lỗi ràng buộc DB: {msg}") }
+                        else if msg.contains("relation") && msg.contains("does not exist") {
+                            "Bảng DB chưa được tạo — có thể migration chưa chạy.".to_string()
+                        }
+                        else { format!("Lỗi database: {msg}") }
+                    }
+                    sqlx::Error::ColumnNotFound(col) => format!("Thiếu cột DB: {col}"),
+                    _ => format!("Lỗi không xác định: {e}"),
+                }
+            );
+            let html = CreateItemTemplate {
+                user: Some(u.clone()),
+                active_page: "thuong_thanh".into(),
+                categories,
+                error: Some(err_msg),
+            }
+            .render()
+            .unwrap_or_else(|err| {
+                log::error!("Template render error (create-item re-render after DB fail): {err}");
+                format!("<html><body><h1>Lỗi render template</h1><pre>{err}</pre></body></html>")
+            });
+            Html(html).into_response()
+        }
     }
-
-    Redirect::to("/thuong-thanh/cho-dao-huu").into_response()
 }
 
 /// POST /thuong-thanh/vat-pham/{id}/xoa — Xoá vật phẩm (chỉ seller hoặc admin).
@@ -672,14 +713,15 @@ pub async fn cart_checkout(
 
     let total_k: i64 = cart_items.iter().map(|c| c.total_k() as i64).sum();
 
-    // Kiểm tra số dư K
+    // Kiểm tra số dư K (v0.9.44 — atomic check moved into UPDATE)
+    // Note: actual race-safe check now happens inside UPDATE WHERE k_balance >= $1.
     let k_balance: i64 = sqlx::query_scalar("SELECT k_balance FROM users WHERE id = $1")
         .bind(u.id)
         .fetch_one(&state.pool).await.unwrap_or(0);
 
     if k_balance < total_k {
         log::warn!("⚠️ Không đủ K: cần {} K, có {} K", total_k, k_balance);
-        return Redirect::to("/thuong-thanh/gio-hang").into_response();
+        return Redirect::to("/thuong-thanh/gio-hang?err=insufficient_k").into_response();
     }
 
     // Bắt đầu giao dịch (trừ K, tạo transaction, xoá cart)
@@ -687,22 +729,38 @@ pub async fn cart_checkout(
         Ok(t) => t,
         Err(e) => {
             log::error!("❌ Lỗi bắt đầu DB transaction: {e}");
-            return Redirect::to("/thuong-thanh/gio-hang").into_response();
+            return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
         }
     };
 
-    // Trừ K từ buyer
-    if let Err(e) = sqlx::query("UPDATE users SET k_balance = k_balance - $1, updated_at = NOW() WHERE id = $2")
-        .bind(total_k)
-        .bind(u.id)
-        .execute(&mut *tx).await
+    // v0.9.44 — Giai đoạn 49 (bug C2 fix): Atomic check-and-subtract.
+    // Trước v0.9.44, code check balance rồi UPDATE → race condition cho phép
+    // balance âm. Fix: dùng `WHERE k_balance >= $1 RETURNING k_balance` để
+    // atomic. Nếu 0 rows → balance không đủ (race).
+    let new_k: i64 = match sqlx::query_scalar::<_, i64>(
+        "UPDATE users SET k_balance = k_balance - $1, updated_at = NOW()
+         WHERE id = $2 AND k_balance >= $1
+         RETURNING k_balance"
+    )
+    .bind(total_k)
+    .bind(u.id)
+    .fetch_one(&mut *tx).await
     {
-        log::error!("❌ Lỗi trừ K: {e}");
-        let _ = tx.rollback().await;
-        return Redirect::to("/thuong-thanh/gio-hang").into_response();
-    }
+        Ok(k) => k,
+        Err(sqlx::Error::RowNotFound) => {
+            log::warn!("⚠️ Race: buyer {} K không đủ khi UPDATE (concurrent)", u.id);
+            let _ = tx.rollback().await;
+            return Redirect::to("/thuong-thanh/gio-hang?err=insufficient_k").into_response();
+        }
+        Err(e) => {
+            log::error!("❌ Lỗi trừ K: {e}");
+            let _ = tx.rollback().await;
+            return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+        }
+    };
+    let _ = new_k; // (có thể log nếu cần)
 
-    // Process each cart item
+    // Process each cart item — v0.9.44 fix: propagate errors (no more `let _ =`).
     for ci in &cart_items {
         let is_dao_huu = ci.item_store == "pvp" || ci.item_store == "dao_huu";
         // v0.9.41: giảm fee từ 20% → 10% cho Chợ Đạo Hữu (PvP cũ vẫn 20%).
@@ -716,14 +774,22 @@ pub async fn cart_checkout(
         let seller_gets = ci.total_k() - fee_k;
 
         // Fetch seller_id cho item này
-        let seller_id: Option<uuid::Uuid> = sqlx::query_scalar(
+        let seller_id: Option<uuid::Uuid> = match sqlx::query_scalar(
             "SELECT seller_id FROM shop_items WHERE id = $1"
         )
         .bind(ci.item_id)
-        .fetch_optional(&mut *tx).await.unwrap_or(None);
+        .fetch_optional(&mut *tx).await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("❌ Lỗi query seller_id cho item {}: {e}", ci.item_id);
+                let _ = tx.rollback().await;
+                return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+            }
+        };
 
-        // Tạo transaction — v0.9.41: thêm payment_method = 'k'
-        let _ = sqlx::query(
+        // v0.9.44 fix: INSERT transaction — propagate error, không dùng `let _ =`.
+        if let Err(e) = sqlx::query(
             "INSERT INTO transactions (tx_type, buyer_id, seller_id, item_id, quantity, amount_k, fee_k, status, payment_method) \
              VALUES ('purchase', $1, $2, $3, $4, $5, $6, 'completed', 'k')"
         )
@@ -733,37 +799,60 @@ pub async fn cart_checkout(
         .bind(ci.quantity)
         .bind(ci.total_k())
         .bind(fee_k)
-        .execute(&mut *tx).await;
+        .execute(&mut *tx).await
+        {
+            log::error!("❌ Lỗi INSERT transactions cho item {}: {e}", ci.item_id);
+            let _ = tx.rollback().await;
+            return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+        }
 
-        // Cộng K cho seller (Đạo Hữu/PvP)
+        // Cộng K cho seller (Đạo Hữu/PvP) — v0.9.44 fix: propagate error.
         if is_dao_huu && seller_gets > 0 {
             if let Some(sid) = seller_id {
-                let _ = sqlx::query("UPDATE users SET k_balance = k_balance + $1, updated_at = NOW() WHERE id = $2")
+                if let Err(e) = sqlx::query("UPDATE users SET k_balance = k_balance + $1, updated_at = NOW() WHERE id = $2")
                     .bind(seller_gets)
                     .bind(sid)
-                    .execute(&mut *tx).await;
+                    .execute(&mut *tx).await
+                {
+                    log::error!("❌ Lỗi cộng K cho seller {}: {e}", sid);
+                    let _ = tx.rollback().await;
+                    return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+                }
             }
         }
 
-        // Cập nhật sold_count
-        let _ = sqlx::query("UPDATE shop_items SET sold_count = sold_count + $1, updated_at = NOW() WHERE id = $2")
+        // Cập nhật sold_count — v0.9.44 fix: propagate error.
+        if let Err(e) = sqlx::query("UPDATE shop_items SET sold_count = sold_count + $1, updated_at = NOW() WHERE id = $2")
             .bind(ci.quantity)
             .bind(ci.item_id)
-            .execute(&mut *tx).await;
+            .execute(&mut *tx).await
+        {
+            log::error!("❌ Lỗi UPDATE sold_count item {}: {e}", ci.item_id);
+            let _ = tx.rollback().await;
+            return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+        }
     }
 
-    // Xoá cart
-    let _ = sqlx::query("DELETE FROM cart_items WHERE user_id = $1")
+    // Xoá cart — v0.9.44 fix: propagate error.
+    if let Err(e) = sqlx::query("DELETE FROM cart_items WHERE user_id = $1")
         .bind(u.id)
-        .execute(&mut *tx).await;
+        .execute(&mut *tx).await
+    {
+        log::error!("❌ Lỗi DELETE cart_items: {e}");
+        let _ = tx.rollback().await;
+        return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+    }
 
     // Commit
     match tx.commit().await {
         Ok(_) => log::info!("✅ Thanh toán thành công: {} K cho {} items bởi {}", total_k, cart_items.len(), u.display_name),
-        Err(e) => log::error!("❌ Lỗi commit thanh toán: {e}"),
+        Err(e) => {
+            log::error!("❌ Lỗi commit thanh toán: {e}");
+            return Redirect::to("/thuong-thanh/gio-hang?err=db").into_response();
+        }
     }
 
-    Redirect::to("/thuong-thanh").into_response()
+    Redirect::to("/thuong-thanh?ok=purchased").into_response()
 }
 
 /// GET /thuong-thanh/giao-dich — Lịch sử giao dịch.

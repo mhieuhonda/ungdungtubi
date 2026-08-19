@@ -73,7 +73,9 @@
             playbackMode: &quot;{{ playback_mode }}&quot;,
             volume: {{ volume }},
             sleepTimerMinutes: {{ sleep_timer_minutes }},
-            sleepTimerEnd: null
+            sleepTimerEnd: null,
+            mySubs: {{ my_submissions_json | safe }},
+            approvedCommunityCount: {{ approved_community_count }}
          })">
 
     <!-- ─── Breadcrumb + Header ─────────────────────────────────────────── -->
@@ -314,7 +316,7 @@
                         </button>
                         <button @click="setSleepTimer(0)"
                                 class="px-1 py-1.5 rounded-md text-[11px] font-medium transition nha-nhac-btn
-                                       :class="sleepTimerMinutes === 0 ? 'bg-white/10 text-indigo-200 hover:bg-white/20' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
+                                       :class="sleepTimerMinutes === 0 ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white/10 text-indigo-200 hover:bg-white/20'">
                             Tắt
                         </button>
                     </div>
@@ -354,7 +356,43 @@
                     <button @click="showCommunityMusic = !showCommunityMusic; if(showCommunityMusic) loadCommunityMusic()"
                             class="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold transition">
                         🎶 Nhạc Cộng Đồng
+                        {% if approved_community_count > 0 %}
+                        <span class="ml-1 inline-block px-1.5 py-0.5 bg-white/25 text-white text-[10px] rounded-full font-bold">{{ approved_community_count }}</span>
+                        {% endif %}
                     </button>
+                </div>
+
+                {# v0.9.44 — Giai đoạn 48: "Bài của tôi" widget.
+                   Sửa bug "admin duyệt nhưng user không biết" — giờ user thấy
+                   status trực tiếp (pending/approved/rejected) ngay trên Nhà Nhạc. #}
+                <div class="mt-2">
+                    <button @click="showMySubs = !showMySubs"
+                            class="w-full px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition flex items-center justify-center gap-1.5">
+                        <span>📋 Bài của tôi</span>
+                        <span x-show="mySubs.length > 0" x-cloak
+                              class="inline-block px-1.5 py-0.5 bg-white/25 text-white text-[10px] rounded-full font-bold"
+                              x-text="mySubs.length"></span>
+                    </button>
+                    <div x-show="showMySubs" x-cloak class="mt-2 space-y-1.5">
+                        <template x-for="sub in mySubs" :key="sub.id">
+                            <div class="p-2 rounded-lg border text-xs"
+                                 :class="sub.status === 'approved' ? 'border-green-200 bg-green-50' : (sub.status === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50')">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-semibold text-gray-800 truncate" x-text="sub.title"></div>
+                                        <div class="text-[10px] text-gray-500 truncate"
+                                             x-text="(sub.source_type === 'audio_file' ? '🎵 File' : '▶️ YouTube') + ' · ' + sub.artist"></div>
+                                    </div>
+                                    <span class="shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                                          :class="sub.status === 'approved' ? 'bg-green-500 text-white' : (sub.status === 'rejected' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white')"
+                                          x-text="sub.status === 'approved' ? '✓ Đã duyệt' : (sub.status === 'rejected' ? '✗ Từ chối' : '⏳ Chờ duyệt')"></span>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="mySubs.length === 0" class="text-center py-3 text-xs text-gray-400">
+                            Bạn chưa đăng bài nhạc nào. Bấm "Đăng Nhạc Cộng Đồng" để bắt đầu.
+                        </div>
+                    </div>
                 </div>
                 <div class="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-center">
                     <div>
@@ -372,7 +410,7 @@
 
     <!-- Footer note -->
     <div class="mt-6 text-xs text-gray-400 text-center">
-        🪷 Nhà Nhạc — v0.9.36 · Giai đoạn 41 · 5 thư mục · 5 chế độ phát · Hẹn giờ tắt · Nhạc Cộng Đồng · Tải file MP3<br>
+        🪷 Nhà Nhạc — v0.9.44 · Giai đoạn 48 · 5 thư mục · 5 chế độ phát · Hẹn giờ tắt · Nhạc Cộng Đồng · Tải file MP3 · Auto-show nhạc cộng đồng · Bài của tôi<br>
         <span class="text-[10px]">"Tu cũng niệm Phật. Chơi cũng niệm Phật."</span>
     </div>
 
@@ -583,6 +621,10 @@ function musicPlayer(initial) {
         communityLoading: false,
         communityPlaying: false,
         communityNowPlaying: null,
+        // v0.9.44 — Giai đoạn 48: My Submissions state
+        mySubs: initial.mySubs || [],
+        showMySubs: false,
+        approvedCommunityCount: initial.approvedCommunityCount || 0,
 
         get currentTrack() {
             return this.tracks.find(t => t.id === this.currentTrackId) || null;
@@ -597,6 +639,14 @@ function musicPlayer(initial) {
             this.$watch('volume', (v) => {
                 if (this.$refs.audio) this.$refs.audio.volume = v / 100;
             });
+            // v0.9.44 — Giai đoạn 48: Auto-show community music section nếu
+            // có bài đã duyệt. Trước v0.9.44, section này ẩn mặc định → user
+            // không biết bấm vào để xem nhạc cộng đồng đã được duyệt (root cause
+            // của complaint "admin duyệt nhưng vào nhà nhạc không thấy gì").
+            if (this.approvedCommunityCount > 0) {
+                this.showCommunityMusic = true;
+                this.loadCommunityMusic();
+            }
         },
 
         playTrack(trackId) {
@@ -643,9 +693,16 @@ function musicPlayer(initial) {
         },
 
         onEnded() {
-            // Apply playback mode.
+            // v0.9.44 — Giai đoạn 48 (bug M1 fix): Trước v0.9.44, code gọi `audio.play()`
+            // nhưng `audio` không được define trong scope này (chỉ có `this.$refs.audio`)
+            // → ReferenceError → single_repeat mode broken, không lặp lại được bài.
+            // Fix: dùng `this.$refs.audio.play()`.
             if (this.playbackMode === 'single_repeat') {
-                audio.play();
+                const audio = this.$refs.audio;
+                if (audio) {
+                    audio.currentTime = 0;
+                    audio.play().catch(err => console.warn('Audio replay blocked:', err));
+                }
             } else {
                 this.nextTrack();
             }
@@ -739,10 +796,19 @@ function musicPlayer(initial) {
             try {
                 const res = await fetch('/api/nha-nhac/submissions/approved');
                 if (res.ok) {
-                    this.communityTracks = await res.json();
+                    // v0.9.44 — Giai đoạn 48 (bug m3 fix): Trước v0.9.44, code gán trực tiếp
+                    // `this.communityTracks = await res.json();` — nếu response là object
+                    // error `{error: "unauthorized"}` (auth fail) thay vì array, thì
+                    // `.length` không throw nhưng `track.title` bị undefined. Fix: validate
+                    // Array.isArray trước khi gán.
+                    const data = await res.json();
+                    this.communityTracks = Array.isArray(data) ? data : [];
+                } else {
+                    this.communityTracks = [];
                 }
             } catch (err) {
                 console.warn('Failed to load community music:', err);
+                this.communityTracks = [];
             }
             this.communityLoading = false;
         },

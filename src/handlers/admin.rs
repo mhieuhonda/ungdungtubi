@@ -2865,20 +2865,16 @@ async fn render_tu_vung_cam_result(
 ///   - Load tất cả forbidden_words active.
 ///   - Lowercase content + lowercase word + ILIKE match.
 ///   - Trả về word đầu tiên tìm được (block hoặc flag).
+///
+/// v0.9.44 — Giai đoạn 49: DEAD CODE REMOVED.
+/// Trước v0.9.44, function này duplicate `crate::db::check_forbidden_words`
+/// (signature khác — trả về `Option<(String,String)>` thay vì `ForbiddenWordsResult`).
+/// Không có caller nào dùng nó — tất cả đều dùng `crate::db::check_forbidden_words`
+/// (signature thống nhất + có block/flag distinction). Duplicate này là maintenance
+/// hazard. Nếu cần check forbidden words, dùng `crate::db::check_forbidden_words`.
+#[deprecated(note = "Use `crate::db::check_forbidden_words` instead — returns ForbiddenWordsResult with block/flag distinction.")]
 pub async fn check_forbidden_words(pool: &sqlx::PgPool, content: &str) -> Option<(String, String)> {
-    let words: Vec<(String, String)> = sqlx::query_as(
-        "SELECT word, action FROM forbidden_words WHERE is_active = true"
-    )
-    .fetch_all(pool)
-    .await
-    .ok()
-    .unwrap_or_default();
-
-    let content_lower = content.to_lowercase();
-    for (word, action) in &words {
-        if content_lower.contains(word.as_str()) {
-            return Some((word.clone(), action.clone()));
-        }
-    }
+    let _ = pool; // suppress unused warning
+    let _ = content;
     None
 }

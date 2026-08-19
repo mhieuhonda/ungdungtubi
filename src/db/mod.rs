@@ -714,6 +714,61 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     ).execute(pool).await;
     log::info!("  ✅ currency_exchange_rates table ensured (v0.9.42)");
 
+    // ─── v0.9.44 — Giai đoạn 51: Safety schema cho books/book_chapters.search_tsv
+    //   + user_search_history ─
+    // Trên production, migration 031 có thể không được apply đầy đủ vì checksum
+    // mismatch, partial deploy, hoặc DB rollback manual. Khi đó:
+    //   - `SELECT ... WHERE b.search_tsv @@ plainto_tsquery(...)` fail với
+    //     "column \"search_tsv\" does not exist" → trang /kinh-sach/tim-kiem crash
+    //   - `INSERT INTO user_search_history ...` fail với
+    //     "relation \"user_search_history\" does not exist"
+    // Fix: chạy idempotent DDL trực tiếp (ADD COLUMN IF NOT EXISTS / CREATE INDEX
+    // IF NOT EXISTS / CREATE TABLE IF NOT EXISTS) trước khi sqlx migrations chạy,
+    // để schema luôn nhất quán (tương tự cơ chế đã fix v0.9.42).
+
+    // 23. Ensure `books.search_tsv` column (v0.9.44 — Giai đoạn 51).
+    let _ = sqlx::query(
+        "ALTER TABLE books ADD COLUMN IF NOT EXISTS search_tsv tsvector"
+    )
+    .execute(pool)
+    .await;
+    log::info!("  ✅ books.search_tsv column ensured (v0.9.44)");
+
+    // 24. Ensure `book_chapters.search_tsv` column (v0.9.44 — Giai đoạn 51).
+    let _ = sqlx::query(
+        "ALTER TABLE book_chapters ADD COLUMN IF NOT EXISTS search_tsv tsvector"
+    )
+    .execute(pool)
+    .await;
+    log::info!("  ✅ book_chapters.search_tsv column ensured (v0.9.44)");
+
+    // 25. Ensure GIN indexes on search_tsv (v0.9.44 — Giai đoạn 51).
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_books_search_tsv ON books USING gin(search_tsv)"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_book_chapters_search_tsv ON book_chapters USING gin(search_tsv)"
+    ).execute(pool).await;
+    log::info!("  ✅ GIN indexes on books/book_chapters.search_tsv ensured (v0.9.44)");
+
+    // 26. Ensure `user_search_history` table (v0.9.44 — Giai đoạn 51).
+    //    Bảng ghi lại 10 lần tìm kiếm Kinh Sách gần nhất của user.
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_search_history (
+            id           BIGSERIAL    PRIMARY KEY,
+            user_id      UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            query        TEXT         NOT NULL,
+            searched_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    )
+    .execute(pool)
+    .await;
+    let _ = sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_user_search_history_user_time \
+         ON user_search_history(user_id, searched_at DESC)"
+    ).execute(pool).await;
+    log::info!("  ✅ user_search_history table ensured (v0.9.44)");
+
     log::info!("🔒 Safety schema check hoàn tất");
 }
 

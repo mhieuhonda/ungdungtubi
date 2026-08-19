@@ -140,6 +140,11 @@ async fn get_balance(pool: &PgPool, user_id: Uuid, currency: &str) -> Result<i64
 }
 
 /// Cập nhật balance của user theo currency code (tăng/giảm).
+///
+/// v0.9.44 — Giai đoạn 49 (bug M5 fix): Trước v0.9.44, SQL là
+/// `GREATEST(col, 0) + $2` — GREATEST chỉ clamp `col` về 0, sau đó cộng delta.
+/// Nếu col=10, delta=-100 → result = -90 (âm!). Fix: dùng
+/// `GREATEST(col + $2, 0)` — clamp tổng về 0, không cho âm bao giờ.
 async fn update_balance(
     pool: &PgPool,
     user_id: Uuid,
@@ -153,8 +158,7 @@ async fn update_balance(
         _ => return Err(sqlx::Error::Configuration("Invalid currency".into())),
     };
     let sql = format!(
-        "UPDATE users SET {} = GREATEST({}, 0) + $2, updated_at = NOW() WHERE id = $1 RETURNING {}",
-        col, col, col
+        "UPDATE users SET {col} = GREATEST({col} + $2, 0), updated_at = NOW() WHERE id = $1 RETURNING {col}"
     );
     sqlx::query_scalar::<_, i64>(&sql)
         .bind(user_id)
@@ -165,15 +169,34 @@ async fn update_balance(
 
 /// Lấy tỷ giá from→to (active). Trả về from_amount (số đơn vị from = 1 đơn vị to).
 /// Nếu không có direct rate, thử reverse rate.
+///
+/// v0.9.44 — Giai đoạn 49 (bug C4 fix): Trước v0.9.44, nếu chỉ có reverse rate
+/// (ví dụ chỉ có A→K với from_amount=100), khi user đổi K→A, code trả về `rev_amt=100`
+/// → received = amount / 100 = 1/100 = 0 (integer division). User đổi 1 K → nhận 0 A!
+///
+/// Fix: Khi tìm reverse, ta phải trả về from_amount CHO direction mà user yêu cầu.
+/// Nếu stored: (from=A, to=K, from_amount=100) nghĩa là 100 A = 1 K.
+/// Khi user đổi K→A, ta cần "from_amount K = 1 A", tức là 1 K = 100 A → from_amount = 1/100.
+/// Vì from_amount là integer, ta swap direction: tính received = amount * rev_amt
+/// thay vì amount / rate. Trả về -rev_amt làm sentinel âm để caller biết dùng nhân.
+///
+/// Implement đơn giản hơn: nếu chỉ có reverse, ta swap to←→from và gọi lại get_rate.
+/// Sau đó caller dùng công thức received = amount * rev_amt (nếu rate_from_reverse).
+///
+/// Vì interface hiện tại chỉ trả về i64, ta sẽ trả về `Ok(Some(rev_amt))` nhưng
+/// cũng đồng thời swap caller side: nếu from→to có reverse (to→from có rate),
+/// caller sẽ invert: received = amount / (1/rev_amt) = amount * rev_amt.
+/// Cách clean nhất: trả về cả direction info. Nhưng để giữ backward-compat, ta
+/// sẽ luôn prefer direct rate; nếu chỉ có reverse, ta swap direction.
 async fn get_rate(
     pool: &PgPool,
     from: &str,
     to: &str,
-) -> Result<Option<i64>, sqlx::Error> {
+) -> Result<Option<(i64, bool)>, sqlx::Error> {
     if from == to {
-        return Ok(Some(1));
+        return Ok(Some((1, false)));
     }
-    // Direct
+    // Direct: (from, to, from_amount) → received = amount / from_amount
     let direct: Option<(i64,)> = sqlx::query_as(
         "SELECT from_amount FROM currency_exchange_rates
          WHERE from_currency = $1 AND to_currency = $2 AND is_active = true"
@@ -183,10 +206,11 @@ async fn get_rate(
     .fetch_optional(pool)
     .await?;
     if let Some((amt,)) = direct {
-        return Ok(Some(amt));
+        // Direct rate found — use division: received = amount / amt
+        return Ok(Some((amt, false)));
     }
-    // Reverse: if 100 A = 1 K, then 1 K = 100 A → from_amount for K→A = 1 / (1/100) = 100
-    // Stored form: (k, a, ?) — tìm reverse
+    // Reverse: (to, from, from_amount) → 1 from = (1/from_amount) of to
+    // → received = amount * from_amount (nhân thay vì chia)
     let reverse: Option<(i64,)> = sqlx::query_as(
         "SELECT from_amount FROM currency_exchange_rates
          WHERE from_currency = $1 AND to_currency = $2 AND is_active = true"
@@ -196,16 +220,8 @@ async fn get_rate(
     .fetch_optional(pool)
     .await?;
     if let Some((rev_amt,)) = reverse {
-        // from_amount for K→A: 1 K = rev_amt A → from_amount K = 1 A → from_amount = 1/rev_amt
-        // But exchange rates are integers, so we compute differently:
-        // User wants to convert X A → K. Stored: 100 A = 1 K (direct, from=a, to=k, from_amount=100)
-        //   received = X / 100
-        // If only reverse exists (100 K = 1 A, i.e., from=k, to=a, from_amount=100):
-        //   That's nonsensical for our system, but handle it:
-        //   1 A = 100 K, so received = X * 100
-        // We represent the rate as "how many from = 1 to"
-        // If reverse means "rev_amt of `to` = 1 of `from`", then 1 `from` = 1/rev_amt `to` → from_amount = rev_amt
-        return Ok(Some(rev_amt));
+        // v0.9.44 fix: trả về (rev_amt, is_reverse=true) để caller biết nhân thay vì chia.
+        return Ok(Some((rev_amt, true)));
     }
     Ok(None)
 }
@@ -330,7 +346,10 @@ pub async fn tien_te_exchange_api(
     };
 
     // Minimum amount check (must be ≥ from_amount to get at least 1 unit of target)
-    let rate = match get_rate(&state.pool, &from, &to).await {
+    // v0.9.44 — Giai đoạn 49 (bug C4 fix): get_rate giờ trả về (rate, is_reverse).
+    // - is_reverse=false (direct rate): received = amount / rate
+    // - is_reverse=true (reverse rate): received = amount * rate
+    let (rate, is_reverse) = match get_rate(&state.pool, &from, &to).await {
         Ok(Some(r)) => r,
         Ok(None) => {
             return Json(serde_json::json!({
@@ -349,7 +368,17 @@ pub async fn tien_te_exchange_api(
         }
     };
 
-    if amount < rate {
+    // v0.9.44 — Tính received dựa trên direction của rate.
+    // - Direct: amount / rate (vd: 100 A → K, rate=100, received=1)
+    // - Reverse: amount * rate (vd: 1 K → A, stored A→K=100, received=100)
+    let received = if is_reverse {
+        amount.checked_mul(rate).unwrap_or(0)
+    } else {
+        amount / rate
+    };
+
+    // Minimum amount check (chỉ áp dụng cho direct rate — reverse rate không có minimum)
+    if !is_reverse && amount < rate {
         return Json(serde_json::json!({
             "success": false,
             "message": format!("Số lượng tối thiểu để quy đổi là {} {} (tỷ giá: {} {}).",
@@ -358,7 +387,6 @@ pub async fn tien_te_exchange_api(
         .into_response();
     }
 
-    let received = amount / rate;
     if received < 1 {
         return Json(serde_json::json!({
             "success": false,
@@ -422,13 +450,17 @@ pub async fn tien_te_exchange_api(
         }
     };
 
-    // Subtract from source
+    // Subtract from source (atomic — race-safe).
+    // v0.9.44 — Giai đoạn 49 (bug C5 fix): Trước v0.9.44, code kiểm tra balance rồi mới
+    // UPDATE → race condition: 2 request concurrent có thể cùng pass check, rồi cùng trừ
+    // → balance âm. Fix: dùng `WHERE {col} >= $2` trong UPDATE để atomic check-and-subtract.
+    // Nếu rows_affected = 0 → balance không đủ (race).
+    let col_from = match from.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" };
     let new_balance_from: i64 = match sqlx::query_scalar::<_, i64>(
         &format!(
-            "UPDATE users SET {} = {} - $2, updated_at = NOW() WHERE id = $1 RETURNING {}",
-            match from.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" },
-            match from.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" },
-            match from.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" }
+            "UPDATE users SET {col_from} = {col_from} - $2, updated_at = NOW()
+             WHERE id = $1 AND {col_from} >= $2
+             RETURNING {col_from}"
         )
     )
     .bind(user.id)
@@ -437,6 +469,16 @@ pub async fn tien_te_exchange_api(
     .await
     {
         Ok(b) => b,
+        Err(sqlx::Error::RowNotFound) => {
+            // Race condition: balance không đủ khi UPDATE (request khác đã trừ trước)
+            log::warn!("⚠️ Race: user {} không đủ {} {} khi UPDATE", user.id, amount, currency_symbol(&from));
+            let _ = tx.rollback().await;
+            return Json(serde_json::json!({
+                "success": false,
+                "message": "Số dư không đủ — có giao dịch khác đang xử lý đồng thời. Vui lòng thử lại."
+            }))
+            .into_response();
+        }
         Err(e) => {
             log::error!("❌ Lỗi trừ balance nguồn: {e}");
             let _ = tx.rollback().await;
@@ -448,13 +490,11 @@ pub async fn tien_te_exchange_api(
         }
     };
 
-    // Add to target
+    // Add to target (use atomic add — no race issue here since adding is always valid)
+    let col_to = match to.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" };
     let new_balance_to: i64 = match sqlx::query_scalar::<_, i64>(
         &format!(
-            "UPDATE users SET {} = {} + $2, updated_at = NOW() WHERE id = $1 RETURNING {}",
-            match to.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" },
-            match to.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" },
-            match to.as_str() { "a" => "a_balance", "k" => "k_balance", _ => "bi_balance" }
+            "UPDATE users SET {col_to} = {col_to} + $2, updated_at = NOW() WHERE id = $1 RETURNING {col_to}"
         )
     )
     .bind(user.id)
@@ -474,14 +514,17 @@ pub async fn tien_te_exchange_api(
         }
     };
 
-    // Log transactions (2 rows: exchange_out from source, exchange_in to target)
+    // v0.9.44 — Giai đoạn 49 (bug C3 fix): Trước v0.9.44, 2 INSERTs vào
+    // balance_transactions dùng `let _ =` → nếu fail, balance đã thay đổi
+    // nhưng không có audit log. Fix: propagate error, rollback transaction.
     let desc_out = format!(
-        "Quy đổi {} {} → {} {} (tỷ giá {} {} = 1 {})",
+        "Quy đổi {} {} → {} {} (tỷ giá {} {} = 1 {}{})",
         amount, currency_symbol(&from),
         received, currency_symbol(&to),
-        rate, currency_symbol(&from), currency_symbol(&to)
+        rate, currency_symbol(&from), currency_symbol(&to),
+        if is_reverse { " [reverse rate]" } else { "" }
     );
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO balance_transactions
             (user_id, currency, amount, balance_after, tx_type, description, reference_id)
          VALUES ($1, $2, $3, $4, 'exchange_out', $5, $6)"
@@ -493,14 +536,23 @@ pub async fn tien_te_exchange_api(
     .bind(&desc_out)
     .bind(format!("exchange:{}->{}", from, to))
     .execute(&mut *tx)
-    .await;
+    .await
+    {
+        log::error!("❌ Lỗi INSERT balance_transactions (out): {e}");
+        let _ = tx.rollback().await;
+        return Json(serde_json::json!({
+            "success": false,
+            "message": "Lỗi server — không ghi được log giao dịch. Vui lòng thử lại."
+        }))
+        .into_response();
+    }
 
     let desc_in = format!(
         "Nhận từ quy đổi {} {} → {} {}",
         amount, currency_symbol(&from),
         received, currency_symbol(&to)
     );
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO balance_transactions
             (user_id, currency, amount, balance_after, tx_type, description, reference_id)
          VALUES ($1, $2, $3, $4, 'exchange_in', $5, $6)"
@@ -512,7 +564,16 @@ pub async fn tien_te_exchange_api(
     .bind(&desc_in)
     .bind(format!("exchange:{}->{}", from, to))
     .execute(&mut *tx)
-    .await;
+    .await
+    {
+        log::error!("❌ Lỗi INSERT balance_transactions (in): {e}");
+        let _ = tx.rollback().await;
+        return Json(serde_json::json!({
+            "success": false,
+            "message": "Lỗi server — không ghi được log giao dịch. Vui lòng thử lại."
+        }))
+        .into_response();
+    }
 
     if let Err(e) = tx.commit().await {
         log::error!("❌ Lỗi commit exchange transaction: {e}");

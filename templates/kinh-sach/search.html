@@ -13,14 +13,81 @@
 
   <!-- Search form -->
   <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-6 shadow-sm">
-    <form action="/kinh-sach/tim-kiem" method="GET" class="flex items-center gap-2">
-      <input type="text" name="q" value="{{ query }}" placeholder="Tìm sách, tác giả..."
-             class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-tubi-400 focus:border-transparent">
-      <button type="submit" class="bg-tubi-700 hover:bg-tubi-800 text-white font-semibold px-6 py-3 rounded-xl transition" style="background-color:#388E3C">
-        🔍 Tìm
-      </button>
+    <form id="search-form" action="/kinh-sach/tim-kiem" method="GET" class="flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <input type="text" name="q" value="{{ query }}" placeholder="Tìm sách, tác giả, nội dung..."
+               class="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-tubi-400 focus:border-transparent"
+               autofocus>
+        <button type="submit" class="text-white font-semibold px-6 py-3 rounded-xl transition" style="background-color:#388E3C">
+          🔍 Tìm
+        </button>
+      </div>
+      <!-- Preserve library + sort when submitting search -->
+      <input type="hidden" name="library" value="{{ library }}">
+      <input type="hidden" name="sort" id="sort-hidden" value="{{ sort }}">
+
+      <!-- Filter chips theo thư viện (5 categories) -->
+      <div class="flex flex-wrap items-center gap-2 mt-1">
+        <span class="text-xs text-gray-500 font-medium mr-1">Thư viện:</span>
+        {% set libraries = [
+          ("",            "Tất cả",  "📚"),
+          ("phat-gia",    "Phật Gia",   "🪷"),
+          ("dao-gia",     "Đạo Gia",    "☯️"),
+          ("kinh-van",    "Kinh Văn",   "📜"),
+          ("sach-quy",    "Sách Quý",   "💎"),
+          ("quan-trong",  "Quan Trọng", "⭐")
+        ] %}
+        {% for (slug, label, icon) in libraries %}
+        <a href="/kinh-sach/tim-kiem?q={{ query }}&library={{ slug }}&sort={{ sort }}"
+           class="px-3 py-1.5 rounded-full text-xs font-medium transition border
+                  {% if library == slug.to_string() %}text-white border-transparent" style="background-color:#388E3C{% else %}bg-gray-50 text-gray-700 border-gray-200 hover:border-tubi-400 hover:bg-gray-100{% endif %}">
+          {{ icon }} {{ label }}
+        </a>
+        {% endfor %}
+      </div>
+
+      <!-- Sort selector -->
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-xs text-gray-500 font-medium">Sắp xếp:</span>
+        <div class="flex items-center gap-1 bg-gray-50 rounded-lg p-1 border border-gray-200">
+          {% set sort_options = [("relevance", "Liên quan"), ("popular", "Phổ biến"), ("recent", "Mới nhất")] %}
+          {% for (sort_val, sort_label) in sort_options %}
+          <a href="/kinh-sach/tim-kiem?q={{ query }}&library={{ library }}&sort={{ sort_val }}"
+             class="px-3 py-1.5 rounded-md text-xs font-medium transition
+                    {% if sort == sort_val.to_string() %}text-white" style="background-color:#388E3C{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+            {{ sort_label }}
+          </a>
+          {% endfor %}
+        </div>
+      </div>
     </form>
   </div>
+
+  <!-- Lịch sử tìm kiếm (chỉ hiển thị khi user đăng nhập và có history) -->
+  {% if let Some(_u) = &user %}
+    {% if !search_history.is_empty() %}
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-6 shadow-sm">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-xs text-gray-500 font-medium mr-1">🕘 Lịch sử tìm kiếm:</span>
+        {% for item in &search_history %}
+        <a href="/kinh-sach/tim-kiem?q={{ item.url_encoded_query() }}"
+           class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs text-gray-700 bg-gray-50 border border-gray-200 hover:border-tubi-400 hover:bg-gray-100 transition"
+           title="Tìm lại: {{ item.query }} — {{ item.time_ago() }}">
+          <span>🔍 {{ item.query }}</span>
+          <span class="text-gray-400 text-[10px]">{{ item.time_ago() }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Notice: dùng fallback ILIKE -->
+  {% if used_fallback && !query.is_empty() %}
+  <div class="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
+    ⚠️ Không tìm thấy kết quả FTS chính xác — đang dùng tìm kiếm mờ (ILIKE) để mở rộng kết quả.
+  </div>
+  {% endif %}
 
   <!-- Results -->
   {% if query.is_empty() %}
@@ -33,14 +100,16 @@
     <span class="text-5xl">📭</span>
     <h2 class="text-xl font-semibold mt-4 mb-2 text-gray-700">Không tìm thấy sách</h2>
     <p class="text-gray-500">Không có sách nào khớp với "<strong>{{ query }}</strong>".</p>
-    <a href="/kinh-sach" class="inline-block mt-6 bg-tubi-700 text-white px-6 py-3 rounded-xl hover:bg-tubi-800 transition" style="background-color:#388E3C">
+    <a href="/kinh-sach" class="inline-block mt-6 text-white px-6 py-3 rounded-xl transition" style="background-color:#388E3C">
       ← Xem tất cả sách
     </a>
   </div>
   {% else %}
-  <div class="mb-4">
-    <h2 class="text-xl font-bold text-gray-800">Kết quả cho "{{ query }}"</h2>
-    <p class="text-sm text-gray-500">{{ books.len() }} sách</p>
+  <div class="mb-4 flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-gray-800">Kết quả cho "{{ query }}"</h2>
+      <p class="text-sm text-gray-500">{{ books.len() }} sách{% if !library.is_empty() %} · lọc theo thư viện{% endif %}</p>
+    </div>
   </div>
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
     {% for book in &books %}
@@ -49,13 +118,17 @@
         {{ book.category_icon_or_book() }}
       </div>
       <div class="flex-1 min-w-0">
-        <h3 class="font-bold text-gray-900 group-hover:text-tubi-700 line-clamp-2">{{ book.title }}</h3>
+        <h3 class="font-bold text-gray-900 group-hover:text-tubi-700 line-clamp-2">{% if query.is_empty() %}{{ book.title }}{% else %}{{ book.highlighted_title(query) | safe }}{% endif %}</h3>
         {% if let Some(author) = &book.author %}
         <p class="text-sm text-gray-500 mt-0.5">{{ author }}</p>
+        {% endif %}
+        {% if let Some(_desc) = &book.description %}
+        <p class="text-xs text-gray-400 mt-1 line-clamp-2">{{ book.highlighted_description(query) | safe }}</p>
         {% endif %}
         <div class="flex items-center gap-3 mt-2 text-xs text-gray-400">
           <span title="Số chương">📖 {{ book.chapter_count }}</span>
           <span title="Lượt xem">👁 {{ book.view_count }}</span>
+          <span title="Cảm ngộ">🌸 {{ book.review_count }}</span>
         </div>
       </div>
     </a>
@@ -63,9 +136,16 @@
   </div>
   {% endif %}
 
+  <div class="mt-8">
+    <a href="/kinh-sach" class="text-tubi-700 hover:text-tubi-800 font-medium" style="color:#2E7D32">
+      ← Về trang Kinh Sách
+    </a>
+  </div>
+
 </section>
 
 <style>
   .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  mark { background-color: #FFEB3B; color: #1B5E20; padding: 0 2px; border-radius: 2px; font-weight: 600; }
 </style>
 {% endblock %}

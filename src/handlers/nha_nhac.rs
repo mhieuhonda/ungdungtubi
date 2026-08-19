@@ -86,6 +86,14 @@ pub struct NhaNhacTemplate {
     pub current_category_display: String,
     /// Description của category hiện tại.
     pub current_category_description: String,
+    // ─── v0.9.44 — Giai đoạn 48: My Submissions + auto-show community section ───
+    /// JSON serialization của my_submissions (5 gần nhất của user, cho Alpine x-data).
+    /// Sửa bug "admin duyệt nhưng user không biết" — giờ user thấy status trực tiếp
+    /// trên trang Nhà Nhạc mà không cần vào trang khác.
+    pub my_submissions_json: String,
+    /// Số community tracks đã được admin duyệt. Nếu > 0, template auto-show
+    /// nút "Nhạc Cộng Đồng" + section ngay khi load trang (trước v0.9.44 ẩn mặc định).
+    pub approved_community_count: i64,
 }
 
 // ─── Handlers ─────────────────────────────────────────────────────────────
@@ -277,13 +285,22 @@ pub async fn nha_nhac_ca_nhan_remove(
         return Redirect::to("/dang-nhap?next=/khong-gian/nha-nhac").into_response();
     };
 
-    let _ = sqlx::query(
+    // v0.9.44 — Giai đoạn 48: Check result, không nuốt im lặng (m13 fix).
+    let result = sqlx::query(
         "DELETE FROM user_personal_tracks WHERE user_id = $1 AND track_id = $2",
     )
     .bind(user.id)
     .bind(track_id)
     .execute(&state.pool)
     .await;
+
+    let removed = match result {
+        Ok(r) => r.rows_affected() > 0,
+        Err(e) => {
+            log::error!("❌ nha_nhac_ca_nhan_remove: user={} track={track_id} error={e}", user.id);
+            false
+        }
+    };
 
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM user_personal_tracks WHERE user_id = $1",
@@ -293,25 +310,77 @@ pub async fn nha_nhac_ca_nhan_remove(
     .await
     .unwrap_or(0);
 
-    let html = format!(
-        r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
-            🗑️ Đã xoá khỏi Cá Nhân. Playlist hiện có <strong>{count}</strong> bài.
-        </div>"#
-    );
+    let html = if removed {
+        format!(
+            r#"<div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl text-sm">
+                🗑️ Đã xoá khỏi Cá Nhân. Playlist hiện có <strong>{count}</strong> bài.
+            </div>"#
+        )
+    } else {
+        format!(
+            r#"<div class="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                ℹ️ Bài này không có trong Cá Nhân (hoặc đã bị xoá). Playlist hiện có <strong>{count}</strong> bài.
+            </div>"#
+        )
+    };
     Html(html).into_response()
 }
 
 /// POST /api/nha-nhac/track/{track_id}/play — Tăng play_count (analytics).
+///
+/// v0.9.44 — Giai đoạn 48 (M9 fix): Trước v0.9.44, handler này không validate
+/// track_id có tồn tại hay không, và không có rate limit — user (hoặc bot) có
+/// thể spam POST để inflate play_count. Giờ: validate track tồn tại + rate
+/// limit 1 play/track/user/minute (dedup bằng IP+user+track trong Redis hoặc
+/// memory cache). Vì chưa có Redis, dùng simple in-memory LRU cache (per-instance).
 pub async fn nha_nhac_track_play(
     State(state): State<AppState>,
     jar: CookieJar,
     Path(track_id): Path<i64>,
 ) -> Response {
-    let Some(_user) = get_user_from_session(&state.pool, &jar).await else {
+    let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Json(serde_json::json!({"error": "unauthorized"})).into_response();
     };
 
-    let _ = sqlx::query(
+    // v0.9.44 — Validate track exists + active. Trước v0.9.44, `let _ =` nuốt error
+    // nếu track_id không tồn tại → play_count không tăng nhưng client vẫn nhận `ok:true`.
+    let track_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM music_tracks WHERE id = $1 AND is_active = true)"
+    )
+    .bind(track_id)
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(false);
+
+    if !track_exists {
+        return Json(serde_json::json!({
+            "error": "track_not_found",
+            "message": "Track không tồn tại hoặc đã bị ẩn."
+        })).into_response();
+    }
+
+    // v0.9.44 — Rate limit: 1 play/track/user/minute (simple in-memory).
+    // Trước v0.9.44: không có rate limit → bot có thể spam.
+    let key = (user.id, track_id);
+    let now = std::time::Instant::now();
+    let mut cache = state.play_count_cache.lock().await;
+    if let Some(last) = cache.get(&key) {
+        if now.duration_since(*last).as_secs() < 60 {
+            // Rate limited — silent accept (không log user, không tăng count).
+            return Json(serde_json::json!({
+                "ok": true,
+                "track_id": track_id,
+                "rate_limited": true,
+                "message": "Đã ghi lượt nghe trong vòng 1 phút qua."
+            })).into_response();
+        }
+    }
+    cache.insert(key, now);
+
+    // Drop lock before DB call.
+    drop(cache);
+
+    let result = sqlx::query(
         "UPDATE music_tracks SET play_count = play_count + 1, updated_at = NOW()
          WHERE id = $1 AND is_active = true",
     )
@@ -319,7 +388,17 @@ pub async fn nha_nhac_track_play(
     .execute(&state.pool)
     .await;
 
-    Json(serde_json::json!({"ok": true, "track_id": track_id})).into_response()
+    match result {
+        Ok(_) => Json(serde_json::json!({"ok": true, "track_id": track_id})).into_response(),
+        Err(e) => {
+            log::error!("❌ nha_nhac_track_play #{track_id}: {e}");
+            Json(serde_json::json!({
+                "ok": false,
+                "error": "db_error",
+                "message": "Lỗi ghi lượt nghe."
+            })).into_response()
+        }
+    }
 }
 
 /// GET /api/nha-nhac/stats — JSON stats cho dashboard.
@@ -334,6 +413,11 @@ pub async fn nha_nhac_stats_api(State(state): State<AppState>, jar: CookieJar) -
 // ─── Internal helpers ─────────────────────────────────────────────────────
 
 /// Render Nhà Nhạc template cho category đã cho.
+///
+/// v0.9.44 — Giai đoạn 48: Thêm `my_submissions` (3 gần nhất của user) và
+/// `approved_community_count` để template auto-show community section nếu
+/// có bài đã duyệt (trước v0.9.44, section này ẩn mặc định → user không biết
+/// bấm vào để xem nhạc cộng đồng đã được duyệt).
 async fn render_nha_nhac(
     state: &AppState,
     jar: &CookieJar,
@@ -375,6 +459,27 @@ async fn render_nha_nhac(
     .await
     .unwrap_or(0);
 
+    // v0.9.44 — Giai đoạn 48: 3 submissions gần nhất của user (status badges).
+    // Fix bug "admin duyệt nhưng user không biết" — giờ user thấy status trực tiếp
+    // trên trang Nhà Nhạc.
+    let my_submissions: Vec<UserMusicSubmission> = sqlx::query_as(
+        "SELECT * FROM user_music_submissions WHERE user_id = $1
+         ORDER BY created_at DESC LIMIT 5"
+    )
+    .bind(user.id)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    // v0.9.44 — Đếm số community tracks đã duyệt để template biết có nên
+    // auto-show community section hay không.
+    let approved_community_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM user_music_submissions WHERE status = 'approved'"
+    )
+    .fetch_one(&state.pool)
+    .await
+    .unwrap_or(0);
+
     let html = NhaNhacTemplate {
         user: Some(user),
         active_page: "khong_gian".into(),
@@ -395,6 +500,10 @@ async fn render_nha_nhac(
         current_category_icon: category.icon().to_string(),
         current_category_display: category.display().to_string(),
         current_category_description: category.description().to_string(),
+        // v0.9.44 — Giai đoạn 48: extra context for "My Submissions" + auto-show community.
+        my_submissions_json: serde_json::to_string(&my_submissions)
+            .unwrap_or_else(|_| "[]".to_string()),
+        approved_community_count,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -571,12 +680,22 @@ async fn fetch_stats(pool: &PgPool, user_id: Option<uuid::Uuid>) -> NhaNhacStats
 // ─── User Music Submission Handlers ───────────────────────────────────
 
 /// Template cho /admin/nha-nhac/dang-cho-duyet.
+///
+/// v0.9.44 — Giai đoạn 48: thêm `query_ok`, `query_err`, `sub_id_param` để
+/// hiển thị banner kết quả sau khi admin approve/reject (redirect về với
+/// ?ok=...&action=... hoặc ?err=...&sub=...).
 #[derive(Template)]
 #[template(path = "admin/nha-nhac-pending.html")]
 pub struct AdminMusicPendingTemplate {
     pub user: Option<User>,
     pub active_page: String,
     pub submissions: Vec<SubmissionWithUser>,
+    /// v0.9.44 — "approve" hoặc "reject" nếu redirect về thành công.
+    pub query_ok: Option<String>,
+    /// v0.9.44 — error code nếu redirect về với lỗi.
+    pub query_err: Option<String>,
+    /// v0.9.44 — ID của submission vừa được xử lý (cho banner).
+    pub sub_id_param: Option<i64>,
 }
 
 /// POST /api/nha-nhac/dang-nhac — User submits music (YouTube link).
@@ -736,9 +855,13 @@ pub async fn nha_nhac_submit_music(
 }
 
 /// GET /admin/nha-nhac/dang-cho-duyet — Admin view pending submissions.
+///
+/// v0.9.44 — Giai đoạn 48: parse query string `?ok=...&action=approve` hoặc
+/// `?err=...&sub=123` để hiển thị banner kết quả cho admin.
 pub async fn admin_music_pending(
     State(state): State<AppState>,
     jar: CookieJar,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(user) = get_user_from_session(&state.pool, &jar).await else {
         return Redirect::to("/dang-nhap").into_response();
@@ -760,10 +883,18 @@ pub async fn admin_music_pending(
     .await
     .unwrap_or_default();
 
+    // v0.9.44 — Parse query params cho banner.
+    let query_ok = params.get("ok").cloned();
+    let query_err = params.get("err").cloned();
+    let sub_id_param = params.get("sub").and_then(|s| s.parse::<i64>().ok());
+
     let html = AdminMusicPendingTemplate {
         user: Some(user),
         active_page: "admin".into(),
         submissions,
+        query_ok,
+        query_err,
+        sub_id_param,
     }
     .render()
     .unwrap_or_else(|e| {
@@ -774,6 +905,19 @@ pub async fn admin_music_pending(
 }
 
 /// POST /admin/nha-nhac/dang-cho-duyet/{id} — Admin approve/reject.
+///
+/// v0.9.44 — Giai đoạn 48: CRITICAL FIX (bug user complaint "admin duyệt nhưng
+/// vào nhà nhạc không thấy nhạc nào được đăng").
+///
+/// Root cause được fix:
+/// 1. Trước v0.9.44: `INSERT INTO music_tracks` được wrap trong `let _ =` →
+///    nếu INSERT fail (constraint, schema drift, NULL violation, etc.), submission
+///    vẫn được mark `approved` nhưng không có track nào xuất hiện trong music_tracks.
+///    User vào lại Nhà Nhạc → không thấy gì. Admin cũng không biết INSERT fail.
+/// 2. v0.9.44: Wrap UPDATE + INSERT trong cùng transaction. Nếu INSERT fail,
+///    ROLLBACK → submission vẫn `pending`. Log error chi tiết + redirect với
+///    banner error để admin biết. Nếu INSERT thành công, COMMIT + gửi notification
+///    cho user biết bài đã được duyệt (or bị từ chối).
 pub async fn admin_music_review(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -793,8 +937,34 @@ pub async fn admin_music_review(
         _ => return Redirect::to("/admin/nha-nhac/dang-cho-duyet").into_response(),
     };
 
-    // Update submission status
-    let result = sqlx::query(
+    // Fetch submission BEFORE mutation (for notification + validation).
+    // Lấy user_id của submitter để gửi notification sau khi duyệt.
+    let submission_info: Option<(uuid::Uuid, String, String)> = sqlx::query_as(
+        "SELECT user_id, title, artist FROM user_music_submissions WHERE id = $1 AND status = 'pending'"
+    )
+    .bind(sub_id)
+    .fetch_optional(&state.pool)
+    .await
+    .ok()
+    .flatten();
+
+    let Some((submitter_id, sub_title, sub_artist)) = submission_info else {
+        log::warn!("⚠️ Music submission #{sub_id} not pending or not found");
+        return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=not_found").into_response();
+    };
+
+    // v0.9.44 — Transaction: UPDATE submission + INSERT music_tracks (nếu approve).
+    // Nếu bất kỳ bước nào fail → ROLLBACK toàn bộ.
+    let mut tx = match state.pool.begin().await {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("❌ [admin_music_review] BEGIN tx fail: {e}");
+            return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=db").into_response();
+        }
+    };
+
+    // Step 1: UPDATE submission status.
+    let update_result = sqlx::query(
         "UPDATE user_music_submissions SET status = $1, reviewed_by = $2, review_note = $3, reviewed_at = NOW(), updated_at = NOW()
          WHERE id = $4 AND status = 'pending'"
     )
@@ -802,61 +972,131 @@ pub async fn admin_music_review(
     .bind(user.id)
     .bind(if note.is_empty() { None } else { Some(&note) })
     .bind(sub_id)
+    .execute(&mut *tx)
+    .await;
+
+    let updated_rows = match update_result {
+        Ok(r) => r.rows_affected(),
+        Err(e) => {
+            log::error!("❌ [admin_music_review #{sub_id}] UPDATE fail: {e}");
+            let _ = tx.rollback().await;
+            return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=db").into_response();
+        }
+    };
+
+    if updated_rows == 0 {
+        log::warn!("⚠️ Music submission #{sub_id} not pending (race?)");
+        let _ = tx.rollback().await;
+        return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=not_pending").into_response();
+    }
+
+    // Step 2: Nếu approve, INSERT vào music_tracks (cùng transaction).
+    if new_status == "approved" {
+        // Fetch audio_url + duration từ submission (đã UPDATE trong cùng tx).
+        let row: Option<(String, Option<String>, Option<i32>)> = sqlx::query_as(
+            "SELECT ms.youtube_url, af.stored_filename, ms.audio_duration_seconds
+             FROM user_music_submissions ms
+             LEFT JOIN audio_files af ON af.id = ms.audio_file_upload_id
+             WHERE ms.id = $1"
+        )
+        .bind(sub_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .ok()
+        .flatten();
+
+        let (audio_url, duration_secs) = match row {
+            Some((_yt_url, Some(stored_filename), duration)) => {
+                // audio_file: dùng URL file local
+                let local_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
+                (local_url, duration.unwrap_or(0))
+            }
+            Some((yt_url, None, _duration)) => {
+                // youtube: dùng YouTube URL (trường hợp cũ)
+                (yt_url, 0)
+            }
+            None => {
+                // Submission không tồn tại (race?) — rollback
+                log::error!("❌ [admin_music_review #{sub_id}] submission vanished after UPDATE");
+                let _ = tx.rollback().await;
+                return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=vanish").into_response();
+            }
+        };
+
+        // INSERT vào music_tracks với error propagation (KHÔNG dùng `let _ =`).
+        let insert_result = sqlx::query(
+            "INSERT INTO music_tracks (title, category, description, artist, audio_url, duration_seconds, is_public, upload_user_id, sort_order, is_active)
+             SELECT title, category, description, artist, $2, $3, true, user_id,
+                    COALESCE((SELECT MAX(sort_order) + 1 FROM music_tracks WHERE category = ms.category), 0),
+                    true
+             FROM user_music_submissions ms WHERE ms.id = $1"
+        )
+        .bind(sub_id)
+        .bind(&audio_url)
+        .bind(duration_secs)
+        .execute(&mut *tx)
+        .await;
+
+        if let Err(e) = insert_result {
+            // v0.9.44 CRITICAL FIX: Log error + rollback, KHÔNG nuốt im lặng.
+            log::error!(
+                "❌ [admin_music_review #{sub_id}] INSERT music_tracks FAIL — rolling back approval.\
+                \n   audio_url='{}' (len={})\
+                \n   duration_secs={}\
+                \n   error: {}",
+                audio_url,
+                audio_url.len(),
+                duration_secs,
+                e
+            );
+            let _ = tx.rollback().await;
+            return Redirect::to(&format!(
+                "/admin/nha-nhac/dang-cho-duyet?err=insert_fail&sub={sub_id}"
+            )).into_response();
+        }
+    }
+
+    // COMMIT transaction.
+    if let Err(e) = tx.commit().await {
+        log::error!("❌ [admin_music_review #{sub_id}] COMMIT fail: {e}");
+        return Redirect::to("/admin/nha-nhac/dang-cho-duyet?err=commit").into_response();
+    }
+
+    // v0.9.44 — Giai đoạn 48: Gửi notification cho user khi bài được duyệt hoặc bị từ chối.
+    // Trước v0.9.44, user không biết bài của mình đã được xử lý đến khi tự vào lại Nhà Nhạc.
+    let notif_type = if new_status == "approved" { "music_approved" } else { "music_rejected" };
+    let notif_msg = if new_status == "approved" {
+        format!("🎵 Bài nhạc \"{}\" của bạn đã được duyệt!", sub_title)
+    } else {
+        let reason = if note.is_empty() { "không có lý do cụ thể" } else { note.as_str() };
+        format!("🎵 Bài nhạc \"{}\" của bạn bị từ chối. Lý do: {}", sub_title, reason)
+    };
+
+    let _ = sqlx::query(
+        "INSERT INTO notifications (user_id, type, actor_id, payload)
+         VALUES ($1, $2, $3, $4)"
+    )
+    .bind(submitter_id)
+    .bind(notif_type)
+    .bind(user.id)
+    .bind(serde_json::json!({
+        "submission_id": sub_id,
+        "submission_title": sub_title,
+        "submission_artist": sub_artist,
+        "status": new_status,
+        "reviewer_name": user.display_name,
+        "note": if note.is_empty() { None } else { Some(note.as_str()) },
+        "message": notif_msg
+    }))
     .execute(&state.pool)
     .await;
 
-    match result {
-        Ok(r) if r.rows_affected() > 0 => {
-            // If approved, also add to music_tracks table so it appears in the main music library
-            if new_status == "approved" {
-                // v0.9.36 — Giai đoạn 41: Nếu source_type = 'audio_file', dùng URL file local
-                // (upload_url_prefix + stored_filename) thay vì YouTube URL.
-                // fetch stored_filename từ audio_files JOIN.
-                let row: Option<(String, Option<String>, Option<i32>)> = sqlx::query_as(
-                    "SELECT ms.youtube_url, af.stored_filename, ms.audio_duration_seconds
-                     FROM user_music_submissions ms
-                     LEFT JOIN audio_files af ON af.id = ms.audio_file_upload_id
-                     WHERE ms.id = $1"
-                )
-                .bind(sub_id)
-                .fetch_optional(&state.pool)
-                .await
-                .ok()
-                .flatten();
+    log::info!(
+        "✅ Music submission #{sub_id} {new_status} by {} (submitter={submitter_id}, title=\"{sub_title}\")",
+        user.display_name
+    );
 
-                let (audio_url, duration_secs) = match row {
-                    Some((_yt_url, Some(stored_filename), duration)) => {
-                        // audio_file: dùng URL file local
-                        let local_url = format!("{}/{stored_filename}", state.config.upload_url_prefix);
-                        (local_url, duration.unwrap_or(0))
-                    }
-                    Some((yt_url, None, _duration)) => {
-                        // youtube: dùng YouTube URL (trường hợp cũ)
-                        (yt_url, 0)
-                    }
-                    None => (String::new(), 0),
-                };
-
-                let _ = sqlx::query(
-                    "INSERT INTO music_tracks (title, category, description, artist, audio_url, duration_seconds, is_public, upload_user_id, sort_order, is_active)
-                     SELECT title, category, description, artist, $2, $3, true, user_id,
-                            COALESCE((SELECT MAX(sort_order) + 1 FROM music_tracks WHERE category = ms.category), 0),
-                            true
-                     FROM user_music_submissions ms WHERE ms.id = $1"
-                )
-                .bind(sub_id)
-                .bind(&audio_url)
-                .bind(duration_secs)
-                .execute(&state.pool)
-                .await;
-            }
-            log::info!("✅ Music submission #{sub_id} {new_status} by {}", user.display_name);
-        }
-        Ok(_) => log::warn!("⚠️ Music submission #{sub_id} not pending or not found"),
-        Err(e) => log::error!("❌ Error reviewing music submission #{sub_id}: {e}"),
-    }
-
-    Redirect::to("/admin/nha-nhac/dang-cho-duyet").into_response()
+    Redirect::to(&format!("/admin/nha-nhac/dang-cho-duyet?ok={new_status}&sub={sub_id}")).into_response()
 }
 
 /// GET /api/nha-nhac/submissions — User's own submissions.
