@@ -60,14 +60,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.45 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.46 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.45 — Giai đoạn 53-60: Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷");
+    log::info!("📦 Phiên bản: v0.9.46 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay May Mắn + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -453,6 +453,40 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/robots.txt", get(handlers::seo::robots_txt))
         .route("/manifest.json", get(handlers::seo::manifest_json))
         .route("/api/seo/structured-data", get(handlers::seo::structured_data))
+        // ─── v0.9.46 — Giai đoạn 61-70: 10 stages mới ───
+        // Giai đoạn 61 — Tượng Phật Ủng Hộ + Bảng Kính Nguyện
+        .route("/tuong-phat/ung-ho", get(handlers::giai_doan_61_70::tuong_phat_ung_ho_page))
+        .route("/tuong-phat/kinh-nguyen", get(handlers::giai_doan_61_70::tuong_phat_kinh_nguyen_page))
+        .route("/api/tuong-phat/ung-ho", post(handlers::giai_doan_61_70::api_tuong_phat_ung_ho))
+        // Giai đoạn 62 — Vòng Quay May Mắn
+        .route("/vong-quay-may-man", get(handlers::giai_doan_61_70::vong_quay_may_man_page))
+        .route("/api/vong-quay/quay", post(handlers::giai_doan_61_70::api_vong_quay_quay))
+        // Giai đoạn 63 — Bao Lì Xì Từ Bi
+        .route("/bao-li-xi", get(handlers::giai_doan_61_70::bao_li_xi_page))
+        .route("/api/bao-li-xi/tao", post(handlers::giai_doan_61_70::api_bao_li_xi_tao))
+        .route("/api/bao-li-xi/{id}/nhan", post(handlers::giai_doan_61_70::api_bao_li_xi_nhan))
+        // Giai đoạn 64 — Tinh Khí Thần + Kho Đạo Cụ
+        .route("/kho-dao-cu", get(handlers::giai_doan_61_70::kho_dao_cu_page))
+        .route("/api/kho-dao-cu/{code}/dung", post(handlers::giai_doan_61_70::api_kho_dao_cu_dung))
+        // Giai đoạn 65 — Nhà Vườn (Lotus Garden)
+        .route("/nha-vuon", get(handlers::giai_doan_61_70::nha_vuon_page))
+        .route("/api/nha-vuon/trong/{slot}/{code}", post(handlers::giai_doan_61_70::api_nha_vuon_trong))
+        .route("/api/nha-vuon/thuhoach/{slot}", post(handlers::giai_doan_61_70::api_nha_vuon_thuhoach))
+        // Giai đoạn 66 — Đại Sảnh + Cộng Tu
+        .route("/dai-sanh", get(handlers::giai_doan_61_70::dai_sanh_page))
+        .route("/dai-sanh/tao-phien", post(handlers::giai_doan_61_70::dai_sanh_tao_phien))
+        .route("/dai-sanh/{session_id}/tham-gia/{seat}", post(handlers::giai_doan_61_70::dai_sanh_tham_gia))
+        // Giai đoạn 67 — Nhà Truyền Tống
+        .route("/nha-truyen-tong", get(handlers::giai_doan_61_70::nha_truyen_tong_page))
+        .route("/api/nha-truyen-tong/di", post(handlers::giai_doan_61_70::api_nha_truyen_tong_di))
+        // Giai đoạn 68 — Sự Kiện Phật Lịch
+        .route("/su-kien", get(handlers::giai_doan_61_70::su_kien_page))
+        .route("/api/su-kien/{event_id}/nhan", post(handlers::giai_doan_61_70::api_su_kien_nhan))
+        // Giai đoạn 69 — Huy Hiệu Thành Tích
+        .route("/api/huy-hieu/{user_id}", get(handlers::giai_doan_61_70::api_huy_hieu_user))
+        .route("/api/huy-hieu/check", post(handlers::giai_doan_61_70::api_huy_hieu_check))
+        // Giai đoạn 70 — Bảng Vinh Danh
+        .route("/bang-vinh-danh", get(handlers::giai_doan_61_70::bang_vinh_danh_page))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -1085,7 +1119,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.45",
+            "version": "0.9.46",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -1115,11 +1149,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.45",
+        "version": "0.9.46",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 60,
-        "phase_name": "Giai đoạn 53-60 — Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷",
+        "phase": 70,
+        "phase_name": "Giai đoạn 61-70 — Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

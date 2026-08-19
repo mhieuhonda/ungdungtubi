@@ -172,11 +172,21 @@
                                     <a href="/gioi-thieu" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Giới Thiệu</a>
                                     <a href="/tong-quan" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🧭 Tổng Quan</a>
                                     <a href="/khong-gian/nha-nhac" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎵 Nhà Nhạc</a>
+                                    <a href="/tuong-phat/ung-ho" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🙏 Tượng Phật Ủng Hộ</a>
+                                    <a href="/tuong-phat/kinh-nguyen" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">📜 Bảng Kính Nguyện</a>
+                                    <a href="/vong-quay-may-man" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎯 Vòng Quay May Mắn</a>
+                                    <a href="/nha-vuon" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Nhà Vườn</a>
+                                    <a href="/dai-sanh" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Đại Sảnh Cộng Tu</a>
+                                    <a href="/nha-truyen-tong" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🌀 Nhà Truyền Tống</a>
+                                    <a href="/kho-dao-cu" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🔮 Kho Đạo Cụ</a>
                                     <a href="/quy-tu-bi" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Quỹ Từ Bi</a>
                                     <a href="/bang-xep-hang" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🏆 Bảng Xếp Hạng</a>
+                                    <a href="/bang-vinh-danh" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🏆 Bảng Vinh Danh</a>
                                     <a href="/thanh-tich" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎖️ Thành Tích</a>
                                     <a href="/thuong-thanh" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🏪 Thương Thành</a>
+                                    <a href="/bao-li-xi" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🧧 Bao Lì Xì</a>
                                     <a href="/tien-te" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">💱 Tiền Tệ</a>
+                                    <a href="/su-kien" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Sự Kiện Phật Lịch</a>
                                     <a href="/doi-ngu-quan-li" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">👥 Đội Ngũ</a>
                                     <a href="/tim-kiem" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🔎 Tìm Kiếm</a>
                                 </div>
@@ -490,6 +500,43 @@
                             <span class="text-sm">🔎</span>
                             <span class="text-[11px]">Tìm Kiếm</span>
                         </a>
+                        <!-- v0.9.46 — Giai đoạn 61-70: new pages -->
+                        <a href="/tuong-phat/ung-ho" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🙏</span>
+                            <span class="text-[11px]">Tượng Phật Ủng Hộ</span>
+                        </a>
+                        <a href="/vong-quay-may-man" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🎯</span>
+                            <span class="text-[11px]">Vòng Quay May Mắn</span>
+                        </a>
+                        <a href="/nha-vuon" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Nhà Vườn</span>
+                        </a>
+                        <a href="/dai-sanh" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Đại Sảnh Cộng Tu</span>
+                        </a>
+                        <a href="/nha-truyen-tong" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🌀</span>
+                            <span class="text-[11px]">Nhà Truyền Tống</span>
+                        </a>
+                        <a href="/kho-dao-cu" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🔮</span>
+                            <span class="text-[11px]">Kho Đạo Cụ</span>
+                        </a>
+                        <a href="/bao-li-xi" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🧧</span>
+                            <span class="text-[11px]">Bao Lì Xì</span>
+                        </a>
+                        <a href="/su-kien" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🪷</span>
+                            <span class="text-[11px]">Sự Kiện Phật Lịch</span>
+                        </a>
+                        <a href="/bang-vinh-danh" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🏆</span>
+                            <span class="text-[11px]">Bảng Vinh Danh</span>
+                        </a>
                     </div>
                 </div>
 
@@ -620,8 +667,17 @@
                         <li><a href="/gioi-thieu" class="hover:text-white transition">🪷 Giới Thiệu</a></li>
                         <li><a href="/tong-quan" class="hover:text-white transition">🧭 Tổng Quan</a></li>
                         <li><a href="/khong-gian/nha-nhac" class="hover:text-white transition">🎵 Nhà Nhạc</a></li>
+                        <li><a href="/tuong-phat/ung-ho" class="hover:text-white transition">🙏 Tượng Phật Ủng Hộ</a></li>
+                        <li><a href="/vong-quay-may-man" class="hover:text-white transition">🎯 Vòng Quay May Mắn</a></li>
+                        <li><a href="/nha-vuon" class="hover:text-white transition">🪷 Nhà Vườn</a></li>
+                        <li><a href="/dai-sanh" class="hover:text-white transition">🪷 Đại Sảnh Cộng Tu</a></li>
+                        <li><a href="/nha-truyen-tong" class="hover:text-white transition">🌀 Nhà Truyền Tống</a></li>
+                        <li><a href="/kho-dao-cu" class="hover:text-white transition">🔮 Kho Đạo Cụ</a></li>
+                        <li><a href="/bao-li-xi" class="hover:text-white transition">🧧 Bao Lì Xì</a></li>
+                        <li><a href="/su-kien" class="hover:text-white transition">🪷 Sự Kiện Phật Lịch</a></li>
                         <li><a href="/quy-tu-bi" class="hover:text-white transition">🪷 Quỹ Từ Bi</a></li>
                         <li><a href="/bang-xep-hang" class="hover:text-white transition">🏆 BXH</a></li>
+                        <li><a href="/bang-vinh-danh" class="hover:text-white transition">🏆 Bảng Vinh Danh</a></li>
                         <li><a href="/thanh-tich" class="hover:text-white transition">🎖️ Thành Tích</a></li>
                         <li><a href="/thuong-thanh" class="hover:text-white transition">🏪 Thương Thành</a></li>
                         <li><a href="/tien-te" class="hover:text-white transition">💱 Tiền Tệ</a></li>
@@ -664,7 +720,7 @@
                 </div>
             </div>
             <div class="mt-8 pt-4 border-t border-gray-800 text-center text-xs text-gray-500">
-                <p>🪷 Ứng Dụng Từ Bi v0.9.44 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
+                <p>🪷 Ứng Dụng Từ Bi v0.9.46 · Nguyện công đức vô lượng · Nam Mô A Di Đà Phật</p>
             </div>
         </div>
     </footer>

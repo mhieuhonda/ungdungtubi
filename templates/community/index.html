@@ -2,29 +2,32 @@
 {% block title %}Cộng Đồng — Ứng Dụng Từ Bi{% endblock %}
 
 {% block content %}
-<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
 
   <!-- Hero -->
-  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
-    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-3xl md:text-4xl font-bold mb-2">👥 Cộng Đồng Từ Bi</h1>
-        <p class="opacity-90 max-w-2xl">
+  <div class="text-white rounded-2xl p-5 sm:p-8 md:p-10 shadow-lg mb-6 sm:mb-8 max-w-full overflow-hidden" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+    <div class="flex flex-col gap-4">
+      <div class="min-w-0">
+        <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 break-words">👥 Cộng Đồng Từ Bi</h1>
+        <p class="opacity-90 text-sm sm:text-base">
           Lướt nhóm · Lướt chủ đề · Kết nối đạo hữu.<br>
           Nơi mọi người cùng tu học, chia sẻ và lan tỏa lòng từ bi.
         </p>
       </div>
       {% if let Some(_u) = user %}
-      <div class="flex flex-col sm:flex-row gap-3">
-        <a href="/cong-dong/tao-nhom" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-5 py-3 rounded-xl shadow-md transition-all hover:scale-105 whitespace-nowrap text-center">
+      <div class="flex flex-col sm:flex-row gap-2 sm:gap-3">
+        <a href="/cong-dong/tao-nhom" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl shadow-md transition-all hover:scale-105 text-center text-sm sm:text-base">
           ✨ Tạo Nhóm Mới
         </a>
-        <a href="/cong-dong/hoat-dong" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-5 py-3 rounded-xl shadow-md transition-all hover:scale-105 whitespace-nowrap text-center backdrop-blur-sm border border-white/30">
-          🌐 Hoạt Động Cộng Đồng — Xem hoạt động gần đây
+        <a href="/cong-dong/hoat-dong" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl shadow-md transition-all hover:scale-105 text-center text-sm sm:text-base backdrop-blur-sm border border-white/30">
+          🌐 Hoạt Động Cộng Đồng
+        </a>
+        <a href="/cong-dong/kham-pha" class="bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-2.5 sm:px-5 sm:py-3 rounded-xl shadow-md transition-all hover:scale-105 text-center text-sm sm:text-base backdrop-blur-sm border border-white/30">
+          🔥 Khám Phá
         </a>
       </div>
       {% else %}
-      <a href="/auth/google" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-5 py-3 rounded-xl shadow-md transition-all hover:scale-105 whitespace-nowrap">
+      <a href="/auth/google" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-4 py-2.5 rounded-xl shadow-md transition-all hover:scale-105 text-center text-sm sm:text-base">
         🪷 Đăng nhập để tham gia
       </a>
       {% endif %}
@@ -61,26 +64,26 @@
     {% else %}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {% for g in &groups %}
-      <a href="/cong-dong/nhom/{{ g.slug }}" class="bg-white rounded-2xl border border-gray-200 hover:border-tubi-400 hover:shadow-lg transition-all p-5 group">
-        <div class="flex items-start justify-between mb-3">
-          <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style="background-color:#E8F5E9">
+      <a href="/cong-dong/nhom/{{ g.slug }}" class="bg-white rounded-2xl border border-gray-200 hover:border-tubi-400 hover:shadow-lg transition-all p-4 sm:p-5 group max-w-full overflow-hidden">
+        <div class="flex items-start justify-between mb-3 gap-2">
+          <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center text-2xl shrink-0" style="background-color:#E8F5E9">
             {{ g.category_icon_or_lotus() }}
           </div>
-          <span class="text-xs text-gray-500">{{ g.visibility_icon() }} {{ g.visibility_display() }}</span>
+          <span class="text-xs text-gray-500 shrink-0">{{ g.visibility_icon() }} {{ g.visibility_display() }}</span>
         </div>
-        <h3 class="text-lg font-bold text-gray-900 mb-1 group-hover:text-tubi-700">{{ g.name }}</h3>
+        <h3 class="text-base sm:text-lg font-bold text-gray-900 mb-1 group-hover:text-tubi-700 break-words">{{ g.name }}</h3>
         {% if let Some(desc) = &g.description %}
-        {% if desc.chars().count() > 140 %}
-        <p class="text-sm text-gray-500 mb-3">{{ desc.chars().take(140).collect::<String>() }}…</p>
+        {% if desc.chars().count() > 100 %}
+        <p class="text-sm text-gray-500 mb-3 break-words">{{ desc.chars().take(100).collect::<String>() }}…</p>
         {% else %}
-        <p class="text-sm text-gray-500 mb-3">{{ desc }}</p>
+        <p class="text-sm text-gray-500 mb-3 break-words">{{ desc }}</p>
         {% endif %}
         {% else %}
         <p class="text-sm text-gray-400 italic mb-3">Chưa có mô tả</p>
         {% endif %}
-        <div class="flex items-center justify-between text-xs text-gray-500">
-          <span class="px-2 py-0.5 rounded-full" style="background-color:#E8F5E9;color:#2E7D32">{{ g.category_name_or_other() }}</span>
-          <span class="flex items-center gap-3">
+        <div class="flex items-center justify-between text-xs text-gray-500 gap-2">
+          <span class="px-2 py-0.5 rounded-full truncate" style="background-color:#E8F5E9;color:#2E7D32">{{ g.category_name_or_other() }}</span>
+          <span class="flex items-center gap-2 sm:gap-3 shrink-0">
             <span title="Số thành viên">👥 {{ g.member_count }}</span>
             <span title="Số chủ đề">📝 {{ g.topic_count }}</span>
           </span>

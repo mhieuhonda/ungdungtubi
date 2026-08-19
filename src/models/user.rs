@@ -49,6 +49,13 @@ pub struct User {
     /// Kiếm qua cống hiến đặc biệt hoặc quy đổi từ K. 100 K = 1 Bi.
     #[sqlx(default)]
     pub bi_balance: i64,
+    /// Tinh Khí Thần — chỉ số chơi game cấp 100 (v0.9.46 — Giai đoạn 64).
+    /// Tăng bằng cách nuốt Tinh Thể (tối đa 10/cấp).
+    #[sqlx(default)]
+    pub tinh_khi_than: i16,
+    /// Max Tinh Khí Thần — giới hạn trên (v0.9.46 — Giai đoạn 64).
+    #[sqlx(default)]
+    pub max_tinh_khi_than: i16,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -74,6 +81,15 @@ pub struct User {
     /// v0.9.24: tất cả admin NGANG HÀNH (level 3), khác nhau ở permission scope.
     /// v0.9.30: thêm admin_phat_trien (Admin Phát Triển — cấp 3, 39 quyền).
     pub role: String,
+    /// Tu Sĩ rank 1-5 sao (NULL nếu chưa duyệt) — v0.9.45 Giai đoạn 53.
+    #[sqlx(default)]
+    pub tu_si_rank: Option<i16>,
+    /// Thời điểm admin duyệt Tu Sĩ — v0.9.45 Giai đoạn 53.
+    #[sqlx(default)]
+    pub tu_si_approved_at: Option<DateTime<Utc>>,
+    /// Lần hoạt động cuối (heartbeat) — v0.9.39 Giai đoạn 43.
+    #[sqlx(default)]
+    pub last_seen_at: Option<DateTime<Utc>>,
 }
 
 /// Dữ liệu lấy được từ Google userinfo endpoint.

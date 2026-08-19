@@ -984,6 +984,434 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_topics_is_hot ON topics(is_hot) WHERE is_hot = true").execute(pool).await;
     log::info!("  ✅ topics.hot_score + is_hot + last_activity_at ensured (v0.9.45)");
 
+    // ─── v0.9.46 — Giai đoạn 61-70: safety schema cho 10 stages mới ───
+    // 38. buddha_daily_uses + kinh_nguyen_board + lucky_spin_grants (Giai đoạn 61)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS buddha_daily_uses (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            use_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            prayer_count SMALLINT NOT NULL DEFAULT 0,
+            repentance_count SMALLINT NOT NULL DEFAULT 0,
+            dedication_count SMALLINT NOT NULL DEFAULT 0,
+            support_count SMALLINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, use_date)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_buddha_daily_uses_user_date ON buddha_daily_uses(user_id, use_date DESC)").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS kinh_nguyen_board (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            vow_type VARCHAR(20) NOT NULL,
+            content TEXT NOT NULL,
+            is_public BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_kinh_nguyen_board_public_recent ON kinh_nguyen_board(created_at DESC) WHERE is_public = true").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_kinh_nguyen_board_user ON kinh_nguyen_board(user_id, created_at DESC)").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS lucky_spin_grants (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            source VARCHAR(20) NOT NULL,
+            granted_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            is_used BOOLEAN NOT NULL DEFAULT false,
+            used_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_lucky_spin_grants_user_unused ON lucky_spin_grants(user_id) WHERE is_used = false").execute(pool).await;
+    log::info!("  ✅ buddha_daily_uses + kinh_nguyen_board + lucky_spin_grants ensured (v0.9.46 Giai đoạn 61)");
+
+    // 39. lucky_wheel_prizes + lucky_wheel_spins + lucky_wheel_daily_quota (Giai đoạn 62)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS lucky_wheel_prizes (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            label VARCHAR(100) NOT NULL,
+            emoji VARCHAR(10) NOT NULL DEFAULT '🎁',
+            reward_type VARCHAR(20) NOT NULL,
+            reward_amount BIGINT NOT NULL DEFAULT 0,
+            reward_item_code VARCHAR(40),
+            weight DOUBLE PRECISION NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    // Seed prizes nếu chưa có
+    let _ = sqlx::query(
+        "INSERT INTO lucky_wheel_prizes (code, label, emoji, reward_type, reward_amount, weight, is_active)
+         SELECT * FROM (VALUES
+            ('a_small','Niệm Lực A (1-100)','✨','a',50,25.0,true),
+            ('a_medium','Niệm Lực A (100-500)','💫','a',250,15.0,true),
+            ('a_big','Niệm Lực A (500-1000)','🌟','a',750,10.0,true),
+            ('k_small','Tiền K (1-5)','🪙','k',3,5.0,true),
+            ('k_big','Tiền K (5-10)','💰','k',7,5.0,true),
+            ('tinh_the','Tinh Thể','🔮','item',1,10.0,true),
+            ('tinh_thach','Tinh Thạch','💎','item',1,5.0,true),
+            ('linh_thach','Linh Thạch','🌈','item',1,5.0,true),
+            ('tien_thach','Tiên Thạch','✨','item',1,1.0,true),
+            ('bao_li_xi','Bao Lì Xì Từ Bi (10K)','🧧','item',1,4.9,true),
+            ('da_thuc_tinh','Đá Thức Tỉnh Thiên Phú','⚡','item',1,1.0,true),
+            ('nothing','Xịt (chưa may mắn)','💦','nothing',0,12.1,true)
+         ) AS t(code,label,emoji,reward_type,reward_amount,weight,is_active)
+         WHERE NOT EXISTS (SELECT 1 FROM lucky_wheel_prizes LIMIT 1)"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS lucky_wheel_spins (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            prize_id BIGINT NOT NULL REFERENCES lucky_wheel_prizes(id),
+            source VARCHAR(20) NOT NULL,
+            reward_given VARCHAR(20) NOT NULL,
+            reward_amount BIGINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_lucky_wheel_spins_user_recent ON lucky_wheel_spins(user_id, created_at DESC)").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS lucky_wheel_daily_quota (
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            quota_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            free_spins_used SMALLINT NOT NULL DEFAULT 0,
+            ad_spins_used SMALLINT NOT NULL DEFAULT 0,
+            PRIMARY KEY (user_id, quota_date)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ lucky_wheel_prizes + spins + daily_quota ensured (v0.9.46 Giai đoạn 62)");
+
+    // 40. red_envelopes + red_envelope_claims (Giai đoạn 63)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS red_envelopes (
+            id BIGSERIAL PRIMARY KEY,
+            creator_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            envelope_type VARCHAR(20) NOT NULL,
+            total_k BIGINT NOT NULL,
+            remaining_k BIGINT NOT NULL,
+            total_claims SMALLINT NOT NULL DEFAULT 0,
+            max_claims SMALLINT NOT NULL DEFAULT 20,
+            message VARCHAR(200),
+            scope VARCHAR(20) NOT NULL DEFAULT 'public',
+            target_group_id BIGINT,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '24 hours'),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_red_envelopes_active_recent ON red_envelopes(created_at DESC) WHERE is_active = true").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS red_envelope_claims (
+            id BIGSERIAL PRIMARY KEY,
+            envelope_id BIGINT NOT NULL REFERENCES red_envelopes(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            amount_k BIGINT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (envelope_id, user_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_red_envelope_claims_user ON red_envelope_claims(user_id, created_at DESC)").execute(pool).await;
+    log::info!("  ✅ red_envelopes + claims ensured (v0.9.46 Giai đoạn 63)");
+
+    // 41. tinh_khi_than + system_items + user_inventories + item_use_log (Giai đoạn 64)
+    let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS tinh_khi_than SMALLINT NOT NULL DEFAULT 0").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE users ADD COLUMN IF NOT EXISTS max_tinh_khi_than SMALLINT NOT NULL DEFAULT 100").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS system_items (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            emoji VARCHAR(10) NOT NULL DEFAULT '🎁',
+            description TEXT,
+            price_k BIGINT NOT NULL DEFAULT 0,
+            category VARCHAR(30) NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "INSERT INTO system_items (code, name, emoji, description, price_k, category, is_active)
+         SELECT * FROM (VALUES
+            ('tinh_the','Tinh Thể','🔮','Nuốt để tăng 1 điểm Tinh Khí Thần. Tối đa 10 Tinh Thể cho mỗi cấp.',1,'crystal',true),
+            ('tinh_thach','Tinh Thạch','💎','Dùng để tăng cấp kỹ năng bị động.',2,'crystal',true),
+            ('linh_thach','Linh Thạch','🌈','Dùng để tăng cấp nhân vật game.',5,'crystal',true),
+            ('tien_thach','Tiên Thạch','✨','Dùng để tăng điểm ưu tiên cho Thiên Phú.',100,'crystal',true),
+            ('da_thuc_tinh','Đá Thức Tỉnh Thiên Phú','⚡','Mở Vòng Quay Thức Tỉnh Thiên Phú.',10,'crystal',true),
+            ('bao_li_xi','Bao Lì Xì Từ Bi (10K)','🧧','Tạo 1 bao lì xì 10K chia cho nhiều người.',10,'consumable',true),
+            ('the_ung_ho','Thẻ Ủng Hộ','🙏','Quay vòng miễn phí, không phải xem quảng cáo.',5,'consumable',true)
+         ) AS t(code,name,emoji,description,price_k,category,is_active)
+         WHERE NOT EXISTS (SELECT 1 FROM system_items LIMIT 1)"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_inventories (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            item_id BIGINT NOT NULL REFERENCES system_items(id),
+            quantity BIGINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, item_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_inventories_user ON user_inventories(user_id) WHERE quantity > 0").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS item_use_log (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            item_code VARCHAR(40) NOT NULL,
+            quantity_used SMALLINT NOT NULL DEFAULT 1,
+            effect VARCHAR(100),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_item_use_log_user ON item_use_log(user_id, created_at DESC)").execute(pool).await;
+    log::info!("  ✅ tinh_khi_than + system_items + inventories ensured (v0.9.46 Giai đoạn 64)");
+
+    // 42. garden_plant_types + user_gardens + garden_slots (Giai đoạn 65)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS garden_plant_types (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            emoji VARCHAR(10) NOT NULL DEFAULT '🪷',
+            growth_seconds BIGINT NOT NULL,
+            cost_k BIGINT NOT NULL DEFAULT 0,
+            reward_a BIGINT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT true
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "INSERT INTO garden_plant_types (code, name, emoji, growth_seconds, cost_k, reward_a, is_active)
+         SELECT * FROM (VALUES
+            ('hoa_sen_nho','Hoa Sen Nhỏ','🪷',300,0,5,true),
+            ('hoa_sen_trung','Hoa Sen Trung','🌸',1800,1,20,true),
+            ('hoa_sen_lon','Hoa Sen Lớn','🌺',7200,5,100,true),
+            ('cay_bo_de','Cây Bồ Đề','🌳',86400,20,500,true)
+         ) AS t(code,name,emoji,growth_seconds,cost_k,reward_a,is_active)
+         WHERE NOT EXISTS (SELECT 1 FROM garden_plant_types LIMIT 1)"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_gardens (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            max_slots SMALLINT NOT NULL DEFAULT 9,
+            total_harvest BIGINT NOT NULL DEFAULT 0,
+            total_a_earned BIGINT NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS garden_slots (
+            id BIGSERIAL PRIMARY KEY,
+            garden_id BIGINT NOT NULL REFERENCES user_gardens(id) ON DELETE CASCADE,
+            slot_index SMALLINT NOT NULL,
+            plant_type_id BIGINT REFERENCES garden_plant_types(id),
+            planted_at TIMESTAMPTZ,
+            is_ready BOOLEAN NOT NULL DEFAULT false,
+            ready_at TIMESTAMPTZ,
+            UNIQUE (garden_id, slot_index)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ garden_plant_types + user_gardens + garden_slots ensured (v0.9.46 Giai đoạn 65)");
+
+    // 43. meditation_sessions + meditation_participants (Giai đoạn 66)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS meditation_sessions (
+            id BIGSERIAL PRIMARY KEY,
+            host_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title VARCHAR(200) NOT NULL,
+            description TEXT,
+            start_at TIMESTAMPTZ NOT NULL,
+            duration_minutes SMALLINT NOT NULL DEFAULT 30,
+            max_seats SMALLINT NOT NULL DEFAULT 10,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            is_cancelled BOOLEAN NOT NULL DEFAULT false,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_meditation_sessions_active_recent ON meditation_sessions(start_at) WHERE is_active = true AND is_cancelled = false").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS meditation_participants (
+            id BIGSERIAL PRIMARY KEY,
+            session_id BIGINT NOT NULL REFERENCES meditation_sessions(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            seat_number SMALLINT NOT NULL,
+            joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            a_earned BIGINT NOT NULL DEFAULT 0,
+            UNIQUE (session_id, user_id),
+            UNIQUE (session_id, seat_number)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ meditation_sessions + participants ensured (v0.9.46 Giai đoạn 66)");
+
+    // 44. teleport_visits + teleport_bookmarks (Giai đoạn 67)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS teleport_visits (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            target_user_id UUID,
+            target_group_id BIGINT,
+            target_type VARCHAR(20) NOT NULL,
+            visited_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_teleport_visits_user ON teleport_visits(user_id, visited_at DESC)").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS teleport_bookmarks (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            target_type VARCHAR(20) NOT NULL,
+            target_id VARCHAR(60) NOT NULL,
+            label VARCHAR(100) NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, target_type, target_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_teleport_bookmarks_user ON teleport_bookmarks(user_id, created_at DESC)").execute(pool).await;
+    log::info!("  ✅ teleport_visits + bookmarks ensured (v0.9.46 Giai đoạn 67)");
+
+    // 45. buddhist_events + event_reward_claims (Giai đoạn 68)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS buddhist_events (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            name VARCHAR(200) NOT NULL,
+            emoji VARCHAR(10) NOT NULL DEFAULT '🪷',
+            description TEXT,
+            event_date DATE NOT NULL,
+            is_recurring BOOLEAN NOT NULL DEFAULT true,
+            bonus_a BIGINT NOT NULL DEFAULT 0,
+            bonus_k BIGINT NOT NULL DEFAULT 0,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "INSERT INTO buddhist_events (code, name, emoji, description, event_date, is_recurring, bonus_a, bonus_k, is_active)
+         SELECT * FROM (VALUES
+            ('phat_dan','Lễ Phật Đản','🪷','Ngày Đức Phật Thích Ca Mâu Ni đản sinh.','0015-04-08',true,100,1,true),
+            ('thanh_dinh','Lễ Thanh Đinh','🕯️','Ngày Đức Phật thành đạo.','0015-12-08',true,100,1,true),
+            ('tiet_tu_lan_bon','Lễ Tết Trung Nguyên (Vu Lan)','👁️','Ngày báo hiếu cha mẹ, xá tội vong nhân.','0015-07-15',true,100,1,true),
+            ('ky_niem_duc_phat','Kỷ niệm Đức Phật nhập niết bàn','🪷','Ngày Đức Phật nhập Niết bàn.','0015-02-15',true,50,0,true),
+            ('dong_chi','Tết Đông Chí','❄️','Ngày đông chí — truyền thống Á Đông.','0015-11-22',true,30,0,true),
+            ('tet_nguyen_dan','Tết Nguyên Đán','🧧','Tết cổ truyền Việt Nam.','0015-01-01',true,50,1,true),
+            ('tet_nguyen_tieu','Tết Nguyên Tiêu (Rằm tháng Giêng)','🏮','Tết Nguyên Tiêu — đầu năm âm lịch.','0015-01-15',true,30,0,true)
+         ) AS t(code,name,emoji,description,event_date,is_recurring,bonus_a,bonus_k,is_active)
+         WHERE NOT EXISTS (SELECT 1 FROM buddhist_events LIMIT 1)"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS event_reward_claims (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            event_id BIGINT NOT NULL REFERENCES buddhist_events(id) ON DELETE CASCADE,
+            event_date DATE NOT NULL,
+            reward_a BIGINT NOT NULL DEFAULT 0,
+            reward_k BIGINT NOT NULL DEFAULT 0,
+            claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, event_id, event_date)
+        )"
+    ).execute(pool).await;
+    log::info!("  ✅ buddhist_events + event_reward_claims ensured (v0.9.46 Giai đoạn 68)");
+
+    // 46. achievement_badges + user_badges (Giai đoạn 69)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS achievement_badges (
+            id BIGSERIAL PRIMARY KEY,
+            code VARCHAR(40) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            emoji VARCHAR(10) NOT NULL DEFAULT '🏆',
+            description TEXT,
+            category VARCHAR(30) NOT NULL,
+            requirement_type VARCHAR(30) NOT NULL,
+            requirement_value BIGINT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT true,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query(
+        "INSERT INTO achievement_badges (code, name, emoji, description, category, requirement_type, requirement_value, is_active)
+         SELECT * FROM (VALUES
+            ('niem_100','Người Tu Tập','📿','Niệm Phật 100 lần','tu_hoc','niem_count',100,true),
+            ('niem_1000','Niệm Phật 1000 lần','📿','Niệm Phật 1000 lần','tu_hoc','niem_count',1000,true),
+            ('niem_10000','Đại Niệm Phật','🪷','Niệm Phật 10000 lần','tu_hoc','niem_count',10000,true),
+            ('days_7','Kiên Trì 7 Ngày','🔥','Niệm Phật 7 ngày liên tiếp','tu_hoc','days_active',7,true),
+            ('days_30','Tinh Tấn 30 Ngày','🌟','Niệm Phật 30 ngày liên tiếp','tu_hoc','days_active',30,true),
+            ('friend_10','Kết Duyên','👥','Có 10 người bạn','cong_dong','friend_count',10,true),
+            ('friend_50','Đa Duyên','🤝','Có 50 người bạn','cong_dong','friend_count',50,true),
+            ('group_1','Thành Viên Tích Cực','✨','Tham gia 1 nhóm cộng đồng','cong_dong','group_count',1,true),
+            ('group_5','Cộng Đồng Viên','🌐','Tham gia 5 nhóm cộng đồng','cong_dong','group_count',5,true),
+            ('topic_1','Người Khởi Xướng','📝','Tạo 1 chủ đề cộng đồng','cong_dong','topic_count',1,true),
+            ('topic_10','Tác Giả Cộng Đồng','📚','Tạo 10 chủ đề cộng đồng','cong_dong','topic_count',10,true),
+            ('a_100','Tiểu Niệm Lực','⚡','Tích lũy 100 A','tai_chinh','a_balance',100,true),
+            ('a_1000','Niệm Lực Sơ','⚡','Tích lũy 1000 A','tai_chinh','a_balance',1000,true),
+            ('k_100','Tiểu Tài Phú','💰','Tích lũy 100 K','tai_chinh','k_balance',100,true),
+            ('k_1000','Tài Phú','💰','Tích lũy 1000 K','tai_chinh','k_balance',1000,true),
+            ('k_10000','Đại Tài Phú','💎','Tích lũy 10000 K','tai_chinh','k_balance',10000,true),
+            ('tu_si_1','Tu Sĩ Tập Sự','⭐','Trở thành Tu Sĩ 1 sao','dac_biet','tu_si_rank',1,true),
+            ('tu_si_5','Đại Tu Sĩ','🌟','Trở thành Tu Sĩ 5 sao','dac_biet','tu_si_rank',5,true)
+         ) AS t(code,name,emoji,description,category,requirement_type,requirement_value,is_active)
+         WHERE NOT EXISTS (SELECT 1 FROM achievement_badges LIMIT 1)"
+    ).execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS user_badges (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            badge_id BIGINT NOT NULL REFERENCES achievement_badges(id) ON DELETE CASCADE,
+            awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (user_id, badge_id)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, awarded_at DESC)").execute(pool).await;
+    log::info!("  ✅ achievement_badges + user_badges ensured (v0.9.46 Giai đoạn 69)");
+
+    // 47. hall_of_fame_entries + hall_of_fame_honors (Giai đoạn 70)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS hall_of_fame_entries (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            category VARCHAR(30) NOT NULL,
+            rank_position SMALLINT NOT NULL,
+            score BIGINT NOT NULL,
+            period_label VARCHAR(20),
+            snapshot_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE (category, period_label, rank_position)
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_hof_entries_recent ON hall_of_fame_entries(snapshot_at DESC)").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_hof_entries_category ON hall_of_fame_entries(category, rank_position)").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS hall_of_fame_honors (
+            id BIGSERIAL PRIMARY KEY,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title VARCHAR(100) NOT NULL,
+            description TEXT,
+            awarded_by UUID REFERENCES users(id),
+            awarded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            is_active BOOLEAN NOT NULL DEFAULT true
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_hof_honors_recent ON hall_of_fame_honors(awarded_at DESC) WHERE is_active = true").execute(pool).await;
+    log::info!("  ✅ hall_of_fame_entries + honors ensured (v0.9.46 Giai đoạn 70)");
+
     log::info!("🔒 Safety schema check hoàn tất");
 }
 

@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod auth;
 pub mod auto_rank;      // v0.9.45 — Giai đoạn 54: Auto Member Rank Promotion
+pub mod giai_doan_61_70; // v0.9.46 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Vinh Danh
 pub mod bang_xep_hang;
 pub mod cai_dat;
 pub mod chat;
@@ -43,11 +44,14 @@ use crate::models::user::{MemberRank, ProfileUpdate, User};
 /// Tránh drift khi SELECT * — luôn liệt kê rõ ràng các cột.
 /// v0.9.7: thêm `u.role` (Giai đoạn 11 — Hệ thống vai trò Admin).
 /// v0.9.9: thêm `u.i_balance` (Giai đoạn 13 — Không Gian: Nguyên lực I).
+/// v0.9.46: thêm `u.tinh_khi_than` + `u.max_tinh_khi_than` (Giai đoạn 64).
 pub const USER_COLUMNS: &str = "u.id, u.email, u.display_name, u.password_hash, u.rank, \
     u.a_balance, u.k_balance, u.i_balance, u.is_active, u.created_at, u.updated_at, \
     u.google_sub, u.avatar_url, u.email_verified, \
     u.phap_danh, u.phap_hieu, u.but_danh, u.gender, u.bio, \
-    u.avatar_upload_id, u.role";
+    u.avatar_upload_id, u.role, \
+    u.bi_balance, u.tinh_khi_than, u.max_tinh_khi_than, \
+    u.tu_si_rank, u.tu_si_approved_at, u.last_seen_at";
 
 /// HTML-escape một string để chống XSS khi inject vào HTML response.
 ///
@@ -176,6 +180,14 @@ impl UserSessionMinimal {
             bio: self.bio,
             avatar_upload_id: self.avatar_upload_id,
             role: "member".to_string(),
+            // v0.9.45: Tu Sĩ fields (NULL = chưa đăng ký)
+            tu_si_rank: None,
+            tu_si_approved_at: None,
+            // v0.9.39: last_seen_at — NULL khi mới tạo
+            last_seen_at: None,
+            // v0.9.46: Tinh Khí Thần fields (default 0/100)
+            tinh_khi_than: 0,
+            max_tinh_khi_than: 100,
         }
     }
 }

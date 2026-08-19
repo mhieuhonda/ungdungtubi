@@ -647,6 +647,14 @@ impl UserMinimal {
             bio: self.bio,
             avatar_upload_id: self.avatar_upload_id,
             role: "member".to_string(), // Default — column có thể chưa tồn tại
+            // v0.9.45: Tu Sĩ fields (NULL = chưa đăng ký)
+            tu_si_rank: None,
+            tu_si_approved_at: None,
+            // v0.9.39: last_seen_at — NULL khi mới tạo
+            last_seen_at: None,
+            // v0.9.46: Tinh Khí Thần fields (default 0/100)
+            tinh_khi_than: 0,
+            max_tinh_khi_than: 100,
         }
     }
 }

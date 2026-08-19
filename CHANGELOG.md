@@ -6,6 +6,214 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.46] — 2026-08-19 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷
+
+Bản phát hành này triển khai **10 giai đoạn liên tiếp** (61-70) — bổ sung các tính năng được tài liệu `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` và `ỨNG DỤNG TỪ BI.docx` mô tả nhưng chưa được hiện thực hóa. Tổng cộng: 10 migration SQL mới, 25+ bảng DB mới, 1 handler module mới (`giai_doan_61_70.rs`, 2000+ dòng), 36 routes mới, 200+ safety schema blocks. ĐỒNG THỜI fix critical UI/DB bugs do user báo cáo.
+
+### 🙏 Giai đoạn 61 — Tượng Phật Ủng Hộ + Bảng Kính Nguyện — MỚI
+
+Theo tài liệu `Hệ Thống Và Chức Năng Chi Tiết.docx` mục I.6 (Tượng Phật): thành viên có 4 chức năng (Cầu Nguyện · Sám Hối · Hồi Hướng · Ủng Hộ). Ủng Hộ = xem quảng cáo, tối đa 10 lần/ngày, mỗi lượt = 1 lượt Quay Vòng May Mắn.
+
+- **[BP-1]** `migrations/039_buddha_support_and_vow_board.sql` — 3 bảng mới:
+  - `buddha_daily_uses` (theo dõi 4 loại vow + support_count, UNIQUE (user_id, use_date))
+  - `kinh_nguyen_board` (public vow board — prayer/repentance/dedication)
+  - `lucky_spin_grants` (lượt quay từ ad_watch/daily_login/event)
+- **[BP-2]** Safety schema idempotent cho tất cả 3 bảng + indexes.
+- **[BP-3]** `src/handlers/giai_doan_61_70.rs` — 3 endpoints:
+  - `GET /tuong-phat/ung-ho` — Trang Ủng Hộ (xem ad nhận lượt quay)
+  - `GET /tuong-phat/kinh-nguyen` — Bảng kính nguyện công khai (50 vows gần nhất)
+  - `POST /api/tuong-phat/ung-ho` — Hook sau ad-watch, atomic INSERT grant + upsert daily_uses
+- **[BP-4]** Transaction-safe: nếu INSERT grant fail → rollback, không tăng support_count.
+- **[BP-5]** Daily limit 10/ユーザー/ngày (constant `DAILY_SUPPORT_MAX`).
+
+### 🎯 Giai đoạn 62 — Vòng Quay May Mắn — MỚI
+
+Theo tài liệu mục I.6: Vòng Quay May Mắn gồm 12 prize tiers (50% A · 10% K · 10% items · 5/5/1/1/4.9% crystals/special · 0.1% high-value · 1% nothing).
+
+- **[VQ-1]** `migrations/040_lucky_wheel.sql` — 3 bảng mới:
+  - `lucky_wheel_prizes` (12 tiers seed data, code/label/emoji/reward_type/weight)
+  - `lucky_wheel_spins` (log mỗi lần quay)
+  - `lucky_wheel_daily_quota` (free_spins_used/ad_spins_used per day)
+- **[VQ-2]** Safety schema + seed 12 prize tiers idempotent.
+- **[VQ-3]** `src/handlers/giai_doan_61_70.rs` — 2 endpoints:
+  - `GET /vong-quay-may-man` — Trang vòng quay ( prizes list + remaining count + spin button)
+  - `POST /api/vong-quay/quay` — Quay (atomic: try free quota → fallback ad_watch grant → weighted random pick → apply reward → log)
+- **[VQ-4]** Reward application: A/K/Bi → UPDATE users + INSERT balance_transactions. Item → INSERT/UPSERT user_inventories.
+- **[VQ-5]** Weighted random: `score = rand() * total_weight`, iterate prizes, subtract weight, pick first that crosses zero.
+
+### 🧧 Giai đoạn 63 — Bao Lì Xì Từ Bi — MỚI
+
+Theo tài liệu mục V: Bao Lì Xì Từ Bi (10K) + Bao Lì Xì Đại Bi (100K) — user tạo bao, mỗi người nhận 1 phần ngẫu nhiên.
+
+- **[BLX-1]** `migrations/041_red_envelopes.sql` — 2 bảng mới:
+  - `red_envelopes` (creator_id, envelope_type, total_k, remaining_k, max_claims, scope, expires_at)
+  - `red_envelope_claims` (UNIQUE (envelope_id, user_id) — mỗi user chỉ claim 1 lần)
+- **[BLX-2]** Safety schema idempotent.
+- **[BLX-3]** `src/handlers/giai_doan_61_70.rs` — 3 endpoints:
+  - `GET /bao-li-xi` — Trang bao lì xì (list 30 envelopes active + create form)
+  - `POST /api/bao-li-xi/tao` — Tạo bao (atomic: check-and-subtract K + INSERT envelope + log)
+  - `POST /api/bao-li-xi/{id}/nhan` — Nhận (atomic: lock envelope + check claimed + random amount + UPDATE envelope + UPDATE user K + log)
+- **[BLX-4]** Atomic check-and-subtract: `UPDATE users SET k_balance = k_balance - $2 WHERE id = $1 AND k_balance >= $2 RETURNING k_balance` — NULL = insufficient funds.
+- **[BLX-5]** Random amount: distribute remaining across remaining slots, reserve at least 1K for last claimers.
+
+### 🔮 Giai đoạn 64 — Tinh Khí Thần + Kho Đạo Cụ — MỚI
+
+Theo tài liệu mục V: 4 loại tinh thạch (Tinh Thể 1K · Tinh Thạch 2K · Linh Thạch 5K · Tiên Thạch 100K) + Đá Thức Tỉnh Thiên Phú 10K + Bao Lì Xì 10K + Thẻ Ủng Hộ 5K.
+
+- **[TKT-1]** `migrations/042_tinh_khi_than_and_inventory.sql` — 4 thay đổi:
+  - `users.tinh_khi_than SMALLINT` (0-100, default 0)
+  - `users.max_tinh_khi_than SMALLINT` (default 100)
+  - `system_items` (7 seed items, code/name/emoji/price_k/category)
+  - `user_inventories` (UNIQUE (user_id, item_id) — 1 row/item/user)
+  - `item_use_log` (lịch sử sử dụng)
+- **[TKT-2]** Safety schema idempotent + seed 7 system items.
+- **[TKT-3]** `src/handlers/giai_doan_61_70.rs` — 2 endpoints:
+  - `GET /kho-dao-cu` — Trang kho đạo cụ (Tinh Khí Thần progress + inventory list + use buttons)
+  - `POST /api/kho-dao-cu/{code}/dung` — Sử dụng (atomic: lock inventory + apply effect + decrement + log)
+- **[TKT-4]** Use cases: `tinh_the` → +1 Tinh Khí Thần (check max). `the_ung_ho` → +1 lượt quay. `bao_li_xi` → tạo bao 10K public.
+
+### 🪷 Giai đoạn 65 — Nhà Vườn (Lotus Garden) — MỚI
+
+Theo tài liệu `ỨNG DỤNG TỪ BI.docx` mục I.1.b (Nhà Vườn): trồng cây · chăn nuôi · trang trí không gian giả lập.
+
+- **[NV-1]** `migrations/043_garden_lotus.sql` — 3 bảng mới:
+  - `garden_plant_types` (4 plants: hoa sen nhỏ/trung/lớn + cây bồ đề)
+  - `user_gardens` (1 garden/user, max_slots=9, total_harvest/total_a_earned)
+  - `garden_slots` (UNIQUE (garden_id, slot_index) — 9 slots)
+- **[NV-2]** Safety schema + seed 4 plant types.
+- **[NV-3]** `src/handlers/giai_doan_61_70.rs` — 3 endpoints:
+  - `GET /nha-vuon` — Trang nhà vườn (3x3 grid + plant form + countdown timers)
+  - `POST /api/nha-vuon/trong/{slot}/{code}` — Trồng (atomic: lock empty slot + check cost_k + deduct + plant)
+  - `POST /api/nha-vuon/thuhoach/{slot}` — Thu hoạch (atomic: lock ready slot + clear + add A + log)
+- **[NV-4]** Auto-mark ready: `UPDATE garden_slots SET is_ready = true WHERE ready_at <= NOW()`.
+- **[NV-5]** Real-time countdown: JS `setInterval(updateCountdowns, 1000)` hiển thị time-remaining.
+
+### 🪷 Giai đoạn 66 — Đại Sảnh + Cộng Tu — MỚI
+
+Theo tài liệu mục I.5 (Đại Sảnh): vị trí trung tâm, 10 bồ đoàn, chủ tọa gần tượng Phật.
+
+- **[DS-1]** `migrations/044_dai_sanh_meditation.sql` — 2 bảng mới:
+  - `meditation_sessions` (host_id, title, start_at, duration_minutes, max_seats=10, is_cancelled)
+  - `meditation_participants` (UNIQUE (session_id, user_id) + UNIQUE (session_id, seat_number))
+- **[DS-2]** Safety schema idempotent.
+- **[DS-3]** `src/handlers/giai_doan_61_70.rs` — 3 endpoints:
+  - `GET /dai-sanh` — Trang đại sảnh (hero + create form + upcoming sessions list)
+  - `POST /dai-sanh/tao-phien` — Tạo phiên (parse RFC3339 datetime + INSERT)
+  - `POST /dai-sanh/{id}/tham-gia/{seat}` — Tham gia (1-10, ON CONFLICT DO NOTHING)
+
+### 🌀 Giai đoạn 67 — Nhà Truyền Tống — MỚI
+
+Theo tài liệu `ỨNG DỤNG TỪ BI.docx` mục I.1.b (Nhà Truyền Tống): dịch chuyển đến Không Gian user khác · nhóm · bản đồ Du Hí.
+
+- **[TT-1]** `migrations/045_teleport_house.sql` — 2 bảng mới:
+  - `teleport_visits` (log mỗi lần truyền tống)
+  - `teleport_bookmarks` (UNIQUE (user_id, target_type, target_id) — auto-bookmark visited)
+- **[TT-2]** Safety schema idempotent.
+- **[TT-3]** `src/handlers/giai_doan_61_70.rs` — 2 endpoints:
+  - `GET /nha-truyen-tong` — Trang nhà truyền tống (teleport form + bookmarks list)
+  - `POST /api/nha-truyen-tong/di` — Truyền tống (validate target_type + target_id + log + bookmark + redirect URL)
+- **[TT-4]** Target types: `user_space` (UUID parse + display_name lookup) + `group_space` (slug lookup).
+
+### 🪷 Giai đoạn 68 — Sự Kiện Phật Lịch — MỚI
+
+Theo truyền thống Phật giáo Việt Nam: Phật Đản · Vu Lan · Thanh Đinh · và các ngày lễ khác.
+
+- **[SK-1]** `migrations/046_buddhist_events.sql` — 2 bảng mới:
+  - `buddhist_events` (7 seed events: phat_dan, thanh_dinh, tiet_tu_lan_bon, ky_niem_duc_phat, dong_chi, tet_nguyen_dan, tet_nguyen_tieu)
+  - `event_reward_claims` (UNIQUE (user_id, event_id, event_date) — 1 claim/event/day)
+- **[SK-2]** Safety schema + seed 7 events.
+- **[SK-3]** `src/handlers/giai_doan_61_70.rs` — 2 endpoints:
+  - `GET /su-kien` — Trang sự kiện (list events + today badge + claim buttons)
+  - `POST /api/su-kien/{event_id}/nhan` — Nhận thưởng (atomic: check claimed + apply A/K + log)
+- **[SK-4]** is_today detection: `event_date.month() == today.month() && event_date.day() == today.day()` (recurring events).
+
+### 🏆 Giai đoạn 69 — Huy Hiệu Thành Tích — MỚI
+
+Theo tài liệu mục I.4 (Hệ Thống Thành Tích): thành tích cá nhân + cộng đồng.
+
+- **[HH-1]** `migrations/047_achievement_badges.sql` — 2 bảng mới:
+  - `achievement_badges` (18 seed badges: tu_hoc 5 · cong_dong 6 · tai_chinh 6 · dac_biet 2)
+  - `user_badges` (UNIQUE (user_id, badge_id) — 1 award/badge)
+- **[HH-2]** Safety schema + seed 18 badges.
+- **[HH-3]** `src/handlers/giai_doan_61_70.rs` — 2 endpoints:
+  - `GET /api/huy-hieu/{user_id}` — JSON huy hiệu user (awarded_at NULL if not yet earned)
+  - `POST /api/huy-hieu/check` — Auto-check + award (8 requirement_types: niem_count, a_balance, k_balance, friend_count, group_count, topic_count, days_active, tu_si_rank)
+- **[HH-4]** Award logic: check each badge requirement → if met + not already awarded → INSERT (ON CONFLICT DO NOTHING).
+
+### 🏆 Giai đoạn 70 — Bảng Vinh Danh — MỚI
+
+Theo tài liệu mục II.4 (Hệ Thống Thành Tích): BXH Niệm Phật tháng · tổng · A · K · Bi · Tài Phú · v.v.
+
+- **[BVD-1]** `migrations/048_hall_of_fame.sql` — 2 bảng mới:
+  - `hall_of_fame_entries` (snapshot per week/month/all-time, UNIQUE (category, period_label, rank_position))
+  - `hall_of_fame_honors` (admin-awarded permanent honors)
+- **[BVD-2]** Safety schema idempotent.
+- **[BVD-3]** `src/handlers/giai_doan_61_70.rs` — 1 endpoint:
+  - `GET /bang-vinh-danh` — Trang bảng vinh danh (7 categories × top 10 each)
+- **[BVD-4]** Categories: niem_total · a · k · bi · friend · topic · tu_si. SQL queries use `ROW_NUMBER() OVER (ORDER BY ...)` for rank.
+
+### 🔧 Critical Bug Fixes (user-reported)
+
+#### F1 — Community UI overflow (IMG_8929.png)
+- **Vấn đề**: Hero card trong `/cong-dong` tràn phải trên mobile — `whitespace-nowrap` trên nút "Hoạt Động Cộng Đồng — Xem hoạt động gần đây" + fixed-width CTA button ép card tràn ra ngoài viewport.
+- **Fix**: Bỏ `whitespace-nowrap`, thêm `overflow-x-hidden` + `max-w-full overflow-hidden` + `break-words` cho card hero. Buttons stack vertical trên mobile (`flex-col sm:flex-row`). Card item trong grid có `max-w-full overflow-hidden`, description truncate 100 chars (giảm từ 140), gap-2 sm:gap-3, `truncate` cho category badge.
+
+#### F2 — Music "Bài của tôi" / "Nhạc Cộng Đồng" / "Đăng Nhạc" không click được
+- **Vấn đề**: 3 nút trong Nhà Nhạc đều "liệt" (không click được) — Alpine.js không init được vì `x-data` JSON inline trong HTML attribute, nếu track title chứa `<` `>` `&` thì HTML parser break → Alpine fail silent.
+- **Fix**: Chuyển JSON sang `<script type="application/json">` tags (`#nha-nhac-tracks-json`, `#nha-nhac-mysubs-json`), parse bằng `JSON.parse(document.getElementById(...).textContent)` trong x-data. Cách này an toàn khỏi HTML parser.
+
+#### F3 — Music community `track.category_display` undefined
+- **Vấn đề**: Template dùng `track.category_display` nhưng đây là Rust method, không được serialize ra JSON → JS thấy `undefined` → text hiển thị "Artist · undefined".
+- **Fix**: Thêm helper `categoryDisplay(cat)` trong Alpine component, lookup switch-case category code → Vietnamese label.
+
+#### F4 — Orphan pages (new stages 61-70)
+- **Vấn đề**: 10 trang stages 61-70 (/tuong-phat/ung-ho, /vong-quay-may-man, /bao-li-xi, /kho-dao-cu, /nha-vuon, /dai-sanh, /nha-truyen-tong, /su-kien, /bang-vinh-danh) không có link từ nav → orphan pages.
+- **Fix**: Thêm tất cả 10 trang vào mega-menu (Col 1 Hệ Thống) + mobile drawer (Section Tiện Ích) + footer (Hệ Thống column).
+
+#### F5 — DB sync: User model thiếu fields
+- **Vấn đề**: User struct thiếu `tu_si_rank`, `tu_si_approved_at`, `last_seen_at`, `tinh_khi_than`, `max_tinh_khi_than` → SELECT * fail vì column mismatch (theo CHANGELOG v0.9.45 đã thêm tu_si_rank nhưng chưa thêm vào struct).
+- **Fix**: Thêm 5 fields vào User struct với `#[sqlx(default)]` để backward-compatible. Cập nhật `USER_COLUMNS` const trong handlers/mod.rs. Cập nhật 2 `into_full_user()` methods (auth.rs + mod.rs) populate defaults.
+
+### 🔧 Version Sync v0.9.46
+
+- `Cargo.toml` — version `0.9.45` → `0.9.46` (rust-version `1.97.1` giữ nguyên).
+- `src/main.rs`:
+  - Startup log: `v0.9.45 — Giai đoạn 53-60` → `v0.9.46 — Giai đoạn 61-70`.
+  - Health check public: `"version": "0.9.45"` → `"0.9.46"`.
+  - Health check staff: phase 60 → 70 + phase_name mới.
+- `src/handlers/mod.rs`: thêm module `giai_doan_61_70` + `USER_COLUMNS` thêm `bi_balance, tinh_khi_than, max_tinh_khi_than, tu_si_rank, tu_si_approved_at, last_seen_at`.
+- `src/db/mod.rs::ensure_schema_safety()`: thêm 10 safety schema blocks (steps 38-47) cho tất cả bảng/cột mới stages 61-70.
+- `templates/layout.html`: thêm 10 routes mới vào mega-menu + mobile drawer + footer + version badge v0.9.44 → v0.9.46.
+- `templates/community/index.html`: fix UI overflow.
+- `templates/khong-gian/nha-nhac.html`: fix JSON inline → script tag, fix category_display → categoryDisplay helper.
+- `src/models/user.rs`: thêm 5 fields (tu_si_rank, tu_si_approved_at, last_seen_at, tinh_khi_than, max_tinh_khi_than).
+- `src/handlers/auth.rs` + `src/handlers/mod.rs`: cập nhật `into_full_user()` populate defaults.
+- `README.md` — version badge v0.9.45 → v0.9.46.
+
+### 📦 Migrations Summary
+
+| # | File | Bảng/Cột mới |
+|---|------|--------------|
+| 039 | `039_buddha_support_and_vow_board.sql` | `buddha_daily_uses` + `kinh_nguyen_board` + `lucky_spin_grants` |
+| 040 | `040_lucky_wheel.sql` | `lucky_wheel_prizes` (12 seed) + `lucky_wheel_spins` + `lucky_wheel_daily_quota` |
+| 041 | `041_red_envelopes.sql` | `red_envelopes` + `red_envelope_claims` |
+| 042 | `042_tinh_khi_than_and_inventory.sql` | `users.tinh_khi_than` + `users.max_tinh_khi_than` + `system_items` (7 seed) + `user_inventories` + `item_use_log` |
+| 043 | `043_garden_lotus.sql` | `garden_plant_types` (4 seed) + `user_gardens` + `garden_slots` |
+| 044 | `044_dai_sanh_meditation.sql` | `meditation_sessions` + `meditation_participants` |
+| 045 | `045_teleport_house.sql` | `teleport_visits` + `teleport_bookmarks` |
+| 046 | `046_buddhist_events.sql` | `buddhist_events` (7 seed) + `event_reward_claims` |
+| 047 | `047_achievement_badges.sql` | `achievement_badges` (18 seed) + `user_badges` |
+| 048 | `048_hall_of_fame.sql` | `hall_of_fame_entries` + `hall_of_fame_honors` |
+
+### 🗺 Roadmap Alignment
+
+Theo tài liệu `HieuLouis/Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx`:
+
+- **Giai đoạn I (Kiến tạo nền móng)**: ✅ Hoàn thiện (stages 1-52, v0.9.0-v0.9.44)
+- **Giai đoạn II (Phát triển hệ sinh thái)**: 🔄 Tiếp tục (stages 53-70, v0.9.45-v0.9.46) — bổ sung Tu Sĩ, Auto Rank, Reminders, Reading Progress, Daily Login, Goals, Hot Topics, SEO, Tượng Phật Ủng Hộ, Vòng Quay, Bao Lì Xì, Tinh Khí Thần, Nhà Vườn, Đại Sảnh, Truyền Tống, Sự Kiện, Huy Hiệu, Bảng Vinh Danh
+
+---
+
 ## [0.9.45] — 2026-08-19 — Giai đoạn 53-60: Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO 🪷
 
 Bản phát hành này triển khai **8 giai đoạn liên tiếp** (53-60) — bổ sung các tính năng được tài liệu `HieuLouis/ỨNG DỤNG TỪ BI.docx` và `Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx` mô tả nhưng chưa được hiện thực hóa. Tổng cộng: 7 migration SQL mới, 11 bảng DB mới, 8 handler modules mới, 4 templates Askama mới, 37 routes mới, 80+ feature flags.

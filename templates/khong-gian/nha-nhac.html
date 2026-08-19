@@ -66,15 +66,22 @@
 
 {% block content %}
 {% if let Some(u) = user %}
-<section class="max-w-7xl mx-auto px-4 py-6 md:py-10"
+{# v0.9.46 FIX: Nhúng JSON qua <script type="application/json"> thay vì inline trong x-data.
+   Trước v0.9.46, JSON được inject trực tiếp vào HTML attribute — nếu track title
+   chứa ký tự HTML đặc biệt (<, >, &) thì HTML parser break → Alpine không init được
+   → TẤT CẢ nút (Đăng Nhạc / Nhạc Cộng Đồng / Bài của tôi) đều "liệt" (không click được).
+   Fix: JSON trong script tag an toàn khỏi HTML parser, parse bằng JSON.parse trong JS. #}
+<script type="application/json" id="nha-nhac-tracks-json">{{ tracks_json | safe }}</script>
+<script type="application/json" id="nha-nhac-mysubs-json">{{ my_submissions_json | safe }}</script>
+<section class="max-w-7xl mx-auto px-4 py-6 md:py-10 overflow-x-hidden"
          x-data="musicPlayer({
             currentTrackId: {{ last_track_id }},
-            tracks: {{ tracks_json | safe }},
+            tracks: JSON.parse(document.getElementById('nha-nhac-tracks-json').textContent || '[]'),
             playbackMode: &quot;{{ playback_mode }}&quot;,
             volume: {{ volume }},
             sleepTimerMinutes: {{ sleep_timer_minutes }},
             sleepTimerEnd: null,
-            mySubs: {{ my_submissions_json | safe }},
+            mySubs: JSON.parse(document.getElementById('nha-nhac-mysubs-json').textContent || '[]'),
             approvedCommunityCount: {{ approved_community_count }}
          })">
 
@@ -568,7 +575,7 @@
                         <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center text-xl shrink-0">▶️</div>
                         <div class="flex-1 min-w-0">
                             <div class="text-sm font-semibold text-gray-800 truncate" x-text="track.title"></div>
-                            <div class="text-xs text-gray-500 truncate" x-text="track.artist + ' · ' + track.category_display"></div>
+                            <div class="text-xs text-gray-500 truncate" x-text="track.artist + ' · ' + categoryDisplay(track.category)"></div>
                         </div>
                         <div class="text-[10px] text-gray-400 shrink-0" x-text="track.play_count + ' lượt'"></div>
                     </div>
@@ -818,6 +825,20 @@ function musicPlayer(initial) {
             this.communityPlaying = true;
             // Increment play count
             fetch('/api/nha-nhac/submission/' + track.id + '/play', { method: 'POST' }).catch(()=>{});
+        },
+
+        // v0.9.46 FIX: helper để hiển thị category tiếng Việt trong JS.
+        // Trước v0.9.46, template dùng `track.category_display` — nhưng đây là method
+        // trong Rust struct, không được serialize ra JSON → JS không thấy → "undefined".
+        categoryDisplay(cat) {
+            switch (cat) {
+                case 'niem': return 'Nhạc Niệm';
+                case 'thien': return 'Nhạc Thiền';
+                case 'dao': return 'Nhạc Đạo';
+                case 'khong_loi': return 'Không Lời';
+                case 'ca_nhan': return 'Cá Nhân';
+                default: return cat || '';
+            }
         }
     };
 }
