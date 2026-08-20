@@ -60,14 +60,14 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_addr = format!("{}:{}", config.host, config.port);
 
-    log::info!("🪷 Ứng Dụng Từ Bi v0.9.46 — Khởi động...");
+    log::info!("🪷 Ứng Dụng Từ Bi v0.9.47 — Khởi động...");
     log::info!("🌍 Domain: {}", config.domain);
     log::info!("🌍 App base URL: {}", config.app_base_url);
     log::info!("📡 Server: {bind_addr}");
     log::info!("🔑 Google OAuth redirect_uri: {}", config.google_redirect_uri);
     log::info!("🖼️  Upload dir: {} (max {} bytes)", config.upload_dir.display(), config.max_upload_bytes);
     log::info!("📦 DB pool max: {}", config.db_max_connections);
-    log::info!("📦 Phiên bản: v0.9.46 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay May Mắn + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷");
+    log::info!("📦 Phiên bản: v0.9.47 — Giai đoạn 71: Nhật Ký Tu Học (Practice Diary) + UI/DB Bug Fixes 🪷");
 
     // Database connection pool (lazy - connects when first query runs)
     let db_pool = PgPoolOptions::new()
@@ -487,6 +487,15 @@ fn build_router(state: AppState, static_dir: std::path::PathBuf) -> Router {
         .route("/api/huy-hieu/check", post(handlers::giai_doan_61_70::api_huy_hieu_check))
         // Giai đoạn 70 — Bảng Vinh Danh
         .route("/bang-vinh-danh", get(handlers::giai_doan_61_70::bang_vinh_danh_page))
+
+        // ════════════════════════════════════════════════════════════════
+        // v0.9.47 — Giai đoạn 71: Nhật Ký Tu Học (Practice Diary)
+        // ════════════════════════════════════════════════════════════════
+        .route("/nhat-ky-tu-hoc", get(handlers::giai_doan_71::nhat_ky_tu_hoc_index))
+        .route("/nhat-ky-tu-hoc/tao", post(handlers::giai_doan_71::nhat_ky_tu_hoc_create))
+        .route("/nhat-ky-tu-hoc/{id}", get(handlers::giai_doan_71::nhat_ky_tu_hoc_detail))
+        .route("/nhat-ky-tu-hoc/{id}/xoa", post(handlers::giai_doan_71::nhat_ky_tu_hoc_delete))
+        .route("/nhat-ky-tu-hoc/{id}/binh-luan", post(handlers::giai_doan_71::nhat_ky_tu_hoc_comment))
         // Routes — Theme toggle API (v0.9.17 — Giai đoạn 22)
         .route("/api/theme", post(handlers::cai_dat::api_theme_toggle))
         // Group cover image change (v0.9.3)
@@ -1101,6 +1110,16 @@ const HEALTH_FEATURES: &[&str] = &[
     "seo-dynamic-books-sitemap-v0.9.45",
     "seo-dynamic-groups-sitemap-v0.9.45",
     "robots-disallow-admin-api-v0.9.45",
+    // Stage 71 — Nhật Ký Tu Học (Practice Diary)
+    "practice-diary-page-v0.9.47",
+    "practice-diaries-table-v0.9.47",
+    "diary-comments-table-v0.9.47",
+    "diary-create-form-v0.9.47",
+    "diary-public-feed-v0.9.47",
+    "diary-privacy-toggle-v0.9.47",
+    "diary-comment-system-v0.9.47",
+    "diary-view-count-tracking-v0.9.47",
+    "diary-mood-emoji-v0.9.47",
 ];
 
 /// GET /api/health — Health check (public minimal + admin full).
@@ -1119,7 +1138,7 @@ async fn health_check_secure(State(state): State<AppState>, jar: CookieJar) -> R
         // Public minimal response — chỉ trả version + status, không lộ data nhạy cảm
         return Json(serde_json::json!({
             "status": "ok",
-            "version": "0.9.46",
+            "version": "0.9.47",
             "app": "Ứng Dụng Từ Bi"
         }))
         .into_response();
@@ -1149,11 +1168,11 @@ async fn health_check_inner(state: &AppState) -> Response {
 
     Json(serde_json::json!({
         "app": "Ứng Dụng Từ Bi",
-        "version": "0.9.46",
+        "version": "0.9.47",
         "domain": "tubi.louis.vangioitutien.com",
         "auth": "google-oauth-only",
-        "phase": 70,
-        "phase_name": "Giai đoạn 61-70 — Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷",
+        "phase": 71,
+        "phase_name": "Giai đoạn 71 — Nhật Ký Tu Học (Practice Diary) + UI/DB Bug Fixes 🪷",
         "framework": "axum 0.8 + tower-http + ws",
         "status": "running",
         "features": features,

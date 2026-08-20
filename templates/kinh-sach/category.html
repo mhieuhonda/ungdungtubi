@@ -12,13 +12,13 @@
   </nav>
 
   <!-- Hero -->
-  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
-    <div class="flex items-center gap-4">
-      <div class="text-6xl">{{ category.icon }}</div>
-      <div>
-        <h1 class="text-3xl md:text-4xl font-bold mb-2">{{ category.name }}</h1>
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8 max-w-full overflow-hidden" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+    <div class="flex items-center gap-4 max-w-full">
+      <div class="text-6xl shrink-0">{{ category.icon }}</div>
+      <div class="min-w-0">
+        <h1 class="text-3xl md:text-4xl font-bold mb-2 break-words">{{ category.name }}</h1>
         {% if let Some(desc) = &category.description %}
-        <p class="opacity-90 max-w-2xl">{{ desc }}</p>
+        <p class="opacity-90 max-w-2xl break-words">{{ desc }}</p>
         {% endif %}
       </div>
     </div>

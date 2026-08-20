@@ -238,8 +238,9 @@ pub async fn api_daily_login_claim(State(state): State<AppState>, jar: CookieJar
 
     let new_balance = current_a + reward_a;
 
-    // 1. INSERT daily_login_rewards
-    let _ = sqlx::query(
+    // 1. INSERT daily_login_rewards — MUST check rows_affected, vì ON CONFLICT DO NOTHING
+    // có thể trả về 0 rows nếu user đã claim hôm nay (race condition giữa check và INSERT).
+    let insert_result = sqlx::query(
         "INSERT INTO daily_login_rewards (user_id, reward_date, streak_day, reward_a, is_bonus, balance_after)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (user_id, reward_date) DO NOTHING"
@@ -252,6 +253,17 @@ pub async fn api_daily_login_claim(State(state): State<AppState>, jar: CookieJar
     .bind(new_balance)
     .execute(&mut *tx)
     .await;
+
+    let rows_affected = insert_result.map(|r| r.rows_affected()).unwrap_or(0);
+    if rows_affected == 0 {
+        // Đã có reward cho hôm nay → KHÔNG được cộng a_balance nữa.
+        let _ = tx.rollback().await;
+        return Json(serde_json::json!({
+            "success": false,
+            "message": "Bạn đã nhận phần thưởng hôm nay rồi. Vui lòng quay lại vào ngày mai."
+        }))
+        .into_response();
+    }
 
     // 2. UPSERT user_login_streaks
     let _ = sqlx::query(

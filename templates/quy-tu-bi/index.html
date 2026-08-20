@@ -27,19 +27,19 @@
     {% endif %}
 
     <!-- Balance Hero -->
-    <div class="bg-gradient-to-br from-tubi-800 to-tubi-900 rounded-3xl p-8 mb-8 text-white shadow-xl"
+    <div class="bg-gradient-to-br from-tubi-800 to-tubi-900 rounded-3xl p-8 mb-8 text-white shadow-xl max-w-full overflow-hidden"
          style="background:linear-gradient(135deg,#2E7D32 0%,#1B5E20 100%)">
-        <div class="text-center">
+        <div class="text-center max-w-full overflow-hidden">
             <div class="text-sm uppercase tracking-widest text-tubi-200 mb-2">Số dư Quỹ Từ Bi</div>
-            <div class="text-5xl md:text-6xl font-bold text-amber-300 mb-2">
+            <div class="text-5xl md:text-6xl font-bold text-amber-300 mb-2 break-words">
                 💰 {{ summary.balance_k }}
             </div>
             <div class="text-sm text-tubi-100">K (Tiền K)</div>
-            <div class="mt-4 flex flex-wrap justify-center gap-4 text-xs text-tubi-200">
-                <span>📥 Thu: <strong class="text-green-300">{{ summary.total_income_k }} K</strong></span>
-                <span>📤 Chi: <strong class="text-orange-300">{{ summary.total_expense_k }} K</strong></span>
-                <span>👥 <strong>{{ summary.unique_donors }}</strong> nhà hảo tâm</span>
-                <span>🤲 <strong>{{ summary.total_donations_count }}</strong> lượt đóng góp</span>
+            <div class="mt-4 flex flex-wrap justify-center gap-4 text-xs text-tubi-200 max-w-full">
+                <span class="break-words">📥 Thu: <strong class="text-green-300">{{ summary.total_income_k }} K</strong></span>
+                <span class="break-words">📤 Chi: <strong class="text-orange-300">{{ summary.total_expense_k }} K</strong></span>
+                <span class="break-words">👥 <strong>{{ summary.unique_donors }}</strong> nhà hảo tâm</span>
+                <span class="break-words">🤲 <strong>{{ summary.total_donations_count }}</strong> lượt đóng góp</span>
             </div>
         </div>
     </div>

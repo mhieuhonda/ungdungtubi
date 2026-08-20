@@ -6,6 +6,103 @@ tuân thủ [Semantic Versioning](https://semver.org/lang/vi/).
 
 ---
 
+## [0.9.47] — 2026-08-20 — Giai đoạn 71: Nhật Ký Tu Học (Practice Diary) + UI/DB Bug Fixes 🪷
+
+Bản phát hành này triển khai **Giai đoạn 71** — bổ sung tính năng Nhật Ký Tu Học được tài liệu `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` mục I.2 (Nhà Nhật Ký) mô tả nhưng chưa được hiện thực hóa. Đồng thời fix nhiều UI overflow bugs, orphan pages, và DB race-conditions do user báo cáo. Documentation cũng được dọn dẹp — loại bỏ hoàn toàn mọi reference đến game/siêu độ vì đây chỉ là app thuần tu học.
+
+### 📖 Giai đoạn 71 — Nhật Ký Tu Học (Practice Diary) — MỚI
+
+Theo tài liệu `Hệ Thống Và Chức Năng Chi Tiết.docx` mục I.2 (Nhà Nhật Ký):
+- Nhật Ký Tu Học: Tương tự trang cá nhân trên Facebook, là nơi thành viên ghi lại bút ký và cảm ngộ trong quá trình tu học.
+- Có thể cài công khai hoặc riêng tư.
+- Nếu cho phép bình luận thì người khác có thể bình luận (mặc định chỉ bạn bè).
+
+- **[NKTH-1]** `migrations/049_practice_diary.sql` — 2 bảng mới:
+  - `practice_diaries` (id, user_id, title, content, mood, is_public, allow_comments, view_count, comment_count, created_at, updated_at)
+  - `diary_comments` (id, diary_id, user_id, content, is_hidden, created_at)
+  - Indexes: idx_practice_diaries_user, idx_practice_diaries_public_recent, idx_diary_comments_diary, idx_diary_comments_user
+- **[NKTH-2]** Safety schema idempotent cho cả 2 bảng + indexes (db/mod.rs step 48).
+- **[NKTH-3]** `src/handlers/giai_doan_71.rs` (520+ dòng) — 5 endpoints:
+  - `GET /nhat-ky-tu-hoc` — Trang list diaries của user + public feed + write form
+  - `POST /nhat-ky-tu-hoc/tao` — Tạo diary mới (validate title ≥ 3, content ≥ 10)
+  - `GET /nhat-ky-tu-hoc/{id}` — Xem chi tiết diary + comments (tăng view_count nếu không phải author)
+  - `POST /nhat-ky-tu-hoc/{id}/xoa` — Xóa diary của chính mình (check user_id)
+  - `POST /nhat-ky-tu-hoc/{id}/binh-luan` — Thêm bình luận (check allow_comments + update comment_count)
+- **[NKTH-4]** Privacy: chỉ author (hoặc staff) có thể xem diary `is_public=false`. Public diary có thể xem bởi mọi user đã đăng nhập.
+- **[NKTH-5]** Mood enum: peace · joy · gratitude · repentance · dedication · reflection — hiển thị emoji + label tiếng Việt.
+- **[NKTH-6]** HTML-escape toàn bộ user-generated content (title, content, comment) để chống XSS.
+- **[NKTH-7]** Excerpt helper: rút gọn content về 220 ký tự cho list view, kèm `…` nếu dài hơn.
+- **[NKTH-8]** Nav links: thêm `/nhat-ky-tu-hoc` vào mega-menu (Col 1 Hệ Thống) + mobile drawer (Khám Phá section) + footer (Hệ Thống column).
+
+### 🔧 Critical Bug Fixes (user-reported)
+
+#### F1 — UI Overflow trên Community Hero (CRITICAL)
+- **Vấn đề**: Hero card `/cong-dong` bị tràn phải trên mobile/tablet — nút "Tạo Nhóm Mới" và "Hoạt Động Cộng Đồng" quá dài, dùng `flex-row` không có `flex-wrap` → buttons ép card tràn ra ngoài viewport.
+- **Fix**: 
+  - Buttons container: thêm `flex-wrap` + `max-w-full`.
+  - Mỗi button: thêm `flex-1 min-w-0` (chia đều width, cho phép wrap) + `whitespace-normal break-words` (cho phép text wrap bên trong button).
+  - Hero card: thêm `max-w-full overflow-hidden` (đã có từ v0.9.46 nhưng verify lại).
+- **Files affected**: `templates/community/index.html`, `templates/community/hoat-dong.html`, `templates/ban-be/index.html`, `templates/thuong-thanh/index.html`, `templates/thuong-thanh/pvp.html`, `templates/thuong-thanh/store.html`, `templates/kinh-sach/index.html`, `templates/kinh-sach/category.html`, `templates/quy-tu-bi/index.html`, `templates/khong-gian/index.html`.
+
+#### F2 — Orphan Pages (CRITICAL)
+- **Vấn đề**: 3 trang đã được implement từ v0.9.45 nhưng KHÔNG có link từ layout → orphan pages (user không thể truy cập qua nav):
+  - `/tu-si` — Hệ Thống Tu Sĩ (Stage 53)
+  - `/khong-gian/muc-tieu` — Mục Tiêu Tu Học (Stage 58)
+  - `/cai-dat/nhac-nho` — Cài Đặt Nhắc Nhở (Stage 55)
+- **Fix**: Thêm cả 3 trang vào:
+  - Desktop mega-menu: Col 1 Hệ Thống (Tu Sĩ) + Col 2 Cá Nhân (Nhắc Nhở, Mục Tiêu).
+  - Mobile drawer: Khám Phá section (Tu Sĩ) + Tài Khoản section (Nhắc Nhở, Mục Tiêu).
+  - Footer: Hệ Thống column (Tu Sĩ) + Cá Nhân column (Nhắc Nhở, Mục Tiêu).
+
+#### F3 — DB Race Condition: Daily Login Reward double-count
+- **Vấn đề**: `daily_login::api_daily_login_claim` dùng `INSERT ... ON CONFLICT (user_id, reward_date) DO NOTHING` nhưng `let _ = sqlx::query(...)` discard kết quả → không biết INSERT có thành công hay là no-op. Nếu 2 request concurrent cùng pass initial check (chưa claim), cả 2 sẽ UPDATE `users.a_balance = current_a + reward_a` → DOUBLE COUNT (cộng 2 lần).
+- **Fix**: Check `rows_affected()` của INSERT. Nếu = 0 → user đã claim rồi → rollback + return error "Bạn đã nhận phần thưởng hôm nay rồi". Không cập nhật `a_balance` nữa.
+
+#### F4 — DB Missing Audit Log: Lucky Wheel "bi" reward
+- **Vấn đề**: `giai_doan_61_70::api_vong_quay_quay` cho case `reward_type == "bi"` UPDATE `bi_balance` nhưng KHÔNG `INSERT INTO balance_transactions` (quên) → không có audit log cho Bi rewards. Cases "a" và "k" có log, chỉ "bi" thiếu.
+- **Fix**: Thêm `INSERT INTO balance_transactions (user_id, currency, amount, direction, reason) VALUES ($1, 'bi', $2, 'in', 'vong_quay_may_man')` cho case "bi".
+
+#### F5 — DB Race Condition: Sự Kiện reward double-count
+- **Vấn đề**: `giai_doan_61_70::api_su_kien_nhan` check `already > 0` rồi mới apply reward, nhưng INSERT claim cuối cùng không dùng `ON CONFLICT DO NOTHING` → 2 request concurrent cùng pass check, cùng apply reward (UPDATE a_balance + UPDATE k_balance + INSERT balance_transactions × 2), rồi mới INSERT claim. Khi INSERT claim thứ 2 fail (UNIQUE constraint), tx aborted → balance rollback, nhưng user thấy confusing "commit: ..." error.
+- **Fix**: Đổi INSERT claim thành `INSERT ... ON CONFLICT (user_id, event_id, event_date) DO NOTHING`. Check `rows_affected()`. Nếu = 0 → rollback + return error rõ ràng "Bạn đã nhận thưởng sự kiện này hôm nay (race condition detected, rollback)".
+
+### 🧹 Documentation Cleanup — Xóa toàn bộ references đến game/siêu độ
+
+- **`HieuLouis/` folder**: Rewrite 5 file .docx (tổng quan, hệ thống chi tiết, giao diện cộng đồng, kế hoạch, tuyển thành viên) — gọn gàng, không lặp ý, không còn bất kỳ reference nào đến Game Siêu Độ / hệ thống PK / kỹ năng / thiên phú / bản đồ game / cổng du hí.
+- **`templates/gioi-thieu.html`**: Xóa card "Game Siêu Độ" + xóa "Triết lý game" + xóa "Cổng Du Hí" trong description Không Gian + xóa "Mời tham gia trò chơi" trong description Bạn Bè + xóa "Game Siêu Độ (đang xây dựng)" trong tính năng list + rewrite "Hệ sinh thái tương lai" bỏ Game, thêm Thư Viện Kinh Sách + rewrite "Lộ trình 1.000 ngày" bỏ "Game + Siêu độ".
+- **`templates/thuong-thanh/store.html`**: Đổi "Thuốc, tinh thạch, bẫy, đá nâng cấp — vật phẩm cho Siêu Độ" → "Vật phẩm hỗ trợ tu học — đạo cụ, thẻ dịch vụ, tài sản số".
+- **`templates/admin/phat-trien/index.html`**: Xóa "Game cleanup · v0.9.35" khỏi music feature description.
+- **`README.md`**: Đổi "giải trí" → "chia sẻ" + thêm "Đây là ứng dụng thuần tu học và cộng đồng (không có yếu tố game)" + xóa "Game Siêu Độ" khỏi "Hệ sinh thái hoàn thiện" + cập nhật version history thêm v0.9.45, v0.9.46, v0.9.47.
+
+### 🔧 Version Sync v0.9.47
+
+- `Cargo.toml` — version `0.9.46` → `0.9.47` (rust-version `1.97.1` giữ nguyên).
+- `src/main.rs`:
+  - Startup log: `v0.9.46 — Giai đoạn 61-70` → `v0.9.47 — Giai đoạn 71: Nhật Ký Tu Học + UI/DB Bug Fixes`.
+  - Health check public: `"version": "0.9.46"` → `"0.9.47"`.
+  - Health check staff: phase 70 → 71 + phase_name mới.
+  - HEALTH_FEATURES: thêm 9 feature flags v0.9.47 (practice-diary-page, practice-diaries-table, diary-comments-table, diary-create-form, diary-public-feed, diary-privacy-toggle, diary-comment-system, diary-view-count-tracking, diary-mood-emoji).
+- `src/handlers/mod.rs`: thêm module `giai_doan_71`.
+- `src/db/mod.rs::ensure_schema_safety()`: thêm safety schema block step 48 (practice_diaries + diary_comments + indexes).
+- `templates/layout.html`: thêm routes `/nhat-ky-tu-hoc`, `/tu-si`, `/khong-gian/muc-tieu`, `/cai-dat/nhac-nho` vào mega-menu + mobile drawer + footer.
+- `Dockerfile.coolify`: header comment update v0.9.47.
+- `README.md`: version badge v0.9.46 → v0.9.47 + Lịch sử phiên bản thêm 3 rows (v0.9.45, v0.9.46, v0.9.47).
+
+### 📦 Migrations Summary
+
+| # | File | Bảng/Cột mới |
+|---|------|--------------|
+| 049 | `049_practice_diary.sql` | `practice_diaries` + `diary_comments` + 4 indexes |
+
+### 🗺 Roadmap Alignment
+
+Theo tài liệu `HieuLouis/Kế Hoạch Và Mục Tiêu Phát Triển Dự Án Từ Bi.docx`:
+
+- **Giai đoạn I (Kiến tạo nền móng)**: ✅ Hoàn thiện (stages 1-52, v0.9.0-v0.9.44)
+- **Giai đoạn II (Phát triển hệ sinh thái)**: 🔄 Tiếp tục (stages 53-71, v0.9.45-v0.9.47) — bổ sung Tu Sĩ, Auto Rank, Reminders, Reading Progress, Daily Login, Goals, Hot Topics, SEO, Tượng Phật Ủng Hộ, Vòng Quay, Bao Lì Xì, Tinh Khí Thần, Nhà Vườn, Đại Sảnh, Truyền Tống, Sự Kiện, Huy Hiệu, Bảng Vinh Danh, Nhật Ký Tu Học
+
+---
+
 ## [0.9.46] — 2026-08-19 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh 🪷
 
 Bản phát hành này triển khai **10 giai đoạn liên tiếp** (61-70) — bổ sung các tính năng được tài liệu `HieuLouis/Hệ Thống Và Chức Năng Chi Tiết.docx` và `ỨNG DỤNG TỪ BI.docx` mô tả nhưng chưa được hiện thực hóa. Tổng cộng: 10 migration SQL mới, 25+ bảng DB mới, 1 handler module mới (`giai_doan_61_70.rs`, 2000+ dòng), 36 routes mới, 200+ safety schema blocks. ĐỒNG THỜI fix critical UI/DB bugs do user báo cáo.

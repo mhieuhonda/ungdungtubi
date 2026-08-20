@@ -188,6 +188,8 @@
                                     <a href="/tien-te" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">💱 Tiền Tệ</a>
                                     <a href="/su-kien" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Sự Kiện Phật Lịch</a>
                                     <a href="/doi-ngu-quan-li" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">👥 Đội Ngũ</a>
+                                    <a href="/nhat-ky-tu-hoc" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">📖 Nhật Ký Tu Học</a>
+                                    <a href="/tu-si" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">📿 Tu Sĩ</a>
                                     <a href="/tim-kiem" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🔎 Tìm Kiếm</a>
                                 </div>
                                 <!-- Col 2: Cá nhân -->
@@ -195,6 +197,8 @@
                                     <div class="text-[10px] font-bold text-tubi-700 uppercase tracking-wider mb-1.5 px-2">👤 Cá Nhân</div>
                                     <a href="/ca-nhan" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🪷 Hồ Sơ</a>
                                     <a href="/cai-dat" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">⚙️ Cài Đặt</a>
+                                    <a href="/cai-dat/nhac-nho" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🔔 Nhắc Nhở Tu Học</a>
+                                    <a href="/khong-gian/muc-tieu" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🎯 Mục Tiêu Tu Học</a>
                                     <a href="/ban-be/tin-nhan" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">💬 Tin Nhắn</a>
                                     <a href="/ban-be/thu" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">✉️ Hộp Thư</a>
                                     <a href="/ban-be/thong-bao" class="block px-2 py-1.5 rounded-lg text-sm hover:bg-tubi-50 transition">🔔 Thông Báo</a>
@@ -537,6 +541,14 @@
                             <span class="text-sm">🏆</span>
                             <span class="text-[11px]">Bảng Vinh Danh</span>
                         </a>
+                        <a href="/nhat-ky-tu-hoc" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">📖</span>
+                            <span class="text-[11px]">Nhật Ký Tu Học</span>
+                        </a>
+                        <a href="/tu-si" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">📿</span>
+                            <span class="text-[11px]">Tu Sĩ</span>
+                        </a>
                     </div>
                 </div>
 
@@ -559,6 +571,14 @@
                         <a href="/cai-dat" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
                             <span class="text-sm">⚙️</span>
                             <span class="text-[11px]">Cài Đặt</span>
+                        </a>
+                        <a href="/cai-dat/nhac-nho" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🔔</span>
+                            <span class="text-[11px]">Nhắc Nhở</span>
+                        </a>
+                        <a href="/khong-gian/muc-tieu" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition">
+                            <span class="text-sm">🎯</span>
+                            <span class="text-[11px]">Mục Tiêu</span>
                         </a>
                         {% if u.is_staff() %}
                         <a href="/admin" @click="mobileMenu = false" class="flex items-center gap-1.5 px-2 py-1.5 pl-2 rounded-md text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition col-span-2">
@@ -682,6 +702,8 @@
                         <li><a href="/thuong-thanh" class="hover:text-white transition">🏪 Thương Thành</a></li>
                         <li><a href="/tien-te" class="hover:text-white transition">💱 Tiền Tệ</a></li>
                         <li><a href="/doi-ngu-quan-li" class="hover:text-white transition">👥 Đội Ngũ</a></li>
+                        <li><a href="/nhat-ky-tu-hoc" class="hover:text-white transition">📖 Nhật Ký Tu Học</a></li>
+                        <li><a href="/tu-si" class="hover:text-white transition">📿 Tu Sĩ</a></li>
                         <li><a href="/tim-kiem" class="hover:text-white transition">🔎 Tìm Kiếm</a></li>
                     </ul>
                 </div>
@@ -690,6 +712,8 @@
                     <ul class="space-y-1.5 text-xs">
                         <li><a href="/ca-nhan" class="hover:text-white transition">🪷 Hồ Sơ</a></li>
                         <li><a href="/cai-dat" class="hover:text-white transition">⚙️ Cài Đặt</a></li>
+                        <li><a href="/cai-dat/nhac-nho" class="hover:text-white transition">🔔 Nhắc Nhở Tu Học</a></li>
+                        <li><a href="/khong-gian/muc-tieu" class="hover:text-white transition">🎯 Mục Tiêu Tu Học</a></li>
                         <li><a href="/ban-be/tin-nhan" class="hover:text-white transition">💬 Tin Nhắn</a></li>
                         <li><a href="/ban-be/thu" class="hover:text-white transition">✉️ Hộp Thư</a></li>
                         <li><a href="/ban-be/thong-bao" class="hover:text-white transition">🔔 Thông Báo</a></li>

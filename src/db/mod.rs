@@ -1412,6 +1412,39 @@ pub async fn ensure_schema_safety(pool: &PgPool) {
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_hof_honors_recent ON hall_of_fame_honors(awarded_at DESC) WHERE is_active = true").execute(pool).await;
     log::info!("  ✅ hall_of_fame_entries + honors ensured (v0.9.46 Giai đoạn 70)");
 
+    // 48. practice_diaries + diary_comments (Giai đoạn 71 — v0.9.47)
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS practice_diaries (
+            id              BIGSERIAL    PRIMARY KEY,
+            user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title           VARCHAR(200) NOT NULL,
+            content         TEXT         NOT NULL,
+            mood            VARCHAR(20)  NOT NULL DEFAULT 'peace',
+            is_public       BOOLEAN      NOT NULL DEFAULT true,
+            allow_comments  BOOLEAN      NOT NULL DEFAULT true,
+            view_count      INTEGER      NOT NULL DEFAULT 0,
+            comment_count   INTEGER      NOT NULL DEFAULT 0,
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_practice_diaries_user ON practice_diaries(user_id, created_at DESC)").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_practice_diaries_public_recent ON practice_diaries(created_at DESC) WHERE is_public = true").execute(pool).await;
+
+    let _ = sqlx::query(
+        "CREATE TABLE IF NOT EXISTS diary_comments (
+            id              BIGSERIAL    PRIMARY KEY,
+            diary_id        BIGINT       NOT NULL REFERENCES practice_diaries(id) ON DELETE CASCADE,
+            user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            content         TEXT         NOT NULL,
+            is_hidden       BOOLEAN      NOT NULL DEFAULT false,
+            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+        )"
+    ).execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_diary_comments_diary ON diary_comments(diary_id, created_at DESC)").execute(pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_diary_comments_user ON diary_comments(user_id, created_at DESC)").execute(pool).await;
+    log::info!("  ✅ practice_diaries + diary_comments ensured (v0.9.47 Giai đoạn 71)");
+
     log::info!("🔒 Safety schema check hoàn tất");
 }
 

@@ -2,6 +2,7 @@ pub mod admin;
 pub mod auth;
 pub mod auto_rank;      // v0.9.45 — Giai đoạn 54: Auto Member Rank Promotion
 pub mod giai_doan_61_70; // v0.9.46 — Giai đoạn 61-70: Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Vinh Danh
+pub mod giai_doan_71;    // v0.9.47 — Giai đoạn 71: Nhật Ký Tu Học (Practice Diary)
 pub mod bang_xep_hang;
 pub mod cai_dat;
 pub mod chat;

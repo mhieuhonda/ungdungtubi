@@ -5,21 +5,21 @@
 <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
   <!-- Hero -->
-  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
-    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-      <div class="flex-1">
-        <h1 class="text-3xl md:text-4xl font-bold mb-2">📚 Kinh Sách</h1>
-        <p class="opacity-90 max-w-2xl">
+  <div class="text-white rounded-2xl p-6 md:p-10 shadow-lg mb-8 max-w-full overflow-hidden" style="background:linear-gradient(135deg,#2E7D32,#1B5E20)">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 max-w-full">
+      <div class="flex-1 min-w-0">
+        <h1 class="text-3xl md:text-4xl font-bold mb-2 break-words">📚 Kinh Sách</h1>
+        <p class="opacity-90 max-w-2xl break-words">
           Thư viện kinh sách Phật giáo · Đạo giáo · Kinh văn · Sách quý.<br>
           Đọc online · Tải offline · Viết cảm ngộ · Tặng hoa kính dâng.
         </p>
-        <p class="text-sm opacity-75 mt-2 italic">"Đọc một cuốn sách hay là đối thoại với những bậc thánh hiền đã khuất." — René Descartes</p>
+        <p class="text-sm opacity-75 mt-2 italic break-words">"Đọc một cuốn sách hay là đối thoại với những bậc thánh hiền đã khuất." — René Descartes</p>
       </div>
       <!-- Search -->
-      <form action="/kinh-sach/tim-kiem" method="GET" class="flex items-center gap-2 w-full md:w-auto">
+      <form action="/kinh-sach/tim-kiem" method="GET" class="flex items-center gap-2 w-full md:w-auto max-w-full">
         <input type="text" name="q" placeholder="Tìm sách, tác giả..."
-               class="px-4 py-3 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 w-full md:w-64">
-        <button type="submit" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-4 py-3 rounded-xl transition whitespace-nowrap">
+               class="px-4 py-3 rounded-xl text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 w-full md:w-64 min-w-0">
+        <button type="submit" class="bg-amber-400 hover:bg-amber-500 text-gray-900 font-semibold px-4 py-3 rounded-xl transition whitespace-normal break-words shrink-0">
           🔍 Tìm
         </button>
       </form>

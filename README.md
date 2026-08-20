@@ -2,11 +2,11 @@
 
 > *Siêu thoát không siêu thích. Giải thoát không giải thích. Buông bỏ mới có thể trở về.*
 
-**Phiên bản:** v0.9.46 — Giai đoạn 61-70
+**Phiên bản:** v0.9.47 — Giai đoạn 71: Nhật Ký Tu Học
 **Domain:** [tubi.louis.vangioitutien.com](https://tubi.louis.vangioitutien.com)
 **Stack:** Rust 1.97.1 · axum 0.8 · PostgreSQL 17 · Askama 0.14 · Alpine.js · Tailwind CSS
 
-Ứng dụng Phật giáo Việt Nam giúp thành viên ứng dụng từ bi vào cuộc sống, tu học và giải trí — từ đó hiểu rõ hơn về khổ đau, giác ngộ và giải thoát.
+Ứng dụng Phật giáo Việt Nam giúp thành viên ứng dụng từ bi vào cuộc sống, tu học và chia sẻ — từ đó hiểu rõ hơn về khổ đau, giác ngộ và giải thoát. Đây là ứng dụng thuần tu học và cộng đồng (không có yếu tố game).
 
 ---
 
@@ -219,7 +219,7 @@ Theo tài liệu `HieuLouis/Kế Hoạch Và Mục Tiêu Phát Triển Dự Án 
 ### Giai đoạn III — Toàn cầu hóa (1000 ngày)
 - 🌍 Quốc tế hóa (EN, ZH, JA, KO)
 - 🌍 Cộng đồng quốc tế + đại sứ cộng đồng
-- 🌍 Hệ sinh thái hoàn thiện: Ứng Dụng Từ Bi + Cộng Đồng Từ Bi + Game Siêu Độ + AI Từ Bi + Học viện Từ Bi
+- 🌍 Hệ sinh thái hoàn thiện: Ứng Dụng Từ Bi + Cộng Đồng Từ Bi + AI Từ Bi + Học viện Từ Bi + Hỗ Trợ Người Tu + Hoạt Động Thiện Nguyện
 
 Xem roadmap trực quan tại `/admin/phat-trien` (yêu cầu admin role).
 
@@ -229,7 +229,10 @@ Xem roadmap trực quan tại `/admin/phat-trien` (yêu cầu admin role).
 
 | Phiên bản | Giai đoạn | Tóm tắt |
 |---|---|---|
-| **v0.9.44** | **48-52** | Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics |
+| **v0.9.47** | **71** | **Nhật Ký Tu Học (Practice Diary) + UI Overflow Fix + Orphan Page Fix + DB Race-condition Fix** |
+| v0.9.46 | 61-70 | Tượng Phật Ủng Hộ + Vòng Quay + Bao Lì Xì + Tinh Khí Thần + Nhà Vườn + Đại Sảnh + Truyền Tống + Sự Kiện + Huy Hiệu + Bảng Vinh Danh |
+| v0.9.45 | 53-60 | Tu Sĩ + Auto Rank + Reminders + Reading Progress + Daily Login + Goals + Hot Topics + SEO |
+| v0.9.44 | 48-52 | Music Approval Hardening + Notification Polish + Hoạt Động Cộng Đồng + Kinh Sách FTS + Admin Analytics |
 | v0.9.43 | 47 | Currency Exchange (A↔K↔Bi) + Music Submit DB Hardening + Coolify Webhook POST |
 | v0.9.42 | 46 | Forbidden Words Auto-Check + Hệ Thống Tiền Tệ Bi + Balance UI |
 | v0.9.41 | 45 | Admin Moderation Hoàn Thiện + Từ Vựng Cấm + Heartbeat Fix |

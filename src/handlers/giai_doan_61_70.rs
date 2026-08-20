@@ -523,6 +523,9 @@ pub async fn api_vong_quay_quay(State(state): State<AppState>, jar: CookieJar) -
         "bi" => {
             let _ = sqlx::query("UPDATE users SET bi_balance = COALESCE(bi_balance, 0) + $2, updated_at = NOW() WHERE id = $1")
                 .bind(user.id).bind(prize_amount).execute(&mut *tx).await;
+            // v0.9.47 fix: log balance_transactions cho "bi" case (trước đây thiếu)
+            let _ = sqlx::query("INSERT INTO balance_transactions (user_id, currency, amount, direction, reason) VALUES ($1, 'bi', $2, 'in', 'vong_quay_may_man')")
+                .bind(user.id).bind(prize_amount).execute(&mut *tx).await;
             reward_text = format!("+{} Bi (Tiền Từ Bi)", prize_amount);
         }
         "item" => {
@@ -1848,12 +1851,25 @@ pub async fn api_su_kien_nhan(State(state): State<AppState>, jar: CookieJar, Pat
             .bind(user.id).bind(bonus_k).execute(&mut *tx).await;
     }
 
-    // Log claim
-    let _ = sqlx::query(
-        "INSERT INTO event_reward_claims (user_id, event_id, event_date, reward_a, reward_k) VALUES ($1, $2, CURRENT_DATE, $3, $4)"
+    // Log claim — v0.9.47 fix: dùng ON CONFLICT DO NOTHING + check rows_affected
+    // để tránh race condition (2 request concurrent cùng pass check `already`, cùng apply reward → double count).
+    let claim_result = sqlx::query(
+        "INSERT INTO event_reward_claims (user_id, event_id, event_date, reward_a, reward_k)
+         VALUES ($1, $2, CURRENT_DATE, $3, $4)
+         ON CONFLICT (user_id, event_id, event_date) DO NOTHING"
     )
     .bind(user.id).bind(event_id).bind(bonus_a).bind(bonus_k)
     .execute(&mut *tx).await;
+
+    let claim_rows = claim_result.map(|r| r.rows_affected()).unwrap_or(0);
+    if claim_rows == 0 {
+        // Race condition: đã có claim từ request khác → rollback toàn bộ reward updates.
+        let _ = tx.rollback().await;
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "Bạn đã nhận thưởng sự kiện này hôm nay (race condition detected, rollback)"
+        })).into_response();
+    }
 
     if let Err(e) = tx.commit().await {
         return Json(serde_json::json!({"ok": false, "error": format!("commit: {e}")})).into_response();
